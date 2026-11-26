@@ -51,6 +51,9 @@ public sealed class MainWindow : Window
     private int lastSavedSecond, accountedSeconds;
     private bool closing, watchingReward, spending;
     private DailyStatus? daily;
+    private readonly Dictionary<string,long> historyCursors = new();
+    private Button resultDaily = null!;
+    private bool weeklyRewards;
     private TextBlock lives = null!, score = null!, quest = null!;
     private Button rewardLife = null!, rewardHint = null!, rewardCandidates = null!;
     private Game? G => state.Game;
@@ -61,6 +64,7 @@ public sealed class MainWindow : Window
     {
         state = store.Load();
         state.Game?.UpgradeRules();
+        if (G is { Completed: false, OutOfLives: false }) G.Paused = true;
         if (G?.ReviveReadyAt is not null) G.CancelRevive();
         if (G is { Completed: false }) state.AutoFinish = G.AutoFinish;
         // A legacy life purchase cannot be used outside the new last-chance rule.
@@ -95,10 +99,9 @@ public sealed class MainWindow : Window
             state.Maximized = WindowState == WindowState.Maximized;
             Save();
         };
-        Loaded += async (_, _) =>
+        Loaded += (_, _) =>
         {
-            if (G is null) await Generate(false);
-            else { SyncClock(); Render(); FocusCell(); if (G.Completed) status.Text = "Відновлено завершену головоломку."; }
+            SyncClock(); Render(); FocusCell();
             if (store.Warning is { } warning) status.Text = warning;
         };
         Render();
@@ -195,7 +198,7 @@ public sealed class MainWindow : Window
         theme = Action("Тема", () => { state.Dark = !state.Dark; ApplyTheme(); Render(); Save(); }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center; theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Рейтинг", () => _ = ShowRanking()), Action("Акаунт", ShowAccount), theme })
+        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
         { b.Margin = new Thickness(5, 0, 0, 0); headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1); At(root, header, 0, 0, 3);
 
@@ -281,16 +284,14 @@ public sealed class MainWindow : Window
         foreach (var b in new[] { undo, redo, erase, notes, hint, fill, pause, restart })
         { b.Margin = new Thickness(2); actions.Children.Add(b); }
         side.Children.Add(actions); Gap(side, 10);
-        side.Children.Add(Text("Винагороди", 16, "Text", true));
-        side.Children.Add(Action("Щоденні нагороди", () => _ = ShowDaily(), primary: true));
-        quest = Text("", 12, "Muted"); side.Children.Add(quest); Gap(side, 5);
+        quest = Text("", 12, "Muted");
         rewardLife = Action("+1 життя · 8 с", () => Reward("life"));
         rewardHint = Action("+1 підказка · 8 с", () => Reward("hint"));
         rewardCandidates = Action("+1 кандидати · 8 с", () => Reward("candidates"));
         foreach (var b in new[] { rewardHint, rewardCandidates }) side.Children.Add(b);
         Gap(side, 10);
         side.Children.Add(Text("Налаштування", 16, "Text", true));
-        autoFinish = Option("Автозавершення ≤9 клітинок (−20 балів/клітинка)", state.AutoFinish, v =>
+        autoFinish = Option("Автозавершення ≤9 клітинок", state.AutoFinish, v =>
         {
             state.AutoFinish = v;
             if (G is { Completed: false, OutOfLives: false } g) { g.AutoFinish = v; if (Playing) Change(x => x.TryAutoFinish()); }
@@ -319,7 +320,7 @@ public sealed class MainWindow : Window
             button.Margin = new Thickness(3); resultLevels.Children.Add(button);
         }
         result.Children.Add(Action("Нова головоломка", () => _ = Generate(false), primary: true));
-        result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); result.Children.Add(Action("Щоденні нагороди", () => _ = ShowDaily()));
+        result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); resultDaily = Action("Щоденні нагороди", () => { weeklyRewards = false; _ = ShowDaily(); }); result.Children.Add(resultDaily);
         resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         resultCard.Visibility = Visibility.Collapsed; At(root, resultCard, 1, 0, 3);
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };
@@ -418,10 +419,10 @@ public sealed class MainWindow : Window
         {
             int d = i + 1;
             int remaining = g is null ? 9 : g.Remaining(d);
-            var stack = Stack(); stack.Children.Add(Text(d.ToString(), 21, "Text", true));
-            var count = Text($"ще {remaining}", 10, "Muted"); count.TextAlignment = TextAlignment.Center;
-            ((TextBlock)stack.Children[0]).TextAlignment = TextAlignment.Center;
-            stack.Children.Add(count); digits[i].Content = stack;
+            var grid = new Grid { MinHeight = 35 };
+            var number = Text(d.ToString(), 21, "Text", true); number.HorizontalAlignment = HorizontalAlignment.Center; number.VerticalAlignment = VerticalAlignment.Center;
+            var count = Text(remaining.ToString(), 10, "Muted"); count.HorizontalAlignment = HorizontalAlignment.Right; count.VerticalAlignment = VerticalAlignment.Bottom;
+            grid.Children.Add(number); grid.Children.Add(count); digits[i].HorizontalContentAlignment = HorizontalAlignment.Stretch; digits[i].Content = grid;
             digits[i].IsEnabled = active && g!.Editable(g.Selected) && (g.NotesMode || remaining > 0);
             digits[i].Opacity = remaining == 0 ? 0.55 : 1;
             AutomationProperties.SetName(digits[i], $"Цифра {d}, залишилось {remaining}");
@@ -437,8 +438,10 @@ public sealed class MainWindow : Window
         quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди • онлайн" : $"Сьогодні: {daily.Wins}/7 перемог • карток: {daily.Packs.Count}";
         rewardLife.IsEnabled = false;
         autoFinish.IsEnabled = !Busy && g is { Completed: false, OutOfLives: false };
-        rewardHint.IsEnabled = !Busy && !watchingReward && g?.CanReward("hint") == true;
-        rewardCandidates.IsEnabled = !Busy && !watchingReward && g?.CanReward("candidates") == true;
+        rewardHint.Visibility = g?.CanAdReward("hint") == true && WalletCount("hint") == 0 ? Visibility.Visible : Visibility.Collapsed;
+        rewardCandidates.Visibility = g?.CanAdReward("candidates") == true && WalletCount("candidates") == 0 ? Visibility.Visible : Visibility.Collapsed;
+        rewardHint.IsEnabled = rewardCandidates.IsEnabled = !Busy && !watchingReward;
+        resultDaily.Visibility = account is not null && g?.Completed == true && daily?.Packs.Any(p => p.Milestone != "weekly") == true ? Visibility.Visible : Visibility.Collapsed;
         notes.Content = g?.NotesMode == true ? "Нотатки: увімк." : "Нотатки";
         notes.Background = B(g?.NotesMode == true ? "Same" : "Control");
         pause.IsEnabled = g is not null && !Busy && !g.Completed && !g.OutOfLives;
@@ -583,7 +586,7 @@ public sealed class MainWindow : Window
             }
             status.Text = $"Головоломку завершено! {G.CurrentScore:N0} балів.";
         }
-        else status.Text = message ?? "Хід збережено.";
+        else status.Text = "";
         Render(); Save(); FocusCell();
         if (oldLives > G.Lives) Fade(lives);
         for (int i = 0; i < 81; i++) if (before[i] != G.Values[i] && G.Values[i] != 0)
@@ -626,8 +629,7 @@ public sealed class MainWindow : Window
         {
             try { daily = await Request<DailyStatus>("daily"); }
             catch { }
-            if (WalletCount(kind) > 0 && Dialog("Ресурс зі сховища", $"Використати 1 одиницю: {ResourceName(kind)}?", true))
-            { await Spend(kind); return; }
+            if (WalletCount(kind) > 0) { if (Dialog("Ресурс зі сховища", $"Використати 1 одиницю: {ResourceName(kind)}?", true)) await Spend(kind); return; }
         }
         Reward(kind);
     }
@@ -660,7 +662,7 @@ public sealed class MainWindow : Window
             try { store.Save(state); }
             catch { state.Game = game; state.PendingReward = pending; throw; }
             daily = await Request<DailyStatus>("daily", token: session.Token);
-            status.Text = "Ресурс зі сховища використано.";
+            status.Text = "";
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
         {
@@ -675,8 +677,8 @@ public sealed class MainWindow : Window
     private async Task ShowDaily()
     {
         if (account is null) { ShowAccount(); return; }
-        var panel = Stack(); panel.Children.Add(Text("Щоденні нагороди", 24, "Text", true));
-        panel.Children.Add(Text("Вхід • 1, 3 і 7 перемог • оберіть одну з трьох закритих карток.", 13, "Muted"));
+        if (!weeklyRewards && G?.Completed != true) return;
+        var panel = Stack(); panel.Children.Add(Text(weeklyRewards ? "Призи турніру" : "Щоденні нагороди", 24, "Text", true));
         Gap(panel);
         var body = Stack(); panel.Children.Add(body);
         var window = Modal("Щоденні нагороди", panel, 540);
@@ -697,10 +699,10 @@ public sealed class MainWindow : Window
                 use.IsEnabled = WalletCount(k) > 0 && G?.CanReward(k) == true && state.PendingReward is null;
                 body.Children.Add(use);
             }
-            if (d.Packs.Count == 0) { body.Children.Add(Text("Усі доступні нагороди отримано.", 13, "Muted")); return; }
-            var pack = d.Packs[0];
+            var pack = d.Packs.FirstOrDefault(p => weeklyRewards ? p.Milestone == "weekly" : p.Milestone != "weekly");
+            if (pack is null) { body.Children.Add(Text("Немає доступних нагород.", 13, "Muted")); return; }
             string milestone = pack.Milestone switch { "login" => "Щоденний вхід", "win1" => "Перша перемога",
-                "win3" => "Третя перемога", _ => $"Сьома перемога • {pack.Slot + 1}/3" };
+                "win3" => "Третя перемога", "weekly" => "Тижневий турнір", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
             Gap(body); body.Children.Add(Text(milestone, 17, "Text", true));
             var cards = new UniformGrid { Columns = 3 }; body.Children.Add(cards);
             for (int i = 0; i < 3; i++)
@@ -740,7 +742,7 @@ public sealed class MainWindow : Window
     {
         if (Busy || watchingReward || state.PendingReward is not null || G is not { } game) return;
         bool revival = kind == "life";
-        if (revival ? !game.BeginRevive(DateTimeOffset.UtcNow) : !game.CanReward(kind)) return;
+        if (revival ? !game.BeginRevive(DateTimeOffset.UtcNow) : !game.CanAdReward(kind) || WalletCount(kind)>0) return;
         if (revival) { try { store.Save(state); } catch { game.CancelRevive(); Render(); return; } }
         watchingReward = true; SyncClock(); Render();
         var panel = Stack(); panel.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
@@ -766,7 +768,7 @@ public sealed class MainWindow : Window
         }
         watch.Tick += (_, _) => Update(); window.Closed += (_, _) => watch.Stop();
         Update(); watch.Start();
-        try { if (window.ShowDialog() == true) { status.Text = "Винагороду отримано."; Save(); } }
+        try { if (window.ShowDialog() == true) { status.Text = ""; Save(); } }
         finally { if (revival) game.CancelRevive(); watchingReward = false; SyncClock(); Render(); Save(); FocusCell(); }
     }
 
@@ -782,7 +784,7 @@ public sealed class MainWindow : Window
         ReadClock(); var previous = Terminal(G.Completed ? "completed" : G.OutOfLives ? "defeated" : "abandoned"); var scope = state.GameScope ?? "";
         clock.Reset(); state.Game = Game.Start(G.Puzzle); state.Game.AutoFinish = state.AutoFinish; BeginAttempt(); lastSavedSecond = 0;
         SyncClock(); Render(); Save(previous, scope); FocusCell();
-        status.Text = "Головоломку розпочато заново.";
+        status.Text = "";
     }
     private bool Confirm(string message) => Dialog("Підтвердження", message, true);
     private async Task Generate(bool confirm)
@@ -800,7 +802,7 @@ public sealed class MainWindow : Window
             var previous = G is null ? null : Terminal(G.Completed ? "completed" : G.OutOfLives ? "defeated" : "abandoned");
             string scope = state.GameScope ?? "";
             state.Game = Game.Start(puzzle); state.Game.AutoFinish = state.AutoFinish; BeginAttempt(); lastSavedSecond = 0; Save(previous, scope);
-            status.Text = "Нова головоломка. Єдиний розв’язок перевірено.";
+            status.Text = "";
         }
         catch (OperationCanceledException)
         { if (!closing) status.Text = "Генерацію скасовано або перевищено час очікування."; }
@@ -829,6 +831,7 @@ public sealed class MainWindow : Window
 
     private Window Modal(string title, UIElement content, double width = 480, double maxHeight = 660)
     {
+        if (Playing) { ReadClock(); G!.Paused = true; SyncClock(); Render(); Save(); }
         return new Window
         {
             Owner = this, Title = title, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
@@ -892,9 +895,15 @@ public sealed class MainWindow : Window
                 store.Merge(scope, records);
             }
             if (draft is not null) await Request<SyncAck>("desktop/draft", draft, endpoint, session.Token);
-            var remote = await Request<List<GameRecord>>("history", endpoint: endpoint, token: session.Token);
-            if (closing) return;
-            store.Merge(scope, remote);
+            long cursor = historyCursors.GetValueOrDefault(scope);
+            while (true)
+            {
+                var page = await Request<HistoryPage>($"history/changes?after={cursor}", endpoint: endpoint, token: session.Token);
+                if (closing) return;
+                if (page.Records.Count > 0) store.Merge(scope, page.Records);
+                cursor = page.Cursor; historyCursors[scope] = cursor;
+                if (page.Records.Count < 100) break;
+            }
             if (ReferenceEquals(account, session)) { reachable = true; await ResumeSpend(); var updated = await Request<DailyStatus>("daily", token: session.Token); if (ReferenceEquals(account, session) && !closing) { daily = updated; Render(); } }
         }
         catch (Exception ex)
@@ -1101,6 +1110,9 @@ public sealed class MainWindow : Window
         var records = store.History(Scope);
         var panel = Stack(); panel.Children.Add(Text("Історія та статистика", 24, "Text", true)); Gap(panel);
         var wins = records.Where(r => r.Outcome == "completed").ToList();
+        int streak = 0, bestStreak = 0; foreach (var record in records.OrderBy(r => r.Ended).ThenBy(r => r.Id)) { if (record.Outcome == "completed") { streak++; bestStreak = Math.Max(bestStreak, streak); } else streak = 0; }
+        int perfect = wins.Count(r => r.Game.Mistakes == 0 && r.Game.Hints == 0 && r.Game.CandidateUses == 0 && r.Game.AutoFilled == 0 && r.Game.LifeRestores == 0);
+        panel.Children.Add(Text($"Ідеальні перемоги: {perfect} • серія: {streak} • рекорд серії: {bestStreak}", 14, "Accent"));
         panel.Children.Add(Text($"Ігор: {records.Count}   Перемог: {wins.Count}   Балів: {wins.Sum(r => (long)r.Score)}", 16));
         panel.Children.Add(Text($"Час: {FormatTime(records.Sum(r => r.Game.Seconds))} • Помилки: {records.Sum(r => (long)r.Game.Mistakes)} • Підказки: {records.Sum(r => (long)r.Game.Hints)}", 13, "Muted"));
         foreach (var d in Enum.GetValues<Difficulty>())
@@ -1145,16 +1157,16 @@ public sealed class MainWindow : Window
             loading = true;
             try
             {
-                var ranks = await Request<List<RankEntry>>("ranking", token: "");
-                var allRanks = await Request<List<RankEntry>>("ranking?mode=all", token: "");
+                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=score", token: "");
+                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric=score&all=true", token: "");
                 if (!window.IsVisible) return;
                 rows.Children.Clear();
-                void Table(string title, List<RankEntry> data)
+                void Table(string title, List<AccumulatedRank> data)
                 {
                     rows.Children.Add(Text(title, 18, "Text", true)); Gap(rows, 8);
                     for (int i = 0; i < data.Count; i++)
                     {
-                        var r = data[i]; rows.Children.Add(Text($"{i + 1}. {r.User} • {r.Games} перемог • {r.Score} балів", 15)); Gap(rows, 5);
+                        var r = data[i]; rows.Children.Add(Text($"{i + 1}. {r.User} • {r.Wins} перемог • {r.PerfectWins} ідеальних • серія {r.CurrentStreak}/{r.BestStreak} • {r.Score} балів", 15)); Gap(rows, 5);
                     }
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
                     Gap(rows, 16);
@@ -1170,6 +1182,34 @@ public sealed class MainWindow : Window
         window.Closed += (_, _) => refresh.Stop();
         window.ShowDialog();
         await Task.CompletedTask;
+    }
+
+    private async Task ShowWeekly()
+    {
+        var panel = Stack(); panel.Children.Add(Text("Тижневий турнір", 24, "Text", true));
+        var body = Stack(); panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 460, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var window = Modal("Турнір", panel, 600);
+        var prizes = Action("Отримати приз", () => { window.Close(); weeklyRewards = true; _ = ShowDaily(); }, primary: true);
+        prizes.Visibility = Visibility.Collapsed; panel.Children.Add(prizes);
+        var close = Action("Закрити", () => window.Close()); close.IsCancel = true; panel.Children.Add(close);
+        window.Loaded += async (_, _) =>
+        {
+            try
+            {
+                var w = await Request<WeeklyRanking>("weekly", token: "");
+                if (!window.IsVisible) return;
+                void Table(string title, List<RankEntry> leaders)
+                {
+                    body.Children.Add(Text(title, 18, "Text", true)); Gap(body);
+                    for (int i=0;i<leaders.Count;i++) { var r=leaders[i]; body.Children.Add(Text($"{i+1}. {r.User} • {r.Games} перемог • {r.Score} балів", 14)); }
+                    if (leaders.Count==0) body.Children.Add(Text("Немає результатів.", 13, "Muted")); Gap(body, 12);
+                }
+                Table(w.Week,w.Leaders); Table(w.PreviousWeek ?? "Попередній тиждень",w.PreviousLeaders);
+                if (account is not null) { daily=await Request<DailyStatus>("daily"); prizes.Visibility=daily.Packs.Any(p=>p.Milestone=="weekly")?Visibility.Visible:Visibility.Collapsed; }
+            }
+            catch { body.Children.Add(Text("Сервіс недоступний.", 14, "Wrong")); }
+        };
+        window.ShowDialog(); await Task.CompletedTask;
     }
 
     private void ShowHelp()
