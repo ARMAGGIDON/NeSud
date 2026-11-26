@@ -27,7 +27,7 @@ async function reconnect() {
     const e = epoch;
     busy = true;
     try {
-        const data = await gameSnapshot(challengeDay, tab === "play");
+        const data = tab === "play" ? await gameSnapshot(challengeDay, true) : await observeGame(challengeDay);
         if (e !== epoch) return;
         accept(data);
         if (tab === "play" && game?.reward && !$("ad").open) {

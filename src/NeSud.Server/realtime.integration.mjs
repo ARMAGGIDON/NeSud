@@ -57,7 +57,7 @@ try {
     assert.equal(move.data.baseRevision, snapshot.revision);
     assert.ok(move.data.changes.notes);
     await movePush;
-    const remote = (await second.invoke("Snapshot", null, false)).data;
+    const remote = (await second.invoke("Observe", null)).data;
     assert.equal(remote.revision, move.data.revision);
     assert.equal((await second.invoke("Move", snapshot.id, snapshot.revision, "enter", cell, 2, true, null, null)).status, 409);
     const restPush = changed(first);

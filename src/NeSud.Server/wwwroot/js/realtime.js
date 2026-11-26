@@ -121,6 +121,7 @@ function mergeGameDelta(current, data) {
 }
 
 const gameSnapshot = (day, pause = false) => invokeGame("Snapshot", day ?? null, pause);
+const observeGame = day => invokeGame("Observe", day ?? null);
 const gameNew = request => invokeGame("New", request.difficulty, request.id, request.revision,
     request.autoFinish, request.challengeDay ?? null);
 async function gameMove(request) {
@@ -148,7 +149,7 @@ async function flushGameRefresh() {
     try {
         for (const day of days) {
             if (day !== currentDay && day !== null) continue;
-            const data = await gameSnapshot(day, false);
+            const data = await observeGame(day);
             if (epoch !== e || token !== secret || challengeDay !== currentDay) return;
             if (day === currentDay) {
                 const wasTerminal = game?.completed || game?.finalDefeat;

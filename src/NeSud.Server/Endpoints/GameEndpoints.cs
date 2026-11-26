@@ -30,7 +30,7 @@ internal static partial class Endpoints
             if (result is IStatusCodeHttpResult { StatusCode: 200 } && result is IValueHttpResult { Value: not null } value)
             {
                 var data = Wire.Map(value.Value);
-                if (request.Action != "heartbeat" ||
+                if (data.GetValueOrDefault("finalDefeat") is true ||
                     data.TryGetValue("revision", out var revision) && Convert.ToInt64(revision) != request.Revision)
                     await GameHub.Notify(hub.Clients.Group(GameHub.Group(name)), request.ChallengeDay, result);
                 if (!ServerStore.IsGuest(name) && (data.GetValueOrDefault("completed") is true ||
@@ -43,6 +43,18 @@ internal static partial class Endpoints
             }
             return result;
         });
+    }
+
+    // Observers must not extend an active game or persist another copy of its state.
+    internal static IResult ObserveGame(ServerStore s, string name, string? challengeDay)
+    {
+        if (challengeDay is not null && (ServerStore.IsGuest(name) || !s.ChallengeAllowed(challengeDay)))
+            return Results.BadRequest(new { error = "Дата щоденної гри недоступна." });
+        lock (s.Gate)
+        {
+            return s.Session(name, challengeDay) is { } session
+                ? Results.Ok(View(session)) : Results.Ok(new { empty = true });
+        }
     }
 
     internal static IResult ReadGame(ServerStore s, string name, bool? pause, string? challengeDay)

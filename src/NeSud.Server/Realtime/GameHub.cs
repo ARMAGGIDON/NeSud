@@ -42,6 +42,12 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         return true;
     }
 
+    public Dictionary<string, object?> Observe(string? day)
+    {
+        if (Account() is not { } name) return Wire.Error(401);
+        return Wire.Response(Endpoints.ObserveGame(store, name, day));
+    }
+
     public async Task<Dictionary<string, object?>> Snapshot(string? day, bool pause)
     {
         if (Account() is not { } name) return Wire.Error(401);
@@ -75,7 +81,8 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         var response = Wire.Response(result);
         if (response["data"] is Dictionary<string, object?> data)
         {
-            if (action != "heartbeat" || data.TryGetValue("revision", out var next) && Convert.ToInt64(next) != revision)
+            if (data.GetValueOrDefault("finalDefeat") is true ||
+                data.TryGetValue("revision", out var next) && Convert.ToInt64(next) != revision)
                 await Publish(name, day, result);
             if (!ServerStore.IsGuest(name) &&
                 (data.GetValueOrDefault("completed") is true || data.GetValueOrDefault("finalDefeat") is true))
