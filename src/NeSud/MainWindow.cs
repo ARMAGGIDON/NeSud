@@ -20,7 +20,7 @@ using System.Security.Cryptography;
 
 namespace NeSud;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly LocalStore store = new(LocalStore.DefaultPath, StateStore.DefaultPath);
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(12) };
@@ -54,7 +54,7 @@ public sealed class MainWindow : Window
     private readonly Dictionary<string,long> historyCursors = new();
     private readonly Dictionary<string,string> draftFingerprints = new();
     private Button resultDaily = null!;
-    private bool weeklyRewards;
+    private bool weeklyRewards, challengeRewards;
     private TextBlock lives = null!, score = null!, quest = null!;
     private Button rewardLife = null!, rewardHint = null!, rewardCandidates = null!;
     private Game? G => state.Game;
@@ -199,7 +199,7 @@ public sealed class MainWindow : Window
         theme = Action("Тема", () => { state.Dark = !state.Dark; ApplyTheme(); Render(); Save(); }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center; theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
+        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
         { b.Margin = new Thickness(5, 0, 0, 0); headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1); At(root, header, 0, 0, 3);
 
@@ -321,7 +321,7 @@ public sealed class MainWindow : Window
             button.Margin = new Thickness(3); resultLevels.Children.Add(button);
         }
         result.Children.Add(Action("Нова головоломка", () => _ = Generate(false), primary: true));
-        result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); resultDaily = Action("Щоденні нагороди", () => { weeklyRewards = false; _ = ShowDaily(); }); result.Children.Add(resultDaily);
+        result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); resultDaily = Action("Щоденні нагороди", () => { weeklyRewards = challengeRewards = false; _ = ShowDaily(); }); result.Children.Add(resultDaily);
         resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         resultCard.Visibility = Visibility.Collapsed; At(root, resultCard, 1, 0, 3);
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };
@@ -442,7 +442,7 @@ public sealed class MainWindow : Window
         rewardHint.Visibility = g?.CanAdReward("hint") == true && WalletCount("hint") == 0 ? Visibility.Visible : Visibility.Collapsed;
         rewardCandidates.Visibility = g?.CanAdReward("candidates") == true && WalletCount("candidates") == 0 ? Visibility.Visible : Visibility.Collapsed;
         rewardHint.IsEnabled = rewardCandidates.IsEnabled = !Busy && !watchingReward;
-        resultDaily.Visibility = account is not null && g?.Completed == true && daily?.Packs.Any(p => p.Milestone != "weekly") == true ? Visibility.Visible : Visibility.Collapsed;
+        resultDaily.Visibility = account is not null && g?.Completed == true && daily?.Packs.Any(p => p.Milestone is not ("weekly" or "challenge")) == true ? Visibility.Visible : Visibility.Collapsed;
         notes.Content = g?.NotesMode == true ? "Нотатки: увімк." : "Нотатки";
         notes.Background = B(g?.NotesMode == true ? "Same" : "Control");
         pause.IsEnabled = g is not null && !Busy && !g.Completed && !g.OutOfLives;
@@ -678,8 +678,8 @@ public sealed class MainWindow : Window
     private async Task ShowDaily()
     {
         if (account is null) { ShowAccount(); return; }
-        if (!weeklyRewards && G?.Completed != true) return;
-        var panel = Stack(); panel.Children.Add(Text(weeklyRewards ? "Призи турніру" : "Щоденні нагороди", 24, "Text", true));
+        if (!weeklyRewards && !challengeRewards && G?.Completed != true) return;
+        var panel = Stack(); panel.Children.Add(Text(weeklyRewards ? "Призи турніру" : challengeRewards ? "Нагороди щоденних ігор" : "Щоденні нагороди", 24, "Text", true));
         Gap(panel);
         var body = Stack(); panel.Children.Add(body);
         var window = Modal("Щоденні нагороди", panel, 540);
@@ -689,7 +689,7 @@ public sealed class MainWindow : Window
         {
             body.Children.Clear();
             if (daily is not { } d) return;
-            body.Children.Add(Text($"Сьогодні: {d.Wins}/7 перемог • доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : p.Milestone != "weekly")}", 15, "Accent", true));
+            body.Children.Add(Text($"Сьогодні: {d.Wins}/7 перемог • доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"))}", 15, "Accent", true));
             body.Children.Add(Text($"Сховище: підказки {d.Hints} • кандидати {d.Candidates}", 14));
             Gap(body);
             foreach (var kind in new[] { "hint", "candidates" })
@@ -700,10 +700,10 @@ public sealed class MainWindow : Window
                 use.IsEnabled = WalletCount(k) > 0 && G?.CanReward(k) == true && state.PendingReward is null;
                 body.Children.Add(use);
             }
-            var pack = d.Packs.FirstOrDefault(p => weeklyRewards ? p.Milestone == "weekly" : p.Milestone != "weekly");
+            var pack = d.Packs.FirstOrDefault(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"));
             if (pack is null) { body.Children.Add(Text("Немає доступних нагород.", 13, "Muted")); return; }
             string milestone = pack.Milestone switch { "login" => "Щоденний вхід", "win1" => "Перша перемога",
-                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
+                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "challenge" => $"Щоденна гра • {pack.Day}", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
             Gap(body); body.Children.Add(Text(milestone, 17, "Text", true));
             var cards = new UniformGrid { Columns = 3 }; body.Children.Add(cards);
             for (int i = 0; i < 3; i++)
@@ -1022,6 +1022,7 @@ public sealed class MainWindow : Window
         if (account is not null)
         {
             panel.Children.Add(Text(account.User, 18, "Text", true));
+            panel.Children.Add(Action("Мій профіль", () => { window.Close(); _ = ShowProfile(null); }));
             panel.Children.Add(Text(reachable ? "● Онлайн • автоматична синхронізація" : "○ Офлайн • синхронізація після відновлення зв’язку", 13, "Muted"));
             Gap(panel, 18);
             panel.Children.Add(Action("Синхронізувати зараз", () => { window.Close(); _ = Sync(); }, primary: true));
@@ -1177,7 +1178,7 @@ public sealed class MainWindow : Window
                     rows.Children.Add(Text(title, 18, "Text", true)); Gap(rows, 8);
                     for (int i = 0; i < data.Count; i++)
                     {
-                        var r = data[i]; rows.Children.Add(Text($"{i + 1}. {r.User} • {r.Wins} перемог • {r.PerfectWins} ідеальних • серія {r.CurrentStreak}/{r.BestStreak} • {r.Score} балів", 15)); Gap(rows, 5);
+                        var r = data[i]; rows.Children.Add(Action($"{i + 1}. {r.User} • {r.Wins} перемог • {r.PerfectWins} ідеальних • серія {r.CurrentStreak}/{r.BestStreak} • {r.Score} балів", () => _ = ShowProfile(r.User))); Gap(rows, 5);
                     }
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
                     Gap(rows, 16);
@@ -1201,7 +1202,7 @@ public sealed class MainWindow : Window
         var panel = Stack(); panel.Children.Add(Text("Тижневий турнір", 24, "Text", true));
         var body = Stack(); panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 460, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var window = Modal("Турнір", panel, 600);
-        var prizes = Action("Отримати приз", () => { window.Close(); weeklyRewards = true; _ = ShowDaily(); }, primary: true);
+        var prizes = Action("Отримати приз", () => { window.Close(); weeklyRewards = true; challengeRewards = false; _ = ShowDaily(); }, primary: true);
         prizes.Visibility = Visibility.Collapsed; panel.Children.Add(prizes);
         var close = Action("Закрити", () => window.Close()); close.IsCancel = true; panel.Children.Add(close);
         window.Loaded += async (_, _) =>
@@ -1213,7 +1214,7 @@ public sealed class MainWindow : Window
                 void Table(string title, List<RankEntry> leaders)
                 {
                     body.Children.Add(Text(title, 18, "Text", true)); Gap(body);
-                    for (int i=0;i<leaders.Count;i++) { var r=leaders[i]; body.Children.Add(Text($"{i+1}. {r.User} • {r.Games} перемог • {r.Score} балів", 14)); }
+                    for (int i=0;i<leaders.Count;i++) { var r=leaders[i]; body.Children.Add(Action($"{i+1}. {r.User} • {r.Games} перемог • {r.Score} балів", () => _ = ShowProfile(r.User))); }
                     if (leaders.Count==0) body.Children.Add(Text("Немає результатів.", 13, "Muted")); Gap(body, 12);
                 }
                 Table(w.Week,w.Leaders); Table(w.PreviousWeek ?? "Попередній тиждень",w.PreviousLeaders);
@@ -1233,7 +1234,7 @@ public sealed class MainWindow : Window
             "P / Esc: пауза; Ctrl+N: нова гра; F1: довідка\n" +
             "Tab: переміщення між елементами; Enter: активувати кнопку.\n\n" +
             "Три життя. Після поразки один шанс за рекламу протягом 10 с. Реклама: 8 с. Підказки та кандидати поповнюються рекламою лише за відсутності ресурсу. Автозавершення: −20 балів за клітинку.\n\n" +
-            "Щодня за 1-шу та 3-тю різні перемоги: картки ×1, ×1, ×2; за 7-му: ×3, ×3, ×3. Турнір: місця 1–2 (×3, ×3, ×3), 3 (×3, ×3, ×2), 4–10 (×2, ×2, ×2), 11–30 (×1, ×1, ×2). Дві картки містять різні типи ресурсу, третя має випадковий тип. Обирається одна з трьох прихованих карток. Ідеальна перемога: без помилок, допомоги та відновлення.", false);
+            "Щодня за 1-шу та 3-тю різні перемоги: картки ×1, ×1, ×2; за 7-му: ×3, ×3, ×3. Турнір: місця 1–2 (×3, ×3, ×3), 3 (×3, ×3, ×2), 4–10 (×2, ×2, ×2), 11–30 (×1, ×1, ×2). Дві картки містять різні типи ресурсу, третя має випадковий тип. Обирається одна з трьох прихованих карток. Ідеальна перемога: без помилок, допомоги та відновлення.\n\nЩоденні ігри: спільна головоломка на дату. Пропущені дні можна пройти до кінця місяця. За кожну перемогу набір ×1, ×1, ×2. За всі дні місяця декоративний кубок у профілі. Режим не входить до звичайних порогів і турніру.", false);
     }
 
     private void OnKey(object sender, KeyEventArgs e)
