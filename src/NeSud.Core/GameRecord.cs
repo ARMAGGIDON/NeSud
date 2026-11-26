@@ -3,8 +3,8 @@ namespace NeSud.Core;
 public sealed record GameRecord(Guid Id, DateTimeOffset Started, DateTimeOffset Ended, string Source,
     string Outcome, Game Game)
 {
-    public int Score => Outcome != "completed" ? 0 : Math.Max(0,
-        1000 * ((int)Game.Puzzle.Difficulty + 1) - Game.Seconds / 3 - 75 * Game.Mistakes - 150 * Game.Hints);
+    public int Score => Outcome != "completed" ? 0 : (int)Math.Max(0L,
+        1000L * ((int)Game.Puzzle.Difficulty + 1) - Game.Seconds / 3L - 75L * Game.Mistakes - 150L * Game.Hints);
 
     public bool Valid() => Id != Guid.Empty && Started <= Ended && Ended <= DateTimeOffset.UtcNow.AddMinutes(5)
         && Source is "desktop" or "web" && Outcome is "completed" or "abandoned"

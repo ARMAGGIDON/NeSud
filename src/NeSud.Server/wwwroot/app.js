@@ -5,7 +5,7 @@ const message=s=>$("status").textContent=s;
 if(localStorage.getItem("theme")==="light")document.documentElement.classList.add("light");
 $("theme").onclick=()=>{document.documentElement.classList.toggle("light");localStorage.setItem("theme",document.documentElement.classList.contains("light")?"light":"dark")};
 async function api(path,body){
- const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),5000);
+ const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),path==='web/new'?30000:5000);
  try{const r=await fetch("/api/"+path,{method:body===undefined?"GET":"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal});
  if(r.status===401){token="";sessionStorage.removeItem("token");showAuth();throw Error("Увійдіть повторно.");}
  if(!r.ok){const problem=await r.json().catch(()=>({}));throw Error(problem.error||problem.detail||(r.status===409?"Сеанс змінено в іншій вкладці.":"Помилка сервера: "+r.status));}

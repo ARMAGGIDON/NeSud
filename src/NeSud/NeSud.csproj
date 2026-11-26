@@ -9,6 +9,6 @@
     <AssemblyName>NeSud</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../NeSud.Core/NeSud.Core.csproj" />
+    <ProjectReference Include="../NeSud.Storage/NeSud.Storage.csproj" />
   </ItemGroup>
 </Project>

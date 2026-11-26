@@ -12,6 +12,11 @@ public sealed class AppState
 {
     public int Version { get; set; } = 1;
     public Game? Game { get; set; }
+    public Guid GameId { get; set; }
+    public DateTimeOffset Started { get; set; }
+    public string? GameScope { get; set; }
+    public string? AccountScope { get; set; }
+    public string ServerUrl { get; set; } = "http://localhost:5080";
     public Difficulty? NextDifficulty { get; set; }
     public bool Dark { get; set; } = true;
     public bool ShowMistakes { get; set; } = true;

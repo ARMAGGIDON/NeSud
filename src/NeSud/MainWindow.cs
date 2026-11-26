@@ -9,12 +9,21 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using NeSud.Core;
+using NeSud.Storage;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Net.Http.Headers;
 
 namespace NeSud;
 
 public sealed class MainWindow : Window
 {
-    private readonly StateStore store = new(StateStore.DefaultPath);
+    private readonly LocalStore store = new(LocalStore.DefaultPath, StateStore.DefaultPath);
+    private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private AccountSession? account;
+    private bool syncing;
+    private DateTimeOffset nextSync = DateTimeOffset.MinValue;
+    private string Scope => state.AccountScope ?? "";
     private readonly AppState state;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly Stopwatch clock = new();
@@ -37,6 +46,7 @@ public sealed class MainWindow : Window
     public MainWindow()
     {
         state = store.Load();
+        if (state.Game is not null && state.GameId == Guid.Empty) { state.GameId = Guid.NewGuid(); state.Started = DateTimeOffset.UtcNow; }
         nextDifficulty = state.NextDifficulty ?? G?.Puzzle.Difficulty ?? Difficulty.Medium;
         Title = "NeSud • Судоку";
         MinWidth = 790; MinHeight = 620;
@@ -52,6 +62,7 @@ public sealed class MainWindow : Window
         {
             ReadClock();
             if (G is not null && G.Seconds - lastSavedSecond >= 5) Save();
+            if (account is not null && !syncing && DateTimeOffset.UtcNow >= nextSync) _ = Sync();
         };
         timer.Start();
         Closing += (_, _) =>
@@ -161,7 +172,10 @@ public sealed class MainWindow : Window
         At(header, brand, 0, 0);
         theme = Action("Тема", () => { state.Dark = !state.Dark; ApplyTheme(); Render(); Save(); }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center; theme.MinWidth = 130;
-        At(header, theme, 0, 1); At(root, header, 0, 0, 3);
+        var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Рейтинг", () => _ = ShowRanking()), Action("Акаунт", ShowAccount), theme })
+        { b.Margin = new Thickness(5, 0, 0, 0); headerActions.Children.Add(b); }
+        At(header, headerActions, 0, 1); At(root, header, 0, 0, 3);
 
         var play = new Grid();
         play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -414,10 +428,10 @@ public sealed class MainWindow : Window
     {
         try
         {
-            store.Save(state); lastSavedSecond = G?.Seconds ?? 0;
-            saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = StateStore.DefaultPath;
+            store.Save(state, G is { Completed: true } ? Terminal("completed") : null, state.GameScope ?? ""); lastSavedSecond = G?.Seconds ?? 0;
+            saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = LocalStore.DefaultPath;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         { saveStatus.Text = "Не збережено"; saveStatus.Foreground = B("Wrong"); saveStatus.ToolTip = ex.Message; }
     }
     private void FocusCell() { if (Playing) cells[G!.Selected].Focus(); }
@@ -470,12 +484,10 @@ public sealed class MainWindow : Window
     {
         if (G is null || Busy) return;
         if (!Confirm("Очистити всі ходи, нотатки та час цієї гри?")) return;
-        clock.Reset(); G.Restart(); lastSavedSecond = 0; SyncClock(); Render(); Save(); FocusCell();
+        ReadClock(); ArchiveCurrent(); clock.Reset(); G.Restart(); G.Awarded = false; BeginAttempt(); lastSavedSecond = 0; SyncClock(); Render(); Save(); FocusCell();
         status.Text = "Головоломку розпочато заново.";
     }
-    private bool Confirm(string message) =>
-        MessageBox.Show(this, message, "NeSud", MessageBoxButton.YesNo, MessageBoxImage.Question,
-            MessageBoxResult.No) == MessageBoxResult.Yes;
+    private bool Confirm(string message) => Dialog("Підтвердження", message, true);
     private async Task Generate(bool confirm)
     {
         if (Busy || closing) return;
@@ -488,7 +500,7 @@ public sealed class MainWindow : Window
         {
             var puzzle = await Task.Run(() => Sudoku.Generate(difficulty, cts.Token), cts.Token);
             if (closing) return;
-            state.Game = Game.Start(puzzle); lastSavedSecond = 0;
+            ArchiveCurrent(); state.Game = Game.Start(puzzle); BeginAttempt(); lastSavedSecond = 0;
             status.Text = "Нова головоломка. Єдиний розв’язок перевірено.";
         }
         catch (OperationCanceledException)
@@ -501,15 +513,203 @@ public sealed class MainWindow : Window
         }
     }
 
+
+    private void BeginAttempt()
+    {
+        state.GameId = Guid.NewGuid(); state.Started = DateTimeOffset.UtcNow; state.GameScope = Scope;
+    }
+
+    private GameRecord Terminal(string outcome) => new(state.GameId, state.Started, DateTimeOffset.UtcNow,
+        "desktop", outcome, G!);
+
+    private void ArchiveCurrent()
+    {
+        if (G is null) return;
+        store.Save(state, Terminal(G.Completed ? "completed" : "abandoned"), state.GameScope ?? "");
+    }
+
+    private Window Modal(string title, UIElement content, double width = 480, double maxHeight = 660)
+    {
+        return new Window
+        {
+            Owner = this, Title = title, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, SizeToContent = SizeToContent.Height,
+            Width = width, MaxHeight = maxHeight, ShowInTaskbar = false, Background = B("Panel"),
+            Foreground = B("Text"), Content = Card(content, 20)
+        };
+    }
+
+    private bool Dialog(string title, string message, bool confirm)
+    {
+        var panel = Stack(); panel.Children.Add(Text(title, 23, "Text", true)); Gap(panel, 12);
+        panel.Children.Add(Text(message, 15)); Gap(panel, 20);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var window = Modal(title, panel);
+        if (confirm)
+        {
+            var cancel = Action("Скасувати", () => window.DialogResult = false);
+            cancel.IsCancel = true; cancel.Margin = new Thickness(0, 0, 8, 0); actions.Children.Add(cancel);
+        }
+        var ok = Action(confirm ? "Підтвердити" : "Зрозуміло", () => window.DialogResult = true, primary: true);
+        ok.IsDefault = !confirm; actions.Children.Add(ok); panel.Children.Add(actions);
+        return window.ShowDialog() == true;
+    }
+
+    private async Task<T> Request<T>(string path, object? body = null, string? endpoint = null, string? token = null)
+    {
+        string url = endpoint ?? state.ServerUrl;
+        using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post,
+            url.TrimEnd('/') + "/api/" + path);
+        var auth = token ?? account?.Token;
+        if (!string.IsNullOrEmpty(auth)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        using var response = await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<T>() ?? throw new InvalidDataException("Порожня відповідь сервера.");
+    }
+
+    private async Task Sync()
+    {
+        if (syncing || account is null || closing) return;
+        syncing = true; nextSync = DateTimeOffset.UtcNow.AddSeconds(30);
+        var session = account; var scope = Scope; var endpoint = state.ServerUrl;
+        try
+        {
+            var pending = store.History(scope, true);
+            foreach (var batch in pending.Chunk(10))
+            {
+                var records = await Request<List<GameRecord>>("sync", batch, endpoint, session.Token);
+                if (closing) return;
+                store.Merge(scope, records);
+            }
+            var remote = await Request<List<GameRecord>>("history", endpoint: endpoint, token: session.Token);
+            if (closing) return;
+            store.Merge(scope, remote);
+            if (ReferenceEquals(account, session)) status.Text = "Синхронізовано з сервером • " + session.User;
+        }
+        catch (Exception ex)
+        {
+            if (!closing && ReferenceEquals(account, session))
+                status.Text = "Офлайн • записи залишаються в локальній БД: " + ex.Message;
+        }
+        finally { syncing = false; }
+    }
+
+    private void ShowAccount()
+    {
+        var panel = Stack(); panel.Children.Add(Text("Акаунт і синхронізація", 22, "Text", true)); Gap(panel);
+        panel.Children.Add(Text(account is null ? "Локальний профіль: " + (Scope.Length == 0 ? "Гість" : Scope) :
+            "Підключено: " + account.User, 13, "Muted")); Gap(panel);
+        panel.Children.Add(Text("Адреса сервера"));
+        var endpoint = new TextBox { Text = state.ServerUrl, Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 12) };
+        endpoint.Background = B("Control"); endpoint.Foreground = B("Text"); endpoint.BorderBrush = B("Line");
+        panel.Children.Add(endpoint); panel.Children.Add(Text("Логін"));
+        var name = new TextBox { Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 12),
+            Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line") };
+        panel.Children.Add(name); panel.Children.Add(Text("Пароль (від 10 символів)"));
+        var password = new PasswordBox { Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 12),
+            Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line") };
+        panel.Children.Add(password);
+        var notice = Text("", 13, "Muted"); panel.Children.Add(notice);
+        var window = Modal("Акаунт", panel, 520);
+        bool working = false;
+        async Task Login(bool register)
+        {
+            if (working) return;
+            string url = endpoint.Text.Trim().TrimEnd('/');
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                !(uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) ||
+                uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
+            { notice.Text = "Використовуйте HTTPS або локальний HTTP."; return; }
+            working = true; notice.Text = "Підключення…";
+            try
+            {
+                var session = await Request<AccountSession>(register ? "register" : "login",
+                    new Credentials(name.Text, password.Password), url, "");
+                if (!window.IsVisible) return;
+                account = session; state.ServerUrl = url; state.AccountScope = url + "|" + session.User;
+                if (store.History("").Count > 0 && Dialog("Імпорт ігор гостя", "Прив’язати локальні ігри гостя до цього акаунта?", true))
+                    store.ClaimGuest(Scope);
+                if (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false })
+                    state.GameScope = Scope;
+                password.Clear(); Save(); window.Close(); _ = Sync();
+            }
+            catch (Exception ex) { notice.Text = "Не вдалося увійти: " + ex.Message; }
+            finally { working = false; }
+        }
+        panel.Children.Add(Action("Увійти", () => _ = Login(false), primary: true));
+        panel.Children.Add(Action("Зареєструватися", () => _ = Login(true)));
+        panel.Children.Add(Action("Синхронізувати", () => { window.Close(); _ = Sync(); }));
+        panel.Children.Add(Action("Вийти / режим гостя", () =>
+        {
+            account = null; state.AccountScope = ""; Save(); window.Close();
+            status.Text = "Гостьовий режим. Попередні записи залишено у своєму профілі.";
+        }));
+        var close = Action("Закрити", () => window.Close()); close.IsCancel = true; panel.Children.Add(close);
+        window.ShowDialog();
+    }
+
+    private void ShowHistory()
+    {
+        var records = store.History(Scope);
+        var panel = Stack(); panel.Children.Add(Text("Історія та статистика", 24, "Text", true)); Gap(panel);
+        var wins = records.Where(r => r.Outcome == "completed").ToList();
+        panel.Children.Add(Text($"Ігор: {records.Count}   Перемог: {wins.Count}   Балів: {wins.Sum(r => (long)r.Score)}", 16));
+        foreach (var d in Enum.GetValues<Difficulty>())
+        {
+            var games = records.Where(r => r.Game.Puzzle.Difficulty == d).ToList();
+            var done = games.Where(r => r.Outcome == "completed").ToList();
+            string best = done.Count == 0 ? "немає" : FormatTime(done.Min(r => r.Game.Seconds));
+            panel.Children.Add(Text($"{Level(d)}: {done.Count}/{games.Count} перемог • найкращий час: {best}", 13, "Muted"));
+        }
+        Gap(panel, 12);
+        if (G is { Completed: false } && (state.GameScope ?? "") == Scope)
+            panel.Children.Add(Text($"Поточна гра: {Level(G.Puzzle.Difficulty)} • {FormatTime(G.Seconds)} • у процесі", 14, "Accent", true));
+        var list = Stack();
+        foreach (var r in records)
+        {
+            var item = Stack();
+            item.Children.Add(Text($"{Level(r.Game.Puzzle.Difficulty)} • {(r.Outcome == "completed" ? "Перемога" : "Перервано")} • {r.Score} балів", 15, "Text", true));
+            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {r.Source} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints}", 12, "Muted"));
+            var card = Card(item, 10); card.Margin = new Thickness(0, 0, 0, 6); list.Children.Add(card);
+        }
+        if (records.Count == 0) list.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
+        panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        Gap(panel); var window = Modal("Історія", panel, 680, 720);
+        var close = Action("Закрити", () => window.Close(), primary: true); close.IsCancel = true; panel.Children.Add(close);
+        window.ShowDialog();
+    }
+
+    private async Task ShowRanking()
+    {
+        try
+        {
+            var ranks = await Request<List<RankEntry>>("ranking");
+            if (closing) return;
+            var panel = Stack(); panel.Children.Add(Text("Серверний рейтинг", 24, "Text", true));
+            panel.Children.Add(Text("Рейтинг обчислюється за завершеними вебіграми. Офлайн-ігри враховуються в особистих балах.", 13, "Muted"));
+            Gap(panel); var rows = Stack();
+            for (int i = 0; i < ranks.Count; i++)
+            {
+                var r = ranks[i]; rows.Children.Add(Text($"{i + 1}. {r.User}  •  {r.Games} перемог  •  {r.Score} балів", 15)); Gap(rows, 5);
+            }
+            if (ranks.Count == 0) rows.Children.Add(Text("Рейтинг ще порожній."));
+            panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+            Gap(panel); var window = Modal("Рейтинг", panel, 560);
+            var close = Action("Закрити", () => window.Close(), primary: true); close.IsCancel = true; panel.Children.Add(close);
+            window.ShowDialog();
+        }
+        catch (Exception ex) { if (!closing) Dialog("Рейтинг недоступний", ex.Message, false); }
+    }
+
     private void ShowHelp()
     {
-        MessageBox.Show(this, "Стрілки: вибір клітинки\n" +
+        Dialog("Клавіатурне керування", "Стрілки: вибір клітинки\n" +
             "1–9 / NumPad: цифра; Shift+цифра: нотатка\n" +
             "N / Space: режим нотаток\nDelete / Backspace / 0: стерти\n" +
             "Ctrl+Z / Ctrl+Y: скасувати / повторити\nH: підказка; A: усі кандидати\n" +
             "P / Esc: пауза; Ctrl+N: нова гра; F1: довідка\n" +
-            "Tab: переміщення між елементами; Enter: активувати кнопку.",
-            "Клавіатурне керування", MessageBoxButton.OK, MessageBoxImage.Information);
+            "Tab: переміщення між елементами; Enter: активувати кнопку.", false);
     }
 
     private void OnKey(object sender, KeyEventArgs e)

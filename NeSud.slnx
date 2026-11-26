@@ -2,6 +2,8 @@
   <Folder Name="/src/">
     <Project Path="src/NeSud.Core/NeSud.Core.csproj" />
     <Project Path="src/NeSud/NeSud.csproj" />
+    <Project Path="src/NeSud.Storage/NeSud.Storage.csproj" />
+    <Project Path="src/NeSud.Server/NeSud.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/NeSud.SmokeTests/NeSud.SmokeTests.csproj" />
