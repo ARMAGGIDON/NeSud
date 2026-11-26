@@ -217,7 +217,7 @@ public sealed partial class MainWindow : Window
         side.Children.Add(levelGrid);
         newGame = Action("Нова головоломка", () => _ = Generate(true), "Ctrl+N", true);
         side.Children.Add(newGame);
-        Gap(side, 12);
+        Gap(side, 7);
         side.Children.Add(Text("Цифри та нотатки", 17, "Text", true));
         Gap(side, 5);
         var pad = new UniformGrid { Columns = 3 };
@@ -227,7 +227,7 @@ public sealed partial class MainWindow : Window
             digits[i] = Action(d.ToString(), () => Enter(d), $"Клавіша {d}");
             digits[i].Margin = new Thickness(2);
             digits[i].Padding = new Thickness(3, 4, 3, 4);
-            digits[i].MinHeight = 49;
+            digits[i].MinHeight = 39;
             pad.Children.Add(digits[i]);
         }
         side.Children.Add(pad);
@@ -243,6 +243,8 @@ public sealed partial class MainWindow : Window
         restart = Action("Заново", Restart, "Почати цю головоломку спочатку");
         foreach (var b in new[] { undo, redo, erase, notes, hint, fill, pause, restart })
         { b.Margin = new Thickness(2);
+        b.MinHeight = 32;
+        b.Padding = new Thickness(6, 4, 6, 4);
         actions.Children.Add(b); }
         side.Children.Add(actions);
         Gap(side, 10);
@@ -268,9 +270,6 @@ public sealed partial class MainWindow : Window
         Gap(side, 9);
         stats = Text("", 12, "Muted");
         side.Children.Add(stats);
-        var help = Action("Довідка", ShowHelp, "F1");
-        Gap(side, 8);
-        side.Children.Add(help);
         var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         sideCard = Card(scroll, 13);

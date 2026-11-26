@@ -1254,3 +1254,9 @@ dialog > .dialog-close {
     #ranking label { display: block; width: 100%; }
     .profile-edit { grid-template-columns: 1fr; }
 }
+
+/* Keep calendar content and controls aligned with the common page grid. */
+#challenge .calendar-head, #challenge .calendar-grid, #challenge #calendar-progress,
+#challenge #calendar-content > h2, #challenge .cups { max-width: none; }
+#challenge .calendar-day { min-height: clamp(42px, 6vh, 64px); }
+#ranking label { vertical-align: top; }

@@ -101,6 +101,12 @@ async function login(guest = false) {
         if ($("auth").open) $("auth").close();
         if (oldGuest && oldToken && oldToken !== token) fetch("/api/logout", { method: "POST", headers: { Authorization: "Bearer " + oldToken } }).catch (() => { });
         await start();
+        if (!guest && registration) {
+            history.replaceState(null, "", location.pathname);
+            await openProfile();
+            try { await api("account/verification/send", {}); profileNotice("Код надіслано на пошту."); }
+            catch (error) { profileNotice("Акаунт створено. " + error.message); }
+        }
     }
     catch (e) {
         const error = e.name === "AbortError" || e instanceof TypeError ? "Не вдалося з’єднатися з сервісом. Спробуйте ще раз.": e.message;

@@ -12,7 +12,7 @@ public sealed partial class ServerStore
 
     private static bool ValidEmail(string value) => value.Length <= 254 &&
         System.Net.Mail.MailAddress.TryCreate(value, out var address) &&
-        string.Equals(address.Address, value, StringComparison.OrdinalIgnoreCase) && value.Contains('@');
+        string.Equals(address.Address, value, StringComparison.OrdinalIgnoreCase) && address.Host.Contains('.');
 
     private static string NewInvite() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 
@@ -210,6 +210,7 @@ public sealed partial class ServerStore
             }
             return inflate.ReadByte() == -1;
         }
+        catch (InvalidDataException) { return false; }
         catch (IOException) { return false; }
     }
 

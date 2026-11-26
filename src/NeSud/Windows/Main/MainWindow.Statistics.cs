@@ -86,9 +86,27 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(indicator);
         Gap(panel);
         var metric = new ComboBox { Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line"), ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0, 0, 0, 8) };
-        panel.Children.Add(metric);
+        var mode = new ComboBox
+        {
+            ItemsSource = new[] { "Серверний рейтинг", "Загальний рейтинг (офлайн включено)" },
+            SelectedIndex = 0, Margin = new Thickness(0, 0, 8, 0)
+        };
+        var filters = new UniformGrid { Columns = 3, Margin = new Thickness(0, 0, 0, 12) };
+        var modePanel = Stack();
+        modePanel.Children.Add(Text("Таблиця", 12, "Muted"));
+        modePanel.Children.Add(mode);
+        filters.Children.Add(modePanel);
+        var metricPanel = Stack();
+        metricPanel.Children.Add(Text("Показник", 12, "Muted"));
+        metric.Margin = new Thickness(0, 0, 8, 0);
+        metricPanel.Children.Add(metric);
+        filters.Children.Add(metricPanel);
         var levelFilter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0, Margin = new Thickness(0, 0, 0, 8) };
-        panel.Children.Add(levelFilter);
+        var levelPanel = Stack();
+        levelPanel.Children.Add(Text("Складність", 12, "Muted"));
+        levelPanel.Children.Add(levelFilter);
+        filters.Children.Add(levelPanel);
+        panel.Children.Add(filters);
         var rows = Stack();
         panel.Children.Add(rows);
         Gap(panel);
@@ -103,8 +121,9 @@ public sealed partial class MainWindow : Window
             {
                 string key = new[] { "score", "wins", "perfect", "current", "streak" }[Math.Max(0, metric.SelectedIndex)];
                 string filter = levelFilter.SelectedIndex > 0?"&difficulty=" + (Difficulty)(levelFilter.SelectedIndex - 1): "";
-                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=" + key + filter, token: "");
-                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric=" + key + "&all=true" + filter, token: "");
+                int selectedMode = mode.SelectedIndex;
+                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=" + key + filter +
+                    (selectedMode == 1 ? "&all=true" : ""), token: "");
                 if (!window.IsVisible) return;
                 rows.Children.Clear();
                 void Table(string title, List<AccumulatedRank> data)
@@ -120,8 +139,7 @@ public sealed partial class MainWindow : Window
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
                     Gap(rows, 16);
                 }
-                Table("Серверний рейтинг", ranks);
-                Table("Загальні бали (офлайн включено)", allRanks);
+                Table(selectedMode == 1 ? "Загальний рейтинг" : "Серверний рейтинг", ranks);
                 indicator.Text = "● Онлайн • оновлено " + DateTime.Now.ToString("HH:mm:ss");
             }
             catch
@@ -133,6 +151,7 @@ public sealed partial class MainWindow : Window
                 loading = false;
             }
         }
+        mode.SelectionChanged += async (_, _) => await Reload();
         metric.SelectionChanged += async (_, _) => await Reload();
         levelFilter.SelectionChanged += async (_, _) => await Reload();
         refresh.Tick += async (_, _) => await Reload();

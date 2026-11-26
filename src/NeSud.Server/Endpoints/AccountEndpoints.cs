@@ -63,7 +63,7 @@ internal static partial class Endpoints
         if (ServerStore.ValidateCredentials(c, register) is { } error) return Results.BadRequest(new { error });
         var session = store.Login(c, register);
         return session is not null ? Results.Ok(session) : register
-            ? Results.Conflict(new { error = "Цей логін уже зайнятий." })
+            ? Results.Conflict(new { error = "Цей нікнейм або email уже зайнятий." })
             : Results.Json(new { error = "Неправильний логін або пароль." }, statusCode: 401);
     }
 }

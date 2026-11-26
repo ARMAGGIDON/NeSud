@@ -122,10 +122,12 @@ public sealed partial class MainWindow : Window
             confirmPanel.Children.Add(Text("Підтвердження пароля"));
             confirmPanel.Children.Add(confirm.View);
             var notice = Text("", 13, "Wrong");
+            var loginLabel = Text("Логін або email");
             Button submit = null!, loginTab = null!, registerTab = null!;
             void Mode(bool value)
             {
                 register = value;
+                loginLabel.Text = value ? "Нікнейм" : "Логін або email";
                 emailPanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
                 confirmPanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
                 confirm.Clear();
@@ -140,7 +142,7 @@ public sealed partial class MainWindow : Window
             tabs.Children.Add(loginTab);
             tabs.Children.Add(registerTab);
             Gap(panel);
-            panel.Children.Add(Text("Логін або email"));
+            panel.Children.Add(loginLabel);
             panel.Children.Add(name);
             panel.Children.Add(emailPanel);
             panel.Children.Add(Text("Пароль (10–128 символів)"));
@@ -172,6 +174,11 @@ public sealed partial class MainWindow : Window
                     notice.Text = "Паролі не збігаються.";
                     return;
                 }
+                if (register && string.IsNullOrWhiteSpace(email.Text))
+                {
+                    notice.Text = "Введіть електронну пошту.";
+                    return;
+                }
                 working = true;
                 submit.IsEnabled = loginTab.IsEnabled = registerTab.IsEnabled = false;
                 notice.Text = "Підключення…";
@@ -198,6 +205,7 @@ public sealed partial class MainWindow : Window
                     UpdateConnection();
                     window.Close();
                     _ = Sync();
+                    if (register) Dispatcher.BeginInvoke(new Action(() => _ = EditOwnProfile()));
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode is not null)
                 {
