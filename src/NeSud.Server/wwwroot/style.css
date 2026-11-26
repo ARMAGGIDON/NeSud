@@ -1224,3 +1224,33 @@ dialog > .dialog-close {
 #ad .actions {
     justify-content: flex-end;
 }
+
+/* A shared page width keeps navigation stable between sections. */
+#app > section.panel {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+}
+#menu .menu-grid { max-width: 640px; margin-inline: auto; }
+#menu .menu-actions > :last-child { grid-column: 1 / -1; }
+#challenge .calendar-head, #challenge .calendar-grid, #challenge #calendar-progress {
+    max-width: 640px;
+    margin-inline: auto;
+}
+#challenge #calendar-content > h2, #challenge .cups {
+    max-width: 640px;
+    margin-inline: auto;
+}
+#ranking label { display: inline-block; width: calc((100% - 18px) / 3); margin-right: 6px; }
+.profile-heading { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.avatar { width: 76px; height: 76px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+#profile-verified { color: var(--accent); }
+#profile-settings { border-block: 1px solid var(--line); padding: 12px 0; margin: 14px 0; }
+.profile-edit { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 8px; }
+#avatar-preview { display: block; width: min(256px,100%); height: auto; aspect-ratio: 1; background: var(--control); margin: 12px auto; border: 1px solid var(--line); }
+#avatar-dialog input[type="range"] { width: 100%; }
+#invite-link { width: 100%; }
+@media (max-width: 650px) {
+    #ranking label { display: block; width: 100%; }
+    .profile-edit { grid-template-columns: 1fr; }
+}

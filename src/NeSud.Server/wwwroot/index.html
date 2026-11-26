@@ -17,6 +17,7 @@
         <script src="js/calendar.js" defer></script>
         <script src="js/friends.js" defer></script>
         <script src="js/help.js" defer></script>
+        <script src="js/profile-edit.js" defer></script>
         <script src="js/dialogs.js" defer></script>
         <script src="js/startup.js" defer></script>
     </head>
@@ -26,7 +27,7 @@
                 <h1>NeSud</h1>
             </div>
             <div class="header-actions">
-                <button id="help-open" hidden>Довідка</button>
+                <button id="help-open">Довідка</button>
                 <button id="theme">Тема</button>
                 <button id="account" class="primary">Увійти</button>
                 <button id="logout" hidden>Вийти</button>
@@ -41,7 +42,9 @@
                     <button id="register-tab" type="button">Реєстрація</button>
                 </div>
                 <form id="login">
-                    <label>Логін або email<input id="user" required minlength="3" maxlength="254" autocomplete="username" placeholder="Логін або email"></label>
+                    <label><span id="user-label">Логін або email</span><input id="user" required minlength="3" maxlength="254" autocomplete="username" placeholder="Логін або email"></label>
+                    <label id="register-email-wrap" hidden>Електронна пошта<input id="register-email" type="email" maxlength="254" autocomplete="email"></label>
+                    <label id="register-invite-wrap" hidden>Код запрошення (необов’язково)<input id="register-invite" maxlength="32"></label>
                     <label for="password">Пароль</label>
                     <div class="secret">
                         <input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password">
@@ -82,7 +85,7 @@
                             <button data-tab="ranking">Рейтинг</button>
                             <button id="history-tab" data-tab="history" disabled title="Доступно після входу">Історія та статистика</button>
                             <button data-tab="friends">Друзі та пошук</button>
-                            <button id="menu-help">Довідка</button>
+                            
                         </div>
                     </div>
                 </section>
@@ -202,7 +205,22 @@
                     </div>
                 </section>
                 <section id="profile" class="panel" hidden>
-                    <h2 id="profile-name">Профіль</h2>
+                    <div class="profile-heading"><img id="profile-avatar" class="avatar" alt="Аватар" hidden><h2 id="profile-name">Профіль</h2><span id="profile-verified" hidden>✓ Пошта підтверджена</span></div>
+                    <div id="profile-settings" hidden>
+                        <h3>Редагування профілю</h3>
+                        <form id="profile-edit" class="profile-edit">
+                            <label>Нікнейм<input id="edit-username" required minlength="3" maxlength="32"></label>
+                            <label>Email<input id="edit-email" type="email" maxlength="254"></label>
+                            <button class="primary" type="submit">Зберегти</button>
+                        </form>
+                        <div class="actions"><button id="avatar-edit">Змінити аватар</button><button id="avatar-remove">Видалити аватар</button></div>
+                        <div id="verify-controls">
+                            <button id="verify-send">Надіслати код на пошту</button>
+                            <form id="verify-form" class="actions"><input id="verify-code" placeholder="Код з листа" required maxlength="16"><button type="submit">Підтвердити</button></form>
+                        </div>
+                        <div id="invite-controls" hidden><h3>Запрошення</h3><p id="invite-count"></p><input id="invite-link" readonly aria-label="Посилання запрошення"><button id="invite-copy">Копіювати посилання</button><p>За кожного нового підтвердженого гравця: 3 підказки та 3 кандидати.</p></div>
+                        <p id="profile-edit-status" role="status"></p>
+                    </div>
                     <p id="profile-stats"></p>
                     <div id="profile-friend" class="actions"></div>
                     <div id="profile-level-stats"></div>
@@ -228,6 +246,16 @@
             </div>
             <p id="status" role="status" aria-live="polite"></p>
         </main>
+        <dialog id="avatar-dialog" aria-labelledby="avatar-title">
+            <button type="button" class="dialog-close" aria-label="Закрити" data-dismiss>×</button>
+            <h2 id="avatar-title">Аватар</h2>
+            <label>Зображення JPG, JPEG, PNG або SVG (до 5 МБ)<input id="avatar-file" type="file" accept=".jpg,.jpeg,.png,.svg,image/jpeg,image/png,image/svg+xml"></label>
+            <canvas id="avatar-preview" width="256" height="256" aria-label="Квадратна область аватара"></canvas>
+            <label>Масштаб<input id="avatar-zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+            <label>Горизонталь<input id="avatar-x" type="range" min="0" max="100" value="50"></label>
+            <label>Вертикаль<input id="avatar-y" type="range" min="0" max="100" value="50"></label>
+            <p id="avatar-status" role="status"></p><button id="avatar-save" class="primary wide" disabled>Зберегти аватар</button>
+        </dialog>
         <dialog id="confirm" aria-labelledby="confirm-title">
             <button type="button" class="dialog-close" aria-label="Закрити" title="Закрити" data-dismiss>×</button>
             <h2 id="confirm-title">Нова головоломка?</h2>

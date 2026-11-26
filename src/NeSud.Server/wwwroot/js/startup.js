@@ -9,9 +9,11 @@ document.querySelectorAll("[data-new-level]").forEach(button => {
         await $("newgame").onclick();
     };
 });
-$("menu-help").onclick = () => $("help-open").onclick();
+
 
 document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => b.dataset.tab === "play" ? openRegular(): navigate(b.dataset.tab));
+const inviteCode = new URLSearchParams(location.search).get("invite");
+if (inviteCode) $("register-invite").value = inviteCode;
 render();
 if (token) start();
 else {

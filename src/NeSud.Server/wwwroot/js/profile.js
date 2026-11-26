@@ -19,6 +19,12 @@ async function loadProfile() {
     const p = await api("profile?page=" + page + (user ? "&user=" + encodeURIComponent(user): "") + (level ? "&difficulty=" + level: ""));
     if (tab !== "profile" || profileUser !== user || profilePage !== page || epoch !== e || $("profile-level").value !== level) return;
     $("profile-name").textContent = p.user;
+    $("profile-verified").hidden = !p.verified;
+    $("profile-avatar").hidden = !p.avatar;
+    if (p.avatar) $("profile-avatar").src = p.avatar + "&v=" + Date.now();
+    else $("profile-avatar").removeAttribute("src");
+    $("profile-settings").hidden = guestMode || !!user;
+    if (!guestMode && !user) await loadProfileSettings();
     $("profile-stats").textContent = "Ігор: " + p.games + " · Перемог: " + p.wins + " · Ідеальних: " + p.perfectWins + " · Серія: " + p.currentStreak + " / " + p.bestStreak + " · Балів: " + p.score + " · Щоденних перемог: " + p.dailyWins;
     const stats = $("profile-level-stats");
     stats.replaceChildren();

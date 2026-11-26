@@ -43,7 +43,7 @@ public sealed partial class MainWindow
         panel.Children.Add(Text("Нікнейм гравця", 13, "Muted"));
         panel.Children.Add(search);
         var body = Stack();
-        panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 440, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        panel.Children.Add(body);
         var window = Page("Друзі", panel, 570);
         async Task Load()
         {

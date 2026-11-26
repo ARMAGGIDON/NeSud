@@ -126,7 +126,7 @@ public sealed partial class MainWindow : Window
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         menuNavigation = Action("Головне меню", OpenMenu);
         accountNavigation = Action("Увійти", () => { if (account is null) ShowAccount(); else _ = ShowProfile(null); });
-        foreach (var b in new[] { menuNavigation, accountNavigation, theme })
+        foreach (var b in new[] { menuNavigation, Action("Довідка", ShowHelp), accountNavigation, theme })
         { b.Margin = new Thickness(5, 0, 0, 0);
         headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1);
@@ -342,14 +342,18 @@ public sealed partial class MainWindow : Window
             menuLevels.Children.Add(b);
         }
         Gap(menu);
-        var menuActions = new UniformGrid { Columns = 2 };
+        var menuActions = new Grid();
+        menuActions.ColumnDefinitions.Add(new ColumnDefinition());
+        menuActions.ColumnDefinitions.Add(new ColumnDefinition());
+        for (int i = 0; i < 3; i++) menuActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        int menuIndex = 0;
         menu.Children.Add(menuActions);
         foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Тижневий турнір", () => _ = ShowWeekly()),
             Action("Рейтинг", () => _ = ShowRanking()), Action("Історія та статистика", ShowHistory),
-            Action("Друзі та пошук", () => _ = ShowFriends()),
-            Action("Довідка", ShowHelp) })
+            Action("Друзі та пошук", () => _ = ShowFriends()) })
         { b.Margin = new Thickness(3);
-        menuActions.Children.Add(b); }
+        At(menuActions, b, menuIndex / 2, menuIndex % 2, menuIndex == 4 ? 2 : 1);
+            menuIndex++; }
         menuCard = Card(new ScrollViewer { Content = menu, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         At(root, menuCard, 1, 0, 3);
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };

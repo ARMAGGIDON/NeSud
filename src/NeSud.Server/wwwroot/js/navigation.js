@@ -13,7 +13,7 @@ function row(parent, values) {
 function setTab(t) {
     tab = t;
     $("back-menu").hidden = t === "menu";
-    $("help-open").hidden = t === "menu";
+
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
         $(n).hidden = n !== t;
     });

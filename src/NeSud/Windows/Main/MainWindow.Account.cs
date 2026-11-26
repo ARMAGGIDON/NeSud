@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window
         var window = Modal("Акаунт", panel, 480);
         if (account is not null)
         {
-            panel.Children.Add(Text(account.User, 18, "Text", true));
+            panel.Children.Add(Text(account.Username ?? account.User, 18, "Text", true));
             
             panel.Children.Add(Text(reachable ? "● Онлайн • автоматична синхронізація" : "○ Офлайн • синхронізація після відновлення зв’язку", 13, "Muted"));
             Gap(panel, 18);
@@ -109,6 +109,13 @@ public sealed partial class MainWindow : Window
             var name = new TextBox { Padding = new Thickness(8), MaxLength = 254, Margin = new Thickness(0, 4, 0, 12),
                 Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line"),
                 Text = Scope.Length == 0 ? "" : Scope.Split('|')[^ 1] };
+            var emailPanel = Stack();
+            emailPanel.Children.Add(Text("Електронна пошта"));
+            var email = new TextBox { MaxLength = 254 };
+            emailPanel.Children.Add(email);
+            emailPanel.Children.Add(Text("Код запрошення (необов’язково)"));
+            var invite = new TextBox { MaxLength = 32 };
+            emailPanel.Children.Add(invite);
             var password = PasswordInput();
             var confirm = PasswordInput();
             var confirmPanel = Stack();
@@ -119,6 +126,7 @@ public sealed partial class MainWindow : Window
             void Mode(bool value)
             {
                 register = value;
+                emailPanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
                 confirmPanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
                 confirm.Clear();
                 notice.Text = "";
@@ -134,6 +142,7 @@ public sealed partial class MainWindow : Window
             Gap(panel);
             panel.Children.Add(Text("Логін або email"));
             panel.Children.Add(name);
+            panel.Children.Add(emailPanel);
             panel.Children.Add(Text("Пароль (10–128 символів)"));
             panel.Children.Add(password.View);
             panel.Children.Add(confirmPanel);
@@ -169,7 +178,7 @@ public sealed partial class MainWindow : Window
                 try
                 {
                     var session = await Request<AccountSession > (register ? "register" : "login",
-                        new Credentials(name.Text, secret, register ? confirmation : null), token: "");
+                        new Credentials(name.Text, secret, register ? confirmation : null, register ? email.Text : null, register ? invite.Text : null), token: "");
                     if (!window.IsVisible) return;
                     account = session;
                     reachable = true;

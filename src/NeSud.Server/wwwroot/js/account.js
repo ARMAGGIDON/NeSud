@@ -45,6 +45,9 @@ function authError(text) {
 }
 function mode(register) {
     registration = register;
+    $("user-label").textContent = register ? "Нікнейм" : "Логін або email";
+    $("register-email-wrap").hidden = $("register-invite-wrap").hidden = !register;
+    $("register-email").required = register;
     $("auth-title").textContent = register ? "Створення акаунта": "Вхід до акаунта";
     $("confirmation-wrap").hidden = !register;
     $("confirmation").required = register;
@@ -81,7 +84,7 @@ async function login(guest = false) {
             return
         }
         const oldToken = token, oldGuest = guestMode;
-        const a = await api(guest ? "guest": registration ? "register": "login", guest ? { }: { user: $("user").value, password: $("password").value, confirmation: registration ? $("confirmation").value: null });
+        const a = await api(guest ? "guest": registration ? "register": "login", guest ? { }: { user: $("user").value, password: $("password").value, confirmation: registration ? $("confirmation").value : null, email: registration ? $("register-email").value : null, invite: registration ? $("register-invite").value : null });
         regularGame = null;
         challengeDay = null;
         calendarMonth = null;

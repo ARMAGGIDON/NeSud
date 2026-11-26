@@ -79,6 +79,13 @@ public sealed partial class MainWindow
             dismiss.Margin = new Thickness(0, 0, 0, 8);
             System.Windows.Automation.AutomationProperties.SetName(dismiss, page ? "Назад" : "Закрити");
             MainWindow.At(layout, dismiss, 0, 0);
+            if (page && title != "Довідка")
+            {
+                var help = owner.Action("Довідка", owner.ShowHelp);
+                help.HorizontalAlignment = HorizontalAlignment.Right;
+                help.VerticalAlignment = VerticalAlignment.Top;
+                MainWindow.At(layout, help, 0, 0);
+            }
 
             UIElement body = content;
             if (content is not Grid && content is not ScrollViewer)
@@ -94,13 +101,13 @@ public sealed partial class MainWindow
 
             if (page && body is FrameworkElement element)
             {
-                element.MaxWidth = Math.Max(width, 760);
+                element.MaxWidth = 1000;
                 element.HorizontalAlignment = HorizontalAlignment.Stretch;
             }
 
             MainWindow.At(layout, body, 1, 0);
             shell = owner.Card(layout, page ? 18 : 14);
-            shell.Margin = new Thickness(page ? 16 : 12);
+            shell.Margin = page ? new Thickness(24, 18, 24, 14) : new Thickness(12);
             shell.HorizontalAlignment = page ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
             shell.VerticalAlignment = page ? VerticalAlignment.Stretch : VerticalAlignment.Center;
             System.Windows.Automation.AutomationProperties.SetName(shell, title);

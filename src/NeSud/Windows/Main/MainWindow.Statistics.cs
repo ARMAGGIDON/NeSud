@@ -71,7 +71,7 @@ public sealed partial class MainWindow : Window
             list.Children.Add(card);
         }
         if (records.Count == 0) list.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
-        panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        panel.Children.Add(list);
         Gap(panel);
         var window = Page("Історія", panel, 680, 720);
         window.ShowDialog();
@@ -90,7 +90,7 @@ public sealed partial class MainWindow : Window
         var levelFilter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0, Margin = new Thickness(0, 0, 0, 8) };
         panel.Children.Add(levelFilter);
         var rows = Stack();
-        panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        panel.Children.Add(rows);
         Gap(panel);
         var window = Page("Рейтинг", panel, 560);
         var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -150,7 +150,7 @@ public sealed partial class MainWindow : Window
         var panel = Stack();
         panel.Children.Add(Text("Тижневий турнір", 24, "Text", true));
         var body = Stack();
-        panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 460, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        panel.Children.Add(body);
         var window = Page("Турнір", panel, 600);
         var prizes = Action("Отримати приз", () => {
             window.Close();

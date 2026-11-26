@@ -20,7 +20,7 @@ public sealed partial class MainWindow
         var filter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0 };
         panel.Children.Add(filter);
         var body = Stack();
-        panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 490, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        panel.Children.Add(body);
         var window = Page("Профіль", panel, 690, 750);
         int page = 0;
         bool loading = false;
