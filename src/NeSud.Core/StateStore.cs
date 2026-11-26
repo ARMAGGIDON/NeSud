@@ -16,7 +16,7 @@ public sealed class AppState
     public DateTimeOffset Started { get; set; }
     public string? GameScope { get; set; }
     public string? AccountScope { get; set; }
-    public string ServerUrl { get; set; } = "http://localhost:5080";
+    public string? ProtectedSession { get; set; }
     public Difficulty? NextDifficulty { get; set; }
     public bool Dark { get; set; } = true;
     public bool ShowMistakes { get; set; } = true;

@@ -50,8 +50,8 @@ public sealed class ServerStore
         if (register && input.Password != input.Confirmation) return "Паролі не збігаються.";
         return null;
     }
-    private static string PublicName(string name) => name.Contains('@')
-        ? "Гравець-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)))[..12]
+    private static string PublicName(string name, byte[] salt) => name.Contains('@')
+        ? "Гравець-" + Convert.ToHexString(salt)[..12]
         : name;
     public ServerStore(string path)
     {
@@ -165,11 +165,12 @@ public sealed class ServerStore
     public List<RankEntry> Rankings(bool all = false)
     {
         using var c = db.Open(); using var cmd = Database.Command(c, """
-            SELECT name,COUNT(*),SUM(score) FROM history WHERE ($all=1 OR source='web') AND outcome='completed'
-            GROUP BY name ORDER BY SUM(score) DESC,name LIMIT 100
+            SELECT h.name,COUNT(*),SUM(h.score),a.salt FROM history h JOIN accounts a ON a.name=h.name
+            WHERE ($all=1 OR h.source='web') AND h.outcome='completed'
+            GROUP BY h.name,a.salt ORDER BY SUM(h.score) DESC,h.name LIMIT 100
             """, ("$all", all ? 1 : 0));
         using var rows = cmd.ExecuteReader(); var result = new List<RankEntry>();
-        while (rows.Read()) result.Add(new(PublicName(rows.GetString(0)), rows.GetInt32(1), rows.GetInt64(2)));
+        while (rows.Read()) result.Add(new(PublicName(rows.GetString(0), (byte[])rows[3]), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
     }
     public WebGame? Session(string name)
