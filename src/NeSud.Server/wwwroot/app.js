@@ -97,7 +97,7 @@ async function spend(kind){
  if(await act("wallet",{reward:kind})){message("");await refreshDaily()}
 }
 function drawDaily(){
- $("daily-summary").textContent=daily?"Сьогодні: "+daily.wins+"/7 перемог · доступно карток: "+daily.packs.length:"Підключення…";
+ $("daily-summary").textContent=daily?"Сьогодні: "+daily.wins+"/7 перемог · доступно наборів: "+daily.packs.filter(p=>dailyMode==="weekly"?p.milestone==="weekly":p.milestone!=="weekly").length:"Підключення…";
  const wallet=$("wallet"),cards=$("daily-cards");wallet.replaceChildren();cards.replaceChildren();
  if(!daily)return;
  for(const kind of ["hint","candidates"]){const b=document.createElement("button");b.textContent=resourceNames[kind]+": "+balance(kind)+" · використати";const count=kind==="life"?game?.lives:kind==="hint"?game?.hintCredits:game?.candidateCredits;b.disabled=!game||game.completed||count>=3||!balance(kind)||dailyBusy;b.onclick=async()=>{b.disabled=true;await spend(kind);drawDaily()};wallet.append(b)}

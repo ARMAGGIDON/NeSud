@@ -47,7 +47,8 @@ public sealed partial class ServerStore
                 using var save=Tx(c,tx,"INSERT OR IGNORE INTO tournament_results VALUES($w,$r,$n,$v,$s)",
                     ("$w",week),("$r",rank),("$n",r.Name),("$v",r.Wins),("$s",r.Score));
                 save.ExecuteNonQuery();
-                for(int slot=0;slot<WeeklyPrize(rank);slot++) AddPack(c,tx,r.Name,week,"weekly",slot);
+                int amount = WeeklyPrize(rank);
+                if (amount > 0) AddPack(c,tx,r.Name,week,"weekly",0,amount);
             }
             week=DateKey(ParseDay(week).AddDays(7));
         }

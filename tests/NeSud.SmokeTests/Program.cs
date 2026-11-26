@@ -193,13 +193,13 @@ try
         var entry = new GameRecord(Guid.NewGuid(), now, now, "desktop", "completed", solved);
         server.Upload(user, [entry]); server.Upload(user, [entry]);
         var daily = server.Daily(user);
-        int count = Math.Min(7,n);
+        int count = n >= 7 ? 3 : n >= 3 ? 2 : 1;
         Check(daily.Wins == n && daily.Packs.Count == count, "Daily win milestones " + n);
     }
     var first = server.Daily(user);
     var pack = first.Packs[0]; var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
     var result = server.Choose(user, choice)!; var again = server.Choose(user, choice)!;
-    Check(result.Item == again.Item && result.Status.Packs.Count == 6 && again.Status.Packs.Count == 6 &&
+    Check(result.Item == again.Item && result.Item.Amount == 1 && result.Status.Packs.Count == 2 && again.Status.Packs.Count == 2 &&
         again.Status.Lives + again.Status.Hints + again.Status.Candidates == result.Item.Amount, "Idempotent card claim");
     Check(server.Choose(user, choice with { Card = 0 }) is null, "Cannot open another card");
     Check(server.Daily(other).Packs.Count == 0 && server.Daily(other).Lives + server.Daily(other).Hints + server.Daily(other).Candidates == 0, "Wallet isolation");
@@ -221,7 +221,7 @@ try
     server.Upload(other, [late]); server.Upload(other, [late]);
     var lateStatus = server.Daily(other);
     Check(lateStatus.Wins == 0 && lateStatus.Packs.Count == 1 &&
-        lateStatus.Packs.Any(p => p.Milestone == "win" && p.Day != lateStatus.Day), "Late offline completion credits original day");
+        lateStatus.Packs.Any(p => p.Milestone == "win1" && p.Day != lateStatus.Day), "Late offline completion credits original day");
     var week = server.Weekly();
     var previousWeek = DateOnly.ParseExact(week.Week,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture).AddDays(-7);
     string prior = previousWeek.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
@@ -233,8 +233,45 @@ try
         command.ExecuteNonQuery();
     var closed = server.Weekly();
     Check(closed.PreviousLeaders.Count==1 && closed.PreviousLeaders[0].User==other, "Weekly settlement");
-    Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==3, "Top three awards");
-    server.Weekly(); Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==3, "Weekly award idempotency");
-    Console.WriteLine("PASS daily seven wins, wallet, incremental history, cumulative stats and weekly settlement");
+    Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==1, "Top three get one pack");
+    server.Weekly(); Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==1, "Weekly award idempotency");
+    var weeklyPack = server.Daily(other).Packs.Single(p=>p.Milestone=="weekly");
+    var weeklyChoice = new DailyChoice(weeklyPack.Day, weeklyPack.Milestone, weeklyPack.Slot, 2);
+    var weeklyReward = server.Choose(other,weeklyChoice)!;
+    Check(weeklyReward.Item.Amount==3 && server.Choose(other,weeklyChoice)!.Item==weeklyReward.Item &&
+        server.Choose(other,weeklyChoice with { Card=1 }) is null, "Weekly guaranteed amount and single card");
+    var weekUser = server.Login(new Credentials("reward-week", "test-password-123", "test-password-123"), true)!.User;
+    var today = DateOnly.ParseExact(first.Day,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+    var zone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
+    for (int day=0;day<7;day++)
+    {
+        // Use seven fully elapsed local calendar days to avoid crossing midnight during the test.
+        var ended = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(today.AddDays(-day-1).ToDateTime(new TimeOnly(12,0)),zone));
+        for (int n=0;n<7;n++)
+        {
+            var solved = Game.Start(distinct[n]);
+            for (int j=0;j<81;j++) if (solved.Puzzle.Givens[j]==0) solved.Enter(j,solved.Puzzle.Solution[j]);
+            var record = new GameRecord(Guid.NewGuid(),ended,ended,"desktop","completed",solved);
+            server.Upload(weekUser,[record]);
+        }
+    }
+    var earned = server.Daily(weekUser).Packs;
+    Check(earned.Count==21 && earned.GroupBy(p=>p.Day).All(group=>group.Count()==3), "Seven days yield 21 daily packs");
+    int units=0;
+    using (var conn = new Database(Path.Combine(dailyDir,"server.db")).Open())
+    using (var command = Database.Command(conn,"SELECT milestone,options FROM daily_packs WHERE name=$n",("$n",weekUser)))
+    using (var rows = command.ExecuteReader())
+        while (rows.Read())
+        {
+            var options=Database.Decode<RewardItem[]>(rows.GetString(1));
+            int expectedAmount=rows.GetString(0)=="win7"?3:1;
+            Check(options.Length==3 && options.All(x=>x.Amount==expectedAmount && x.Kind is "hint" or "candidates"), "All hidden options have guaranteed quantity");
+        }
+    foreach(var p in earned)
+        units+=server.Choose(weekUser,new DailyChoice(p.Day,p.Milestone,p.Slot,0))!.Item.Amount;
+    var wallet = server.Daily(weekUser);
+    Check(units==35 && wallet.Hints+wallet.Candidates==35 && wallet.Packs.Count==0 &&
+        units+weeklyReward.Item.Amount==38, "Weekly maximum is 38 resources");
+    Console.WriteLine("PASS daily milestones 1/3/7, guaranteed card amounts, wallet, weekly settlement and 38-resource cap");
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dailyDir)) Directory.Delete(dailyDir, true); }

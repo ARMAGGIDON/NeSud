@@ -436,7 +436,7 @@ public sealed class MainWindow : Window
         erase.IsEnabled = active && g!.Editable(g.Selected); hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
         hint.Content = $"Підказка ({g?.HintCredits ?? 0})"; fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
         fill.ToolTip = g is null ? null : $"Зміниться {g.CandidateDelta()} кандидатів • −{(long)Game.CandidatePointCost * g.CandidateDelta()} балів";
-        quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди • онлайн" : $"Сьогодні: {daily.Wins}/7 перемог • карток: {daily.Packs.Count}";
+        quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди • онлайн" : $"Сьогодні: {daily.Wins}/7 перемог • наборів: {daily.Packs.Count}";
         rewardLife.IsEnabled = false;
         autoFinish.IsEnabled = !Busy && g is { Completed: false, OutOfLives: false };
         rewardHint.Visibility = g?.CanAdReward("hint") == true && WalletCount("hint") == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -689,7 +689,7 @@ public sealed class MainWindow : Window
         {
             body.Children.Clear();
             if (daily is not { } d) return;
-            body.Children.Add(Text($"Сьогодні: {d.Wins}/7 перемог • доступно карток: {d.Packs.Count}", 15, "Accent", true));
+            body.Children.Add(Text($"Сьогодні: {d.Wins}/7 перемог • доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : p.Milestone != "weekly")}", 15, "Accent", true));
             body.Children.Add(Text($"Сховище: підказки {d.Hints} • кандидати {d.Candidates}", 14));
             Gap(body);
             foreach (var kind in new[] { "hint", "candidates" })
@@ -703,7 +703,7 @@ public sealed class MainWindow : Window
             var pack = d.Packs.FirstOrDefault(p => weeklyRewards ? p.Milestone == "weekly" : p.Milestone != "weekly");
             if (pack is null) { body.Children.Add(Text("Немає доступних нагород.", 13, "Muted")); return; }
             string milestone = pack.Milestone switch { "login" => "Щоденний вхід", "win1" => "Перша перемога",
-                "win3" => "Третя перемога", "weekly" => "Тижневий турнір", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
+                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
             Gap(body); body.Children.Add(Text(milestone, 17, "Text", true));
             var cards = new UniformGrid { Columns = 3 }; body.Children.Add(cards);
             for (int i = 0; i < 3; i++)
@@ -1233,7 +1233,7 @@ public sealed class MainWindow : Window
             "P / Esc: пауза; Ctrl+N: нова гра; F1: довідка\n" +
             "Tab: переміщення між елементами; Enter: активувати кнопку.\n\n" +
             "Три життя. Після поразки один шанс за рекламу протягом 10 с. Реклама: 8 с. Підказки та кандидати поповнюються рекламою лише за відсутності ресурсу. Автозавершення: −20 балів за клітинку.\n\n" +
-            "За перші сім різних перемог на день: по одній нагороді. Турнір: сума серверних балів за тиждень, місця 1–3: 3 набори, 4–10: 2, 11–30: 1. Ідеальна перемога: без помилок, допомоги та відновлення.", false);
+            "Щодня за 1-шу та 3-тю різні перемоги: по 1 ресурсу, за 7-му: 3. Турнір: місця 1–3: 3 ресурси, 4–10: 2, 11–30: 1. Кожна нагорода: одна з трьох прихованих карток. Ідеальна перемога: без помилок, допомоги та відновлення.", false);
     }
 
     private void OnKey(object sender, KeyEventArgs e)

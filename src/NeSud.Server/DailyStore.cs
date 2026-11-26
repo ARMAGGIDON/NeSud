@@ -13,16 +13,16 @@ public sealed partial class ServerStore
     {
         var cmd = Database.Command(c, sql, args); cmd.Transaction = tx; return cmd;
     }
-    private static RewardItem[] Options()
+    private static RewardItem[] Options(int amount)
     {
         string[] kinds = ["hint", "candidates"];
-        // Independent random prizes, precommitted in the database before the card is selected.
-        return Enumerable.Range(0, 3).Select(_ => new RewardItem(kinds[RandomNumberGenerator.GetInt32(kinds.Length)], RandomNumberGenerator.GetInt32(1, 4))).ToArray();
+        // Only the resource type is random. All three cards have the guaranteed milestone amount.
+        return Enumerable.Range(0, 3).Select(_ => new RewardItem(kinds[RandomNumberGenerator.GetInt32(kinds.Length)], amount)).ToArray();
     }
-    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot)
+    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot, int amount)
     {
         using var cmd = Tx(c, tx, "INSERT OR IGNORE INTO daily_packs(name,day,milestone,slot,options) VALUES($n,$d,$m,$s,$o)",
-            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options())));
+            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options(amount))));
         cmd.ExecuteNonQuery();
     }
     private static int EnsureWinPacks(SqliteConnection c, SqliteTransaction tx, string name, string day)
@@ -42,8 +42,11 @@ public sealed partial class ServerStore
         int existing;
         using (var count = Tx(c, tx, "SELECT COUNT(*) FROM daily_packs WHERE name=$n AND day=$d AND milestone<>'weekly'", ("$n", name), ("$d", day)))
             existing = Convert.ToInt32(count.ExecuteScalar());
-        // Preserve previously earned packs, but never issue more than seven daily packs.
-        for (int i = existing; i < Math.Min(7, wins); i++) AddPack(c, tx, name, day, "win", i);
+        // Grandfather previously issued packs (including claimed ones) and count them
+        // towards the new milestones, so an upgrade cannot issue duplicate rewards.
+        (int Wins, string Key, int Amount)[] milestones = [(1, "win1", 1), (3, "win3", 1), (7, "win7", 3)];
+        for (int i = existing; i < milestones.Length && wins >= milestones[i].Wins; i++)
+            AddPack(c, tx, name, day, milestones[i].Key, 0, milestones[i].Amount);
         return wins;
     }
     private DailyStatus EnsureDaily(SqliteConnection c, SqliteTransaction tx, string name)
