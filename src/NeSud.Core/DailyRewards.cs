@@ -8,3 +8,7 @@ public sealed record DailyResult(RewardItem Item, DailyStatus Status);
 public sealed record WalletRequest(Guid Operation, Guid GameId, string Kind);
 public sealed record PendingReward(string Scope, WalletRequest Request);
 public sealed record WalletResult(Guid Operation, Guid GameId, string Kind);
+
+public sealed record HistoryPage(long Cursor, List<GameRecord> Records);
+public sealed record AccumulatedRank(string User, long Wins, long PerfectWins, long CurrentStreak, long BestStreak, long Score);
+public sealed record WeeklyRanking(string Week, List<RankEntry> Leaders, string? PreviousWeek, List<RankEntry> PreviousLeaders);

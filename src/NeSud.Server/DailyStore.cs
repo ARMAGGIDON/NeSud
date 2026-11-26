@@ -30,40 +30,35 @@ public sealed partial class ServerStore
         var date = DateOnly.ParseExact(day, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var start = TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue), DailyZone);
         var end = TimeZoneInfo.ConvertTimeToUtc(date.AddDays(1).ToDateTime(TimeOnly.MinValue), DailyZone);
-        var puzzles = new HashSet<string>();
+        int wins;
         using (var cmd = Tx(c, tx, """
-            SELECT payload FROM history WHERE name=$n AND outcome='completed'
-            AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=history.name AND a.id=history.id AND a.flagged=1)
+            SELECT COUNT(DISTINCT json_extract(payload,'$.game.puzzle.givens')) FROM history
+            WHERE name=$n AND outcome='completed'
             AND julianday(json_extract(payload,'$.ended')) >= julianday($start)
             AND julianday(json_extract(payload,'$.ended')) < julianday($end)
+            AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=history.name AND a.id=history.id AND a.flagged=1)
             """, ("$n", name), ("$start", start.ToString("O")), ("$end", end.ToString("O"))))
-        using (var rows = cmd.ExecuteReader())
-            while (rows.Read())
-            {
-                var record = Database.Decode<GameRecord>(rows.GetString(0));
-                puzzles.Add(string.Concat(record.Game.Puzzle.Givens));
-            }
-        int wins = puzzles.Count;
-        if (wins >= 1) AddPack(c, tx, name, day, "win1", 0);
-        if (wins >= 3) AddPack(c, tx, name, day, "win3", 0);
-        if (wins >= 7) for (int i = 0; i < 3; i++) AddPack(c, tx, name, day, "win7", i);
+            wins = Convert.ToInt32(cmd.ExecuteScalar());
+        int existing;
+        using (var count = Tx(c, tx, "SELECT COUNT(*) FROM daily_packs WHERE name=$n AND day=$d AND milestone<>'weekly'", ("$n", name), ("$d", day)))
+            existing = Convert.ToInt32(count.ExecuteScalar());
+        // Preserve previously earned packs, but never issue more than seven daily packs.
+        for (int i = existing; i < Math.Min(7, wins); i++) AddPack(c, tx, name, day, "win", i);
         return wins;
     }
     private DailyStatus EnsureDaily(SqliteConnection c, SqliteTransaction tx, string name)
     {
         string day = Day(DateTimeOffset.UtcNow);
-        AddPack(c, tx, name, day, "login", 0);
+        SettleWeeks(c, tx);
         int wins = EnsureWinPacks(c, tx, name, day);
         var packs = new List<DailyPack>();
         using (var cmd = Tx(c, tx, "SELECT day,milestone,slot FROM daily_packs WHERE name=$n AND chosen IS NULL ORDER BY day,rowid", ("$n", name)))
         using (var rows = cmd.ExecuteReader())
             while (rows.Read()) packs.Add(new(rows.GetString(0), rows.GetString(1), rows.GetInt32(2)));
-        int Balance(string kind)
-        {
-            using var cmd = Tx(c, tx, "SELECT amount FROM wallet WHERE name=$n AND kind=$k", ("$n", name), ("$k", kind));
-            return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
-        }
-        return new(day, wins, Balance("life"), Balance("hint"), Balance("candidates"), packs);
+        var balances = new Dictionary<string,int>();
+        using (var cmd = Tx(c, tx, "SELECT kind,amount FROM wallet WHERE name=$n", ("$n", name)))
+        using (var rows = cmd.ExecuteReader()) while (rows.Read()) balances[rows.GetString(0)] = rows.GetInt32(1);
+        return new(day, wins, balances.GetValueOrDefault("life"), balances.GetValueOrDefault("hint"), balances.GetValueOrDefault("candidates"), packs);
     }
     public DailyStatus Daily(string name)
     {

@@ -60,13 +60,16 @@ app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
     User(c, s) is { } name ? Results.Ok(s.History(name)) : Results.Unauthorized());
 app.MapGet("/api/comparison", (ServerStore s, Difficulty difficulty, int score, int seconds, int? rules) =>
     Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 && (rules ?? 3) is >= 0 and <= 3 ? Results.Ok(s.Compare(difficulty, score, seconds, rules ?? 3)) : Results.BadRequest());
+app.MapGet("/api/history/changes", (HttpContext c, ServerStore s, long? after) => User(c,s) is { } name ? Results.Ok(s.HistorySince(name,Math.Max(0,after ?? 0))) : Results.Unauthorized());
+app.MapGet("/api/weekly", (ServerStore s) => s.Weekly());
+app.MapGet("/api/accumulated", (ServerStore s,string? metric,bool? all) => s.Accumulated(metric ?? "score",all ?? false));
 app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
 app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
 {
     if (User(c, s) is not { } name) return Results.Unauthorized();
     if (records.Count > 20 || records.Any(r => r is null || r.Source != "desktop" || !r.Valid()))
         return Results.BadRequest(new { error = "Некоректний запис історії." });
-    s.Upload(name, records); return Results.Ok(s.History(name));
+    s.Upload(name, records); return Results.Ok(s.Acknowledge(name, records));
 });
 
 app.MapPost("/api/desktop/draft", (HttpContext c, ServerStore s, DesktopDraft draft) =>
@@ -88,14 +91,13 @@ static WebGame Tick(WebGame session)
     if (!session.Game.Paused && !session.Game.Completed && !session.Game.OutOfLives)
     {
         if (elapsed > 12) session.Game.Paused = true;
-        else if (session.Reward is not null) return session with { LastSeen = now };
-        else if (elapsed >= 1)
+        else if (session.Reward is null)
         {
-            var seconds = (int)elapsed;
+            double total = Math.Max(0, elapsed) + session.Fraction;
+            int seconds = (int)total;
             session.Game.Seconds += seconds;
-            return session with { LastSeen = session.LastSeen.AddSeconds(seconds) };
+            return session with { LastSeen = now, Fraction = total-seconds };
         }
-        else return session;
     }
     return session with { LastSeen = now };
 }
@@ -178,7 +180,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
                 if (game.GrantReward(request.Reward!, advertisement: false)) { walletKind = request.Reward; changed = true; }
                 break;
             case "reward-start":
-                if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : game.OutOfLives || !game.CanReward(request.Reward ?? "")) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
+                if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : game.OutOfLives || !game.CanAdReward(request.Reward ?? "") || !ServerStore.IsGuest(name) && s.HasWallet(name,request.Reward!)) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
                 if (session.Reward is not null && session.Reward.Kind != request.Reward)
                     return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте попередню винагороду." });
                 if (session.Reward is null)
@@ -193,7 +195,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
                 if (session.Reward is not { } reward || reward.Kind != request.Reward ||
                     reward.ReadyAt > DateTimeOffset.UtcNow || reward.ExpiresAt <= DateTimeOffset.UtcNow)
                     return Results.BadRequest(new { error = "Винагорода ще не готова або термін її дії минув." });
-                if (!(reward.Kind == "life" ? game.FinishRevive(DateTimeOffset.UtcNow) : game.GrantReward(reward.Kind))) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
+                if (!(reward.Kind == "life" ? game.FinishRevive(DateTimeOffset.UtcNow) : (ServerStore.IsGuest(name) || !s.HasWallet(name,reward.Kind)) && game.GrantReward(reward.Kind))) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
                 session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; break;
             case "reward-cancel":
                 if (session.Reward is not null) { if (session.Reward.Kind == "life") game.CancelRevive(); session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; }

@@ -13,7 +13,7 @@ public sealed record MoveAudit(int Moves = 0, int FastIntervals = 0, DateTimeOff
     public bool Flag(Game game) => Moves >= 16 && (FastIntervals >= 12 && FastIntervals * 5 >= (Moves - 1) * 4 ||
         game.Seconds * 1000L < Moves * 90L);
 }
-public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null, MoveAudit? Audit = null);
+public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null, MoveAudit? Audit = null, double Fraction = 0);
 public sealed partial class ServerStore
 {
     private readonly Database db;
@@ -36,15 +36,14 @@ public sealed partial class ServerStore
     }
     public string? WebUser(string token)
     {
-        if (Authenticate(token) is { } user) return user;
         if (token.Length != 64) return null;
         string key = GuestPrefix + TokenHash(token);
         lock (Gate)
         {
-            if (!guests.TryGetValue(key, out var entry) || entry.Expires <= DateTimeOffset.UtcNow) return null;
-            guests[key] = (DateTimeOffset.UtcNow.AddHours(2), entry.Game);
-            return key;
+            if (guests.TryGetValue(key, out var entry) && entry.Expires > DateTimeOffset.UtcNow)
+            { guests[key] = (DateTimeOffset.UtcNow.AddHours(2), entry.Game); return key; }
         }
+        return Authenticate(token);
     }
     public static string? ValidateCredentials(Credentials input, bool register)
     {
@@ -76,6 +75,14 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS daily_packs (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL, milestone TEXT NOT NULL, slot INTEGER NOT NULL, options TEXT NOT NULL, chosen INTEGER, PRIMARY KEY(name,day,milestone,slot));
             CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
             CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
+            CREATE INDEX IF NOT EXISTS ix_history_day ON history(name, outcome, julianday(json_extract(payload,'$.ended')));
+            CREATE INDEX IF NOT EXISTS ix_history_rank ON history(source,outcome,name,score);
+            CREATE INDEX IF NOT EXISTS ix_history_compare ON history(source,outcome,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.rulesVersion'),0));
+            CREATE INDEX IF NOT EXISTS ix_history_week ON history(source,outcome,julianday(json_extract(payload,'$.ended')));
+            CREATE INDEX IF NOT EXISTS ix_daily_pending ON daily_packs(name,day) WHERE chosen IS NULL;
+            CREATE INDEX IF NOT EXISTS ix_tokens_expiry ON tokens(expires);
+            CREATE TABLE IF NOT EXISTS tournament_state (id INTEGER PRIMARY KEY CHECK(id=1), next_week TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS tournament_results (week TEXT NOT NULL, rank INTEGER NOT NULL, name TEXT NOT NULL REFERENCES accounts(name), wins INTEGER NOT NULL, score INTEGER NOT NULL, PRIMARY KEY(week,rank), UNIQUE(week,name));
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
@@ -86,7 +93,9 @@ public sealed partial class ServerStore
             DELETE FROM wallet WHERE kind='life';
             UPDATE daily_packs SET options=replace(options,'"kind":"life"','"kind":"hint"') WHERE options LIKE '%"kind":"life"%';
             """);
-        convert.ExecuteNonQuery(); tx.Commit();
+        convert.ExecuteNonQuery();
+        using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
+        seed.ExecuteNonQuery(); tx.Commit();
     }
     private static byte[] Password(string password, byte[] salt) =>
         Rfc2898DeriveBytes.Pbkdf2(password, salt, 600_000, HashAlgorithmName.SHA256, 32);
@@ -142,6 +151,19 @@ public sealed partial class ServerStore
         using var rows = cmd.ExecuteReader(); var result = new List<GameRecord>();
         while (rows.Read()) result.Add(Database.Decode<GameRecord>(rows.GetString(0)));
         return result.OrderByDescending(r => r.Ended).ToList();
+    }
+    public HistoryPage HistorySince(string name, long cursor)
+    {
+        using var c = db.Open(); using var cmd = Database.Command(c, "SELECT rowid,payload FROM history WHERE name=$n AND rowid>$r ORDER BY rowid LIMIT 100", ("$n", name), ("$r", cursor));
+        using var rows = cmd.ExecuteReader(); var records = new List<GameRecord>();
+        while (rows.Read()) { cursor = rows.GetInt64(0); records.Add(Database.Decode<GameRecord>(rows.GetString(1))); }
+        return new(cursor, records);
+    }
+    public List<GameRecord> Acknowledge(string name, IEnumerable<GameRecord> records)
+    {
+        using var c = db.Open(); var result = new List<GameRecord>();
+        foreach (var r in records) { using var cmd = Database.Command(c, "SELECT payload FROM history WHERE name=$n AND id=$id", ("$n", name), ("$id", r.Id.ToString())); if (cmd.ExecuteScalar() is string value) result.Add(Database.Decode<GameRecord>(value)); }
+        return result;
     }
     private static bool Insert(Microsoft.Data.Sqlite.SqliteConnection c, Microsoft.Data.Sqlite.SqliteTransaction tx,
         string name, GameRecord record)

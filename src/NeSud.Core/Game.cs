@@ -93,9 +93,10 @@ public sealed class Game
         "candidates" => CandidateCredits < MaxAid,
         _ => false
     });
+    public bool CanAdReward(string kind) => CanReward(kind) && (kind == "hint" ? HintCredits == 0 : kind == "candidates" ? CandidateCredits == 0 : false);
     public bool GrantReward(string kind, bool advertisement = true)
     {
-        if (!CanReward(kind)) return false;
+        if (!CanReward(kind) || advertisement && !CanAdReward(kind) && kind != "life") return false;
         switch (kind)
         {
             case "life": Lives++; LifeRestores++; break;

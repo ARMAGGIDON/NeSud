@@ -19,6 +19,7 @@ public sealed class LocalStore
             CREATE TABLE IF NOT EXISTS history (
               scope TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, pending INTEGER NOT NULL,
               PRIMARY KEY(scope,id));
+            CREATE INDEX IF NOT EXISTS ix_local_pending ON history(scope,id) WHERE pending=1;
             """);
         cmd.ExecuteNonQuery();
     }
@@ -50,8 +51,8 @@ public sealed class LocalStore
     public List<GameRecord> History(string scope, bool pending = false)
     {
         using var db = database.Open();
-        using var cmd = Database.Command(db, "SELECT payload FROM history WHERE scope=$s AND ($p=0 OR pending=1)",
-            ("$s", scope), ("$p", pending ? 1 : 0));
+        using var cmd = Database.Command(db, pending ? "SELECT payload FROM history WHERE scope=$s AND pending=1" : "SELECT payload FROM history WHERE scope=$s",
+            ("$s", scope));
         using var rows = cmd.ExecuteReader();
         var result = new List<GameRecord>();
         while (rows.Read()) result.Add(Database.Decode<GameRecord>(rows.GetString(0)));
