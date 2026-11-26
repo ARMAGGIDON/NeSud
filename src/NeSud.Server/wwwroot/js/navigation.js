@@ -10,13 +10,19 @@ function row(parent, values) {
     });
     parent.append(r)
 }
-async function navigate(t) {
-    if (guestMode && (t === "challenge" || t === "history")) return;
-    if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
+function setTab(t) {
     tab = t;
     $("back-menu").hidden = t === "menu";
     $("help-open").hidden = t === "menu";
-    ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => $(n).hidden = n !== t);
+    ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
+        $(n).hidden = n !== t;
+    });
+}
+
+async function navigate(t) {
+    if (guestMode && (t === "challenge" || t === "history")) return;
+    if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
+    setTab(t);
     try {
         if (t === "friends") {
             await loadFriends();

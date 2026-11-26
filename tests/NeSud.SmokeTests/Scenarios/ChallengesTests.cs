@@ -31,6 +31,11 @@ internal static partial class SmokeTests
                 Check(cards.Length == 3 && cards.All(x => x.Amount == 3) &&
                     cards.Select(x => x.Kind).Distinct().Count() == (roll < 5 ? 1 : 2), "Single-type pack probability");
             }
+            // A rare homogeneous pack can contain three different quantities of the same item.
+            var rolls = new Queue<int>(new[] { 0, 0, 0, 65, 95, 2, 1 });
+            var mixed = ChallengeRules.CreateRewardCards(_ => rolls.Dequeue());
+            Check(mixed.All(x => x.Kind == "hint") &&
+                mixed.Select(x => x.Amount).Order().SequenceEqual(new[] { 1, 2, 3 }), "Mixed quantities in homogeneous pack");
             var common = server.ChallengePuzzle(today);
             Check(common.Givens.SequenceEqual(server.ChallengePuzzle(today).Givens), "Shared daily puzzle");
             var now = DateTimeOffset.UtcNow;
@@ -87,7 +92,30 @@ internal static partial class SmokeTests
             Check(!masked.Contains('@') && server.ResolvePublicName(masked) == other && server.ResolvePublicName(other) is null, "Masked profile lookup");
             var json = Database.Encode(profile);
             Check(!json.Contains("\"solution\"") && !json.Contains("\"token\"") && !json.Contains("\"payload\"") && !json.Contains("\"flagged\""), "Public profile redaction");
-            Console.WriteLine("PASS shared daily puzzle, independent challenge sessions, one reward per date, leap-month cup, public profiles");
+            // Recreate the previous schema with one legacy result to verify the upgrade path.
+            string legacyDay = "2024-02-01";
+            var legacyGame = Solve(common);
+            var legacyEnd = new DateTimeOffset(2024, 2, 1, 12, 0, 0, TimeSpan.Zero);
+            var legacyRecord = new GameRecord(Guid.NewGuid(), legacyEnd, legacyEnd, "web", "completed", legacyGame);
+            using (var c = new Database(path).Open())
+            {
+                using (var create = Database.Command(c, """
+                    CREATE TABLE challenge_attempts (
+                        name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL,
+                        day TEXT NOT NULL REFERENCES challenge_puzzles(day), outcome TEXT NOT NULL,
+                        ended TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
+                    """)) create.ExecuteNonQuery();
+                using var insert = Database.Command(c, "INSERT INTO challenge_attempts VALUES($n,$id,$d,$o,$e,$p)",
+                    ("$n", other), ("$id", legacyRecord.Id.ToString()), ("$d", legacyDay),
+                    ("$o", legacyRecord.Outcome), ("$e", legacyEnd.ToString("O")), ("$p", Database.Encode(legacyRecord)));
+                insert.ExecuteNonQuery();
+            }
+            var migrated = new ServerStore(path);
+            var migratedRecord = migrated.History(other).Single();
+            Check(migratedRecord.Id == legacyRecord.Id && migratedRecord.ChallengeDay == legacyDay &&
+                migratedRecord.Score == legacyRecord.Score, "Legacy challenge history migration");
+            Check(new ServerStore(path).History(other).Count == 1, "Migration is idempotent");
+            Console.WriteLine("PASS shared daily puzzle, isolated sessions, weighted rewards, unified statistics, migration, monthly cups");
         }
         finally
         {

@@ -20,7 +20,8 @@ function resetSession() {
     $("logout").hidden = true;
     $("history-tab").disabled = true;
     $("guest-notice").hidden = false;
-    render()
+    setTab("menu");
+    render();
 }
 async function pauseForNavigation() {
     if (pulse) await pulse;

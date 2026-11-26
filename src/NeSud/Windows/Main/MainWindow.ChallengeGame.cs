@@ -101,7 +101,7 @@ public sealed partial class MainWindow
         {
             if (game is null)return;
             int seconds = game.Seconds + (connected && !game.Paused && !game.Completed && !game.OutOfLives && game.Reward is null?(int)Math.Min(12, anchor.Elapsed.TotalSeconds): 0);
-            summary.Text = $"{FormatTime(seconds)} • {new string('♥',Math.Clamp(game.Lives,0,3))} • {game.CurrentScore} балів • помилки {game.Mistakes}";
+            summary.Text = $"{Level(game.Difficulty)} • {FormatTime(seconds)} • {new string('♥',Math.Clamp(game.Lives,0,3))} • {game.CurrentScore} балів • помилки {game.Mistakes}";
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
@@ -361,6 +361,6 @@ public sealed partial class MainWindow
         };
         Draw();
         window.ShowDialog();
-        await Task.CompletedTask;
+        if (game?.Completed == true || game?.FinalDefeat == true) await Sync();
     }
 }
