@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../NeSud.Storage/NeSud.Storage.csproj" />
+    <PackageReference Include="Svg.Skia" Version="5.2.4" />
     <AssemblyMetadata Include="NeSudServerUrl" Value="$(NeSudServerUrl)" />
   </ItemGroup>
 </Project>

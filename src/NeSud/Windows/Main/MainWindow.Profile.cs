@@ -40,6 +40,10 @@ public sealed partial class MainWindow
             panel.Children.Add(Action("Налаштування акаунта", () => { window.Close(); ShowAccount(); }));
         nav.Children.Add(prev);
         nav.Children.Add(next);
+        async Task LoadProfileAgain()
+        {
+            if (window.IsVisible) await Load();
+        }
         async Task Load()
         {
             if (loading)return;
@@ -49,8 +53,23 @@ public sealed partial class MainWindow
             {
                 var p = await Request<PublicProfile > ("profile?page=" + page + (user is null?"": "&user=" + Uri.EscapeDataString(user)) + (filter.SelectedIndex > 0?"&difficulty=" + (Difficulty)(filter.SelectedIndex - 1): ""));
                 if (!window.IsVisible)return;
-                title.Text = p.User;
+                title.Text = p.User + (p.Verified ? " ✓" : "");
                 body.Children.Clear();
+                if (p.Avatar is not null)
+                {
+                    try
+                    {
+                        var bytes = await http.GetByteArrayAsync(serverUrl.TrimEnd('/') + p.Avatar);
+                        if (!window.IsVisible) return;
+                        body.Children.Add(new Image { Source = ReadAvatar(bytes), Width = 80, Height = 80,
+                            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12) });
+                    }
+                    catch (HttpRequestException) { }
+                }
+                if (user is null && account is not null)
+                {
+                    body.Children.Add(Action("Редагувати профіль", async () => { await EditOwnProfile(); await LoadProfileAgain(); }));
+                }
                 body.Children.Add(Text($"Ігор: {p.Games} • перемог: {p.Wins} • ідеальних: {p.PerfectWins} • балів: {p.Score:N0}", 15));
                 body.Children.Add(Text($"Серія: {p.CurrentStreak}/{p.BestStreak} • щоденних перемог: {p.DailyWins}", 14, "Muted"));
                 Gap(body);

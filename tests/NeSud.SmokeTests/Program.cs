@@ -19,6 +19,7 @@ internal static partial class SmokeTests
         TestRewards(puzzles, random);
         TestChallenges(puzzles);
         TestSocial(puzzles);
+        TestIdentity();
     }
 
     static void Check(bool result, string message)

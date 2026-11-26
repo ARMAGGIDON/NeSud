@@ -7,8 +7,8 @@ function Post([string]$path, $body, $headers = @{}) {
     Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/$path" -Headers $headers -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $body -Depth 30 -Compress)
 }
 $id = [Guid]::NewGuid().ToString('N').Substring(0,12)
-$a = Post 'register' @{user="smoke_a_$id"; password='Smoke-test-password-2026'; confirmation='Smoke-test-password-2026'}
-$b = Post 'register' @{user="smoke_b_$id"; password='Smoke-test-password-2026'; confirmation='Smoke-test-password-2026'}
+$a = Post 'register' @{user="smoke_a_$id";email="smoke_a_$id@example.com"; password='Smoke-test-password-2026'; confirmation='Smoke-test-password-2026'}
+$b = Post 'register' @{user="smoke_b_$id";email="smoke_b_$id@example.com"; password='Smoke-test-password-2026'; confirmation='Smoke-test-password-2026'}
 $ha = @{Authorization="Bearer $($a.token)"}
 $hb = @{Authorization="Bearer $($b.token)"}
 $s = Post 'web/new' @{difficulty=0; id=$null; revision=0} $ha
@@ -33,12 +33,12 @@ $history = (Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $ha).Content 
 Assert ($history.Count -eq 1 -and $history[0].outcome -eq 'abandoned') 'Abandoned history'
 $otherHistory = (Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hb).Content | ConvertFrom-Json -NoEnumerate
 Assert ($otherHistory -is [array] -and $otherHistory.Count -eq 0) 'Account history isolation'
-$duplicate = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="SMOKE_A_$id";password='Smoke-test-password-2026';confirmation='Smoke-test-password-2026'} | ConvertTo-Json) -SkipHttpErrorCheck
+$duplicate = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="SMOKE_A_$id";email="other_$id@example.com";password='Smoke-test-password-2026';confirmation='Smoke-test-password-2026'} | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$duplicate.StatusCode -eq 409) 'Case-insensitive unique login'
-$bad = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="smoke_c_$id";password='Smoke-test-password-2026';confirmation='different-password'} | ConvertTo-Json) -SkipHttpErrorCheck
+$bad = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="smoke_c_$id";email="smoke_c_$id@example.com";password='Smoke-test-password-2026';confirmation='different-password'} | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$bad.StatusCode -eq 400) 'Password confirmation'
-$email = Post 'register' @{user="smoke_$id@example.com";password='Smoke-test-password-2026';confirmation='Smoke-test-password-2026'}
-Assert ($email.user -eq "smoke_$id@example.com") 'Email login'
+$email = Post 'register' @{user="smoke_email_$id";email="smoke_$id@example.com";password='Smoke-test-password-2026';confirmation='Smoke-test-password-2026'}
+Assert ($email.username -eq "smoke_email_$id") 'Separate email and username'
 $guest = Post 'guest' @{}
 $hg = @{Authorization="Bearer $($guest.token)"}
 $demo = Post 'web/new' @{difficulty=0;id=$null;revision=0} $hg
@@ -116,19 +116,19 @@ $regular = Invoke-RestMethod -Uri "$BaseUrl/api/web/session?pause=true" -Headers
 Assert ($regular.id -eq $new.id) 'Regular session preserved'
 $future = Invoke-WebRequest -Uri "$BaseUrl/api/web/session?challengeDay=9999-12-31" -Headers $ha -SkipHttpErrorCheck
 Assert ([int]$future.StatusCode -eq 400) 'Future challenge denied'
-$profile = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.user)"
-Assert ($profile.user -eq $a.user -and $profile.games -eq 1 -and $null -eq $profile.history[0].game) 'Public profile metadata only'
-$hiddenEmail = Invoke-WebRequest -Uri "$BaseUrl/api/profile?user=$([Uri]::EscapeDataString($email.user))" -SkipHttpErrorCheck
+$profile = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.username)"
+Assert ($profile.user -eq $a.username -and $profile.games -eq 1 -and $null -eq $profile.history[0].game) 'Public profile metadata only'
+$hiddenEmail = Invoke-WebRequest -Uri "$BaseUrl/api/profile?user=$([Uri]::EscapeDataString("smoke_$id@example.com"))" -SkipHttpErrorCheck
 Assert ([int]$hiddenEmail.StatusCode -eq 404) 'Email is not a public profile identifier'
-$found = Invoke-RestMethod -Uri "$BaseUrl/api/players?q=$($a.user)"
-Assert ($found -contains $a.user) 'Nickname search'
-Post 'friends' @{user=$b.user;action='send'} $ha | Out-Null
+$found = Invoke-RestMethod -Uri "$BaseUrl/api/players?q=$($a.username)"
+Assert ($found -contains $a.username) 'Nickname search'
+Post 'friends' @{user=$b.username;action='send'} $ha | Out-Null
 $incoming = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $hb
-Assert ($incoming[0].status -eq 'incoming' -and $incoming[0].user -eq $a.user) 'Incoming friend request'
-Post 'friends' @{user=$a.user;action='accept'} $hb | Out-Null
+Assert ($incoming[0].status -eq 'incoming' -and $incoming[0].user -eq $a.username) 'Incoming friend request'
+Post 'friends' @{user=$a.username;action='accept'} $hb | Out-Null
 $friends = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $ha
 Assert ($friends[0].status -eq 'friend') 'Mutual friendship'
-Post 'friends' @{user=$b.user;action='remove'} $ha | Out-Null
-$filtered = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.user)&difficulty=Easy"
+Post 'friends' @{user=$b.username;action='remove'} $ha | Out-Null
+$filtered = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.username)&difficulty=Easy"
 Assert ($filtered.byDifficulty.Count -eq 4 -and $filtered.history[0].difficulty -eq 0) 'Profile difficulty breakdown'
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

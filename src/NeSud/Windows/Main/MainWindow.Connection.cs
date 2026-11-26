@@ -37,7 +37,7 @@ public sealed partial class MainWindow : Window
             try
             {
                 using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                if (json.RootElement.TryGetProperty("error", out var value)) error = value.GetString();
+                if (json.RootElement.TryGetProperty("error", out var value) || json.RootElement.TryGetProperty("detail", out value)) error = value.GetString();
                 }
                 catch (System.Text.Json.JsonException) { }
             throw new HttpRequestException(error ?? (response.StatusCode == HttpStatusCode.TooManyRequests ? "Забагато спроб. Спробуйте пізніше." : "Сервіс тимчасово недоступний."), null, response.StatusCode);

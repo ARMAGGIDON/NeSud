@@ -119,7 +119,7 @@ public sealed partial class ServerStore
 
     public bool VerifyEmail(string name, string code)
     {
-        if (code is null || code.Length != 16) return false;
+        if (code is null || code.Trim().Length != 16) return false;
         lock (Gate)
         {
             using var c = db.Open();
@@ -159,10 +159,58 @@ public sealed partial class ServerStore
             !png.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}) ||
             !png.AsSpan(12, 4).SequenceEqual("IHDR"u8) ||
             System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16,4)) != 256 ||
-            System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4)) != 256)) return false;
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4)) != 256 || !ValidAvatarPng(png))) return false;
         using var c = db.Open();
         using var cmd = Database.Command(c, "UPDATE account_profiles SET avatar=$a WHERE name=$n", ("$a", png), ("$n", name));
         return cmd.ExecuteNonQuery() == 1;
+    }
+
+    private static bool ValidAvatarPng(byte[] png)
+    {
+        // Bound decompression and accept only conventional non-interlaced 8-bit RGB/RGBA.
+        if (png[24] != 8 || png[25] is not (2 or 6) || png[26] != 0 || png[27] != 0 || png[28] != 0)
+            return false;
+        try
+        {
+            using var compressed = new MemoryStream();
+            int offset = 8;
+            bool header = false, end = false;
+            while (offset <= png.Length - 12)
+            {
+                int length = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset, 4));
+                if (length < 0 || length > png.Length - offset - 12) return false;
+                var type = png.AsSpan(offset + 4, 4);
+                if (type.SequenceEqual("IHDR"u8))
+                {
+                    if (header || offset != 8 || length != 13) return false;
+                    header = true;
+                }
+                else if (type.SequenceEqual("IDAT"u8))
+                {
+                    if (!header) return false;
+                    compressed.Write(png, offset + 8, length);
+                }
+                else if (type.SequenceEqual("IEND"u8))
+                {
+                    end = length == 0 && offset + 12 == png.Length;
+                    break;
+                }
+                else if (type.SequenceEqual("acTL"u8) || type.SequenceEqual("fcTL"u8) ||
+                    type.SequenceEqual("fdAT"u8) || (type[0] & 32) == 0) return false;
+                offset += 12 + length;
+            }
+            if (!header || !end || compressed.Length == 0) return false;
+            compressed.Position = 0;
+            using var inflate = new System.IO.Compression.ZLibStream(compressed, System.IO.Compression.CompressionMode.Decompress);
+            var row = new byte[1 + 256 * (png[25] == 6 ? 4 : 3)];
+            for (int y = 0; y < 256; y++)
+            {
+                inflate.ReadExactly(row);
+                if (row[0] > 4) return false;
+            }
+            return inflate.ReadByte() == -1;
+        }
+        catch (IOException) { return false; }
     }
 
     public byte[]? GetAvatar(string user)

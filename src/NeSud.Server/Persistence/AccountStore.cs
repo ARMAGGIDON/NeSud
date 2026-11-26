@@ -71,7 +71,7 @@ public sealed partial class ServerStore
         else
         {
             using (var resolve = Database.Command(c, "SELECT name FROM account_profiles WHERE username=$n OR email=$n", ("$n", name)))
-                name = resolve.ExecuteScalar() as string ?? name;
+                name = resolve.ExecuteScalar() as string ?? "";
             using var get = Database.Command(c, "SELECT salt,hash FROM accounts WHERE name=$n", ("$n", name));
             using var rows = get.ExecuteReader();
             bool found = rows.Read();
