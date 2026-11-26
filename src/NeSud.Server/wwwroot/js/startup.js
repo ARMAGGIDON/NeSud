@@ -1,11 +1,15 @@
 "use strict";
 
 $("menu-continue").onclick = () => openRegular();
-$("menu-start").onclick = async() => {
-    await openRegular();
-    $("difficulty").value = $("menu-level").value;
-    await $("newgame").onclick()
-};
+document.querySelectorAll("[data-new-level]").forEach(button => {
+    button.onclick = async () => {
+        await openRegular();
+        if (tab !== "play" || challengeDay) return;
+        $("difficulty").value = button.dataset.newLevel;
+        await $("newgame").onclick();
+    };
+});
+$("menu-help").onclick = () => $("help-open").onclick();
 
 document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => b.dataset.tab === "play" ? openRegular(): navigate(b.dataset.tab));
 render();

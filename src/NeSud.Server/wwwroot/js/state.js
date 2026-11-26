@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id), levels = ["Легка", "Середня", "Складна", "Експерт"];
 let daily = null, dailyBusy = false, revealed = false, resultKey = "", comparison = null, reviveEnd = 0, previousGame = null;
 let clockAnchor = performance.now(), pulse = null, dailyTask = null, dailyMode = "win";
+let regularGame = null;
 let challengeDay = null, calendarMonth = null, profileUser = null, profilePage = 0;
 let autoFinish = localStorage.getItem("autoFinish") === "1";
 let adPending = false, adClock = null, adKind = "", adRemaining = 8, adBusy = false, nextGuest = 0;

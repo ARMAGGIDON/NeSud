@@ -25,9 +25,14 @@ function render() {
     $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Реклама · останній шанс": "Продовжити";
     $("cover-detail").textContent = "";
     $("revive-progress").hidden = !game?.outOfLives;
-    $("menu-continue").hidden = challengeDay ? false: !game;
-    $("menu-continue").textContent = game?.completed && !challengeDay ? "Останній результат": "Продовжити гру";
-    $("menu-start").disabled = !online || busy;
+    $("menu-continue").hidden = !regularGame;
+    $("menu-continue").textContent = regularGame?.completed || regularGame?.finalDefeat
+        ? "Останній результат" : "Продовжити гру";
+    document.querySelectorAll("[data-new-level]").forEach(button => { button.disabled = !online || busy; });
+    $("menu-challenge").disabled = guestMode || !online;
+    $("menu-challenge").title = guestMode ? "Доступно після входу" : "";
+    $("history-tab").disabled = guestMode || !online;
+    $("history-tab").title = guestMode ? "Доступно після входу" : "";
     $("newgame").disabled = !online || busy;
     $("newgame").hidden = !!challengeDay && !!game && !game.finalDefeat && !game.completed;
     $("newgame").textContent = challengeDay ? (game ? "Повторити": "Почати щоденну гру"): "Нова головоломка";

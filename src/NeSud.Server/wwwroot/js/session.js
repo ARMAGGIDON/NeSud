@@ -2,7 +2,8 @@
 
 function accept(data) {
     previousGame = game;
-    game = data?.empty ? null: data;
+    game = data?.empty ? null : data;
+    if (!challengeDay) regularGame = game;
     online = navigator.onLine;
     clockAnchor = performance.now();
     if (game) {
@@ -13,7 +14,7 @@ function accept(data) {
             comparison = null;
             $("result-difficulty").value = String(game.difficulty)
         }
-        if ((game.completed || game.finalDefeat) && !challengeDay) loadComparison();
+        if (game.completed) loadComparison();
     }
     render();
     if (game && previousGame?.id === game.id) {
@@ -75,6 +76,7 @@ async function act(action, extra = { }) {
         if (e !== epoch) return;
         if (data.pulseOnly) {
             game = { ...game, ...data };
+            if (!challengeDay) regularGame = game;
             clockAnchor = performance.now();
             updateClock();
             return true

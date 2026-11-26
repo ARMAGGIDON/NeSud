@@ -1,6 +1,7 @@
 "use strict";
 
 function resetSession() {
+    regularGame = null;
     challengeDay = null;
     calendarMonth = null;
     daily = null;
@@ -17,7 +18,7 @@ function resetSession() {
     $("account").hidden = false;
     $("account").textContent = "Увійти";
     $("logout").hidden = true;
-    $("history-tab").hidden = true;
+    $("history-tab").disabled = true;
     $("guest-notice").hidden = false;
     render()
 }
@@ -84,6 +85,7 @@ async function login(guest = false) {
         }
         const oldToken = token, oldGuest = guestMode;
         const a = await api(guest ? "guest": registration ? "register": "login", guest ? { }: { user: $("user").value, password: $("password").value, confirmation: registration ? $("confirmation").value: null });
+        regularGame = null;
         challengeDay = null;
         calendarMonth = null;
         daily = null;
@@ -133,7 +135,7 @@ async function start() {
     $("account").textContent = guestMode ? "Увійти" : "Мій профіль";
     $("logout").hidden = guestMode;
     $("guest-notice").hidden = !guestMode;
-    $("history-tab").hidden = guestMode;
+    $("history-tab").disabled = guestMode;
     await navigate("menu");
     await reconnect();
     if (!guestMode) refreshDaily()

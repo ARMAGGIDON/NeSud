@@ -11,9 +11,11 @@ function row(parent, values) {
     parent.append(r)
 }
 async function navigate(t) {
+    if (guestMode && (t === "challenge" || t === "history")) return;
     if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
     tab = t;
     $("back-menu").hidden = t === "menu";
+    $("help-open").hidden = t === "menu";
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => $(n).hidden = n !== t);
     try {
         if (t === "friends") {
@@ -53,7 +55,7 @@ async function navigate(t) {
             }row(target, ["Дата / джерело", "Складність", "Результат / час", "Оцінка"]);
             if (!challengeDay && game && !game.completed && !game.finalDefeat) row(target, ["Поточна · web", levels[game.difficulty], "У процесі · " + fmt(game.seconds), "–"]);
             drafts.forEach(r => row(target, [new Date(r.updated).toLocaleString("uk-UA") + " · desktop", levels[r.game.puzzle.difficulty], "У процесі · " + fmt(r.game.seconds), "–"]));
-            records.forEach(r => row(target, [new Date(r.ended).toLocaleString("uk-UA") + " · " + r.source, levels[r.game.puzzle.difficulty], (r.outcome === "completed" ? "Перемога": r.outcome === "defeated" ? "Поразка": "Перервано") + " · " + fmt(r.game.seconds), r.score + " балів · помилки: " + r.game.mistakes + " · підказки: " + r.game.hints + " · кандидати: " + (r.game.candidateUses || 0) + " · відновлення: " + (r.game.lifeRestores || 0)]));
+            records.forEach(r => row(target, [new Date(r.ended).toLocaleString("uk-UA") + " · " + (r.challengeDay ? "Щоденна " + r.challengeDay : r.source), levels[r.game.puzzle.difficulty], (r.outcome === "completed" ? "Перемога": r.outcome === "defeated" ? "Поразка": "Перервано") + " · " + fmt(r.game.seconds), r.score + " балів · помилки: " + r.game.mistakes + " · підказки: " + r.game.hints + " · кандидати: " + (r.game.candidateUses || 0) + " · відновлення: " + (r.game.lifeRestores || 0)]));
         }
         if (t === "ranking") {
             const mode = $("rankmode").value, metric = $("rankmetric").value, level = $("ranklevel").value;

@@ -73,7 +73,7 @@ function showResult() {
     if (!done && !lost) return;
     $("result-icon").textContent = done ? "✓": "♡";
     $("result-title").textContent = done ? "Головоломку розв’язано!": "Поразка";
-    $("result-level").textContent = challengeDay ? "Щоденна гра · " + challengeDay: levels[game.difficulty];
+    $("result-level").textContent = challengeDay ? "Щоденна гра · " + challengeDay + " · " + levels[game.difficulty] : levels[game.difficulty];
     $("result-difficulty").hidden = !!challengeDay;
     $("result-new").textContent = challengeDay ? "До календаря": "Нова головоломка";
     $("result-score").textContent = (done ? game.currentScore: 0).toLocaleString("uk-UA") + " балів";
@@ -83,9 +83,8 @@ function showResult() {
     for (const [label, val] of [["База", game.baseScore], ["Бонус за швидкість", "+" + game.speedBonus], ["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes], ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty], ["Автозавершення (" + game.autoFilled + " клітинок)", "−" + game.autoFillPenalty], ["Відновлення життя", "−" + 100 * game.lifeRestores]]) resultRow(b, label, val);
     const c = $("comparison");
     c.replaceChildren();
-    $("comparison-heading").hidden = !!challengeDay;
-    c.hidden = !!challengeDay;
-    if (challengeDay) return;
+    $("comparison-heading").hidden = false;
+    c.hidden = false;
     if (!done || !comparison?.games) {
         c.textContent = done ? (comparison ? "Поки недостатньо результатів.": online ? "Завантаження статистики…": "Порівняння недоступне офлайн."): "Порівняння доступне для завершених ігор.";
         return

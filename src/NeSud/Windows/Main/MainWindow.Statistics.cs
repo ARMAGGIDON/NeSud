@@ -65,7 +65,7 @@ public sealed partial class MainWindow : Window
         {
             var item = Stack();
             item.Children.Add(Text($"{Level(r.Game.Puzzle.Difficulty)} • {(r.Outcome == "completed" ? "Перемога" : r.Outcome == "defeated" ? "Поразка" : "Перервано")} • {r.Score} балів", 15, "Text", true));
-            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {r.Source} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints} • кандидати: {r.Game.CandidateUses} • відновлення життів: {r.Game.LifeRestores}", 12, "Muted"));
+            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints} • кандидати: {r.Game.CandidateUses} • відновлення життів: {r.Game.LifeRestores}", 12, "Muted"));
             var card = Card(item, 10);
             card.Margin = new Thickness(0, 0, 0, 6);
             list.Children.Add(card);

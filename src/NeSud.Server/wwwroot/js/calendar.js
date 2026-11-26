@@ -42,6 +42,7 @@ function changeMonth(delta) {
     navigate("challenge")
 }
 async function openChallenge(day) {
+    if (guestMode) return;
     if (!await pauseForNavigation()) return;
     epoch++;
     challengeDay = day;

@@ -102,10 +102,16 @@ Assert ($weekly.week -match '^\d{4}-\d{2}-\d{2}$') 'Weekly API'
 $stats = Invoke-RestMethod -Uri "$BaseUrl/api/accumulated?metric=perfect"
 $calendar = Invoke-RestMethod -Uri "$BaseUrl/api/challenge/calendar" -Headers $ha
 $day = $calendar.today
+$guestChallenge = Post 'guest' @{}
+$guestChallengeHeaders = @{Authorization="Bearer $($guestChallenge.token)"}
+$guestCalendar = Invoke-WebRequest -Uri "$BaseUrl/api/challenge/calendar" -Headers $guestChallengeHeaders -SkipHttpErrorCheck
+Assert ([int]$guestCalendar.StatusCode -eq 401) 'Guest calendar denied'
+Post 'logout' @{} $guestChallengeHeaders | Out-Null
 $ca = Post 'web/new' @{difficulty=1;id=$null;revision=0;challengeDay=$day} $ha
 $cb = Post 'web/new' @{difficulty=1;id=$null;revision=0;challengeDay=$day} $hb
 Assert (($ca.givens -join '') -eq ($cb.givens -join '') -and $ca.id -ne $cb.id) 'Shared challenge puzzle, isolated sessions'
 Assert ($null -eq $ca.solution -and $ca.challengeDay -eq $day) 'Challenge view redaction'
+Assert ($ca.difficulty -in 1,2,3 -and $ca.difficulty -eq $cb.difficulty) 'Shared non-easy challenge difficulty'
 $regular = Invoke-RestMethod -Uri "$BaseUrl/api/web/session?pause=true" -Headers $ha
 Assert ($regular.id -eq $new.id) 'Regular session preserved'
 $future = Invoke-WebRequest -Uri "$BaseUrl/api/web/session?challengeDay=9999-12-31" -Headers $ha -SkipHttpErrorCheck

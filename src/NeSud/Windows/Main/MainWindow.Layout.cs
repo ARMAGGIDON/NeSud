@@ -347,7 +347,7 @@ public sealed partial class MainWindow : Window
         foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Тижневий турнір", () => _ = ShowWeekly()),
             Action("Рейтинг", () => _ = ShowRanking()), Action("Історія та статистика", ShowHistory),
             Action("Друзі та пошук", () => _ = ShowFriends()),
-            Action("Довідка", ShowHelp), Action("Вийти", Close) })
+            Action("Довідка", ShowHelp) })
         { b.Margin = new Thickness(3);
         menuActions.Children.Add(b); }
         menuCard = Card(new ScrollViewer { Content = menu, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
