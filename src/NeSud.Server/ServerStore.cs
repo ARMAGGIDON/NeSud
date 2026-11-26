@@ -21,6 +21,7 @@ public sealed class ServerStore
               name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, source TEXT NOT NULL,
               score INTEGER NOT NULL, outcome TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             CREATE TABLE IF NOT EXISTS web_sessions (name TEXT PRIMARY KEY REFERENCES accounts(name), payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
     }
@@ -90,8 +91,33 @@ public sealed class ServerStore
     public void Upload(string name, List<GameRecord> records)
     {
         using var c = db.Open(); using var tx = c.BeginTransaction();
-        foreach (var r in records) Insert(c, tx, name, r);
+        foreach (var r in records)
+        {
+            Insert(c, tx, name, r);
+            using var del = Database.Command(c, "DELETE FROM desktop_drafts WHERE name=$n AND id=$id", ("$n", name), ("$id", r.Id.ToString()));
+            del.Transaction = tx; del.ExecuteNonQuery();
+        }
         tx.Commit();
+    }
+    public bool SaveDraft(string name, DesktopDraft draft)
+    {
+        using var c = db.Open();
+        using var cmd = Database.Command(c, """
+            INSERT INTO desktop_drafts(name,id,updated,payload)
+            SELECT $n,$id,$u,$p WHERE NOT EXISTS(SELECT 1 FROM history WHERE name=$n AND id=$id)
+            ON CONFLICT(name,id) DO UPDATE SET updated=excluded.updated,payload=excluded.payload
+            WHERE excluded.updated >= desktop_drafts.updated
+            """, ("$n", name), ("$id", draft.Id.ToString()), ("$u", draft.Updated.ToUniversalTime().ToString("O")),
+            ("$p", Database.Encode(draft)));
+        return cmd.ExecuteNonQuery() == 1;
+    }
+    public List<DesktopDraft> Drafts(string name)
+    {
+        using var c = db.Open();
+        using var cmd = Database.Command(c, "SELECT payload FROM desktop_drafts WHERE name=$n ORDER BY updated DESC", ("$n", name));
+        using var rows = cmd.ExecuteReader(); var result = new List<DesktopDraft>();
+        while (rows.Read()) result.Add(Database.Decode<DesktopDraft>(rows.GetString(0)));
+        return result;
     }
     public List<RankEntry> Rankings()
     {

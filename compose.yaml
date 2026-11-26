@@ -1,0 +1,10 @@
+services:
+  nesud:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5080:8080"
+    volumes:
+      - nesud-data:/data
+volumes:
+  nesud-data:

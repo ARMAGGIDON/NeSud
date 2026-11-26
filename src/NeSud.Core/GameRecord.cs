@@ -14,3 +14,6 @@ public sealed record GameRecord(Guid Id, DateTimeOffset Started, DateTimeOffset 
 public sealed record AccountSession(string Token, string User);
 public sealed record Credentials(string User, string Password);
 public sealed record RankEntry(string User, int Games, long Score);
+
+public sealed record DesktopDraft(Guid Id, DateTimeOffset Started, DateTimeOffset Updated, Game Game);
+public sealed record SyncAck(bool Saved);

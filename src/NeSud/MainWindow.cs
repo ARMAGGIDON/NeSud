@@ -390,9 +390,7 @@ public sealed class MainWindow : Window
             $"Час: {FormatTime(g.Seconds)} • Помилки: {g.Mistakes} • Підказки: {g.Hints}" :
             g?.Paused == true ? "Поле приховано, таймер зупинено." : "Оберіть складність і створіть головоломку.";
         coverButton.Content = Busy ? "Скасувати" : g?.Paused == true ? "Продовжити" : "Нова гра";
-        var stat = state.Stats.GetValueOrDefault(g?.Puzzle.Difficulty ?? nextDifficulty);
-        stats.Text = $"Перемоги ({Level(g?.Puzzle.Difficulty ?? nextDifficulty)}): {stat?.Wins ?? 0}  •  Рекорд: " +
-            (stat?.BestSeconds is int best ? FormatTime(best) : "немає");
+        stats.Text = account is not null ? $"Акаунт: {account.User} • синхронізація кожні 30 с" : Scope.Length > 0 ? "Офлайн-профіль • увійдіть для синхронізації" : "Гостьовий режим • локальна історія";
     }
 
     private UniformGrid NoteGrid(int mask)
@@ -424,11 +422,11 @@ public sealed class MainWindow : Window
         if (Playing && !clock.IsRunning) { accountedSeconds = 0; clock.Restart(); }
         else if (!Playing) { clock.Reset(); accountedSeconds = 0; }
     }
-    private void Save()
+    private void Save(GameRecord? previous = null, string? previousScope = null)
     {
         try
         {
-            store.Save(state, G is { Completed: true } ? Terminal("completed") : null, state.GameScope ?? ""); lastSavedSecond = G?.Seconds ?? 0;
+            store.Save(state, previous ?? (G is { Completed: true } ? Terminal("completed") : null), previousScope ?? state.GameScope ?? ""); lastSavedSecond = G?.Seconds ?? 0;
             saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = LocalStore.DefaultPath;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
@@ -484,7 +482,9 @@ public sealed class MainWindow : Window
     {
         if (G is null || Busy) return;
         if (!Confirm("Очистити всі ходи, нотатки та час цієї гри?")) return;
-        ReadClock(); ArchiveCurrent(); clock.Reset(); G.Restart(); G.Awarded = false; BeginAttempt(); lastSavedSecond = 0; SyncClock(); Render(); Save(); FocusCell();
+        ReadClock(); var previous = Terminal(G.Completed ? "completed" : "abandoned"); var scope = state.GameScope ?? "";
+        clock.Reset(); state.Game = Game.Start(G.Puzzle); BeginAttempt(); lastSavedSecond = 0;
+        SyncClock(); Render(); Save(previous, scope); FocusCell();
         status.Text = "Головоломку розпочато заново.";
     }
     private bool Confirm(string message) => Dialog("Підтвердження", message, true);
@@ -500,7 +500,9 @@ public sealed class MainWindow : Window
         {
             var puzzle = await Task.Run(() => Sudoku.Generate(difficulty, cts.Token), cts.Token);
             if (closing) return;
-            ArchiveCurrent(); state.Game = Game.Start(puzzle); BeginAttempt(); lastSavedSecond = 0;
+            var previous = G is null ? null : Terminal(G.Completed ? "completed" : "abandoned");
+            string scope = state.GameScope ?? "";
+            state.Game = Game.Start(puzzle); BeginAttempt(); lastSavedSecond = 0; Save(previous, scope);
             status.Text = "Нова головоломка. Єдиний розв’язок перевірено.";
         }
         catch (OperationCanceledException)
@@ -520,13 +522,10 @@ public sealed class MainWindow : Window
     }
 
     private GameRecord Terminal(string outcome) => new(state.GameId, state.Started, DateTimeOffset.UtcNow,
-        "desktop", outcome, G!);
+        "desktop", outcome, new Game { Puzzle = G!.Puzzle, Values = (int[])G.Values.Clone(), Notes = (int[])G.Notes.Clone(),
+            Seconds = G.Seconds, Mistakes = G.Mistakes, Hints = G.Hints, Selected = G.Selected,
+            NotesMode = G.NotesMode, Paused = G.Paused, Awarded = G.Awarded });
 
-    private void ArchiveCurrent()
-    {
-        if (G is null) return;
-        store.Save(state, Terminal(G.Completed ? "completed" : "abandoned"), state.GameScope ?? "");
-    }
 
     private Window Modal(string title, UIElement content, double width = 480, double maxHeight = 660)
     {
@@ -576,12 +575,15 @@ public sealed class MainWindow : Window
         try
         {
             var pending = store.History(scope, true);
+            DesktopDraft? draft = G is { Completed: false } && (state.GameScope ?? "") == scope
+                ? new(state.GameId, state.Started, DateTimeOffset.UtcNow, Database.Decode<Game>(Database.Encode(G))) : null;
             foreach (var batch in pending.Chunk(10))
             {
                 var records = await Request<List<GameRecord>>("sync", batch, endpoint, session.Token);
                 if (closing) return;
                 store.Merge(scope, records);
             }
+            if (draft is not null) await Request<SyncAck>("desktop/draft", draft, endpoint, session.Token);
             var remote = await Request<List<GameRecord>>("history", endpoint: endpoint, token: session.Token);
             if (closing) return;
             store.Merge(scope, remote);
@@ -598,7 +600,7 @@ public sealed class MainWindow : Window
     private void ShowAccount()
     {
         var panel = Stack(); panel.Children.Add(Text("Акаунт і синхронізація", 22, "Text", true)); Gap(panel);
-        panel.Children.Add(Text(account is null ? "Локальний профіль: " + (Scope.Length == 0 ? "Гість" : Scope) :
+        panel.Children.Add(Text(account is null ? "Локальний профіль: " + (Scope.Length == 0 ? "Гість" : Scope.Split('|')[^1]) :
             "Підключено: " + account.User, 13, "Muted")); Gap(panel);
         panel.Children.Add(Text("Адреса сервера"));
         var endpoint = new TextBox { Text = state.ServerUrl, Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 12) };
@@ -628,10 +630,10 @@ public sealed class MainWindow : Window
                     new Credentials(name.Text, password.Password), url, "");
                 if (!window.IsVisible) return;
                 account = session; state.ServerUrl = url; state.AccountScope = url + "|" + session.User;
-                if (store.History("").Count > 0 && Dialog("Імпорт ігор гостя", "Прив’язати локальні ігри гостя до цього акаунта?", true))
-                    store.ClaimGuest(Scope);
-                if (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false })
-                    state.GameScope = Scope;
+                bool claim = (store.History("").Count > 0 || (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false }))
+                    && Dialog("Імпорт ігор гостя", "Прив’язати локальні ігри гостя до цього акаунта?", true);
+                if (claim) { store.ClaimGuest(Scope); if (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false }) state.GameScope = Scope; }
+                SwitchProfileGame();
                 password.Clear(); Save(); window.Close(); _ = Sync();
             }
             catch (Exception ex) { notice.Text = "Не вдалося увійти: " + ex.Message; }
@@ -642,11 +644,34 @@ public sealed class MainWindow : Window
         panel.Children.Add(Action("Синхронізувати", () => { window.Close(); _ = Sync(); }));
         panel.Children.Add(Action("Вийти / режим гостя", () =>
         {
-            account = null; state.AccountScope = ""; Save(); window.Close();
+            var old = account; var oldUrl = state.ServerUrl;
+            account = null; state.AccountScope = ""; SwitchProfileGame(); Save(); window.Close();
+            if (old is not null) _ = Revoke(old, oldUrl);
             status.Text = "Гостьовий режим. Попередні записи залишено у своєму профілі.";
         }));
         var close = Action("Закрити", () => window.Close()); close.IsCancel = true; panel.Children.Add(close);
         window.ShowDialog();
+    }
+
+    private void SwitchProfileGame()
+    {
+        if (G is null || (state.GameScope ?? "") == Scope) return;
+        ReadClock();
+        var previous = Terminal(G.Completed ? "completed" : "abandoned");
+        var oldScope = state.GameScope ?? "";
+        clock.Reset(); state.Game = null; state.GameId = Guid.Empty; state.GameScope = Scope;
+        Save(previous, oldScope); Render();
+    }
+
+    private async Task Revoke(AccountSession session, string url)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url.TrimEnd('/') + "/api/logout");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Token);
+            using var response = await http.SendAsync(request);
+        }
+        catch { }
     }
 
     private void ShowHistory()

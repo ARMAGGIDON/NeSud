@@ -19,7 +19,7 @@ async function login(register){
 $("login").onsubmit=e=>{e.preventDefault();login(false)};$("register").onclick=()=>login(true);
 $("logout").onclick=async()=>{try{if(game&&!game.paused&&!game.completed)await act("pause");await api("logout",{})}catch{}token="";sessionStorage.removeItem("token");showAuth()};
 async function start(){$("auth").hidden=true;$("app").hidden=false;$("logout").hidden=false;await reconnect()}
-function accept(data){game=data?.empty?null:data;online=true;if(game)selected=Math.max(0,Math.min(80,selected));render()}
+function accept(data){game=data?.empty?null:data;online=navigator.onLine;if(game)selected=Math.max(0,Math.min(80,selected));render()}
 async function reconnect(){
  if(busy||!token)return;const e=epoch;busy=true;
  try{const data=await api("web/session");if(e!==epoch)return;accept(data);if(game&&!game.paused&&!game.completed){const paused=await api("web/action",{id:game.id,revision:game.revision,action:"pause"});if(e!==epoch)return;accept(paused);}message("З’єднання встановлено. Продовжіть гру.");}
@@ -65,7 +65,7 @@ document.addEventListener("keydown",e=>{if(tab!=="play"||!online||!game||e.targe
  else if(k.startsWith("arrow")){let r=Math.floor(selected/9),c=selected%9;if(k==="arrowleft")c--;if(k==="arrowright")c++;if(k==="arrowup")r--;if(k==="arrowdown")r++;selected=Math.max(0,Math.min(8,r))*9+Math.max(0,Math.min(8,c));render();buttons[selected].focus()}else return;e.preventDefault()});
 function row(parent,values){let r=document.createElement("div");r.className="record";values.forEach(v=>{let s=document.createElement("span");s.textContent=v;r.append(s)});parent.append(r)}
 async function navigate(t){tab=t;["play","history","ranking"].forEach(n=>$(n).hidden=n!==t);try{
- if(t==="history"){let records=await api("history"),target=$("historyrows"),wins=records.filter(r=>r.outcome==="completed");target.replaceChildren();$("summary").textContent="Ігор: "+records.length+" · Перемог: "+wins.length+" · Балів: "+wins.reduce((s,r)=>s+r.score,0);row(target,["Дата / джерело","Складність","Результат / час","Оцінка"]);records.forEach(r=>row(target,[new Date(r.ended).toLocaleString("uk-UA")+" · "+r.source,levels[r.game.puzzle.difficulty],(r.outcome==="completed"?"Перемога":"Перервано")+" · "+fmt(r.game.seconds),r.score+" балів"]));}
+ if(t==="history"){let records=await api("history"),drafts=await api("desktop/drafts"),target=$("historyrows"),wins=records.filter(r=>r.outcome==="completed");target.replaceChildren();$("summary").textContent="Ігор: "+records.length+" · Перемог: "+wins.length+" · Балів: "+wins.reduce((s,r)=>s+r.score,0);row(target,["Дата / джерело","Складність","Результат / час","Оцінка"]);drafts.forEach(r=>row(target,[new Date(r.updated).toLocaleString("uk-UA")+" · desktop",levels[r.game.puzzle.difficulty],"У процесі · "+fmt(r.game.seconds),"–"]));records.forEach(r=>row(target,[new Date(r.ended).toLocaleString("uk-UA")+" · "+r.source,levels[r.game.puzzle.difficulty],(r.outcome==="completed"?"Перемога":"Перервано")+" · "+fmt(r.game.seconds),r.score+" балів · помилки: "+r.game.mistakes+" · підказки: "+r.game.hints]));}
  if(t==="ranking"){let ranks=await api("ranking"),target=$("rankrows");target.replaceChildren();row(target,["Місце","Гравець","Перемоги","Бали"]);ranks.forEach((r,i)=>row(target,[i+1,r.user,r.games,r.score]));}
  }catch(e){message(e.message)}}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>navigate(b.dataset.tab));

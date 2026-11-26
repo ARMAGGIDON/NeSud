@@ -50,6 +50,16 @@ app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records
     s.Upload(name, records); return Results.Ok(s.History(name));
 });
 
+app.MapPost("/api/desktop/draft", (HttpContext c, ServerStore s, DesktopDraft draft) =>
+{
+    if (User(c, s) is not { } name) return Results.Unauthorized();
+    if (draft.Id == Guid.Empty || draft.Started > draft.Updated || draft.Updated > DateTimeOffset.UtcNow.AddMinutes(5)
+        || draft.Game is null || !draft.Game.Valid() || draft.Game.Completed) return Results.BadRequest();
+    return Results.Ok(new SyncAck(s.SaveDraft(name, draft)));
+});
+app.MapGet("/api/desktop/drafts", (HttpContext c, ServerStore s) =>
+    User(c, s) is { } name ? Results.Ok(s.Drafts(name)) : Results.Unauthorized());
+
 static WebGame Tick(WebGame session)
 {
     var now = DateTimeOffset.UtcNow;
@@ -146,6 +156,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         if (changed) session = session with { Revision = session.Revision + 1 };
         GameRecord? completed = !wasComplete && game.Completed
             ? new(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "completed", game) : null;
+        if (completed is not null) { completed.Game.UndoStack.Clear(); completed.Game.RedoStack.Clear(); }
         s.SaveSession(name, session, completed);
         return Results.Ok(View(session));
     }

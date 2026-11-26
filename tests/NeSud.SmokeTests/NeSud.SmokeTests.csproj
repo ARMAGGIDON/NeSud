@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/NeSud.Core/NeSud.Core.csproj" />
+    <ProjectReference Include="../../src/NeSud.Storage/NeSud.Storage.csproj" />
   </ItemGroup>
 </Project>
