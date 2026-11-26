@@ -5,7 +5,8 @@ using NeSud.Storage;
 
 namespace NeSud.Server;
 
-public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision);
+public sealed record RewardTicket(string Kind, DateTimeOffset ReadyAt, DateTimeOffset ExpiresAt);
+public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null);
 public sealed class ServerStore
 {
     private readonly Database db;

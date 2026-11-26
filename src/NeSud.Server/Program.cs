@@ -69,7 +69,9 @@ static WebGame Tick(WebGame session)
 {
     var now = DateTimeOffset.UtcNow;
     var elapsed = (now - session.LastSeen).TotalSeconds;
-    if (!session.Game.Paused && !session.Game.Completed)
+    session.Game.UpgradeRules();
+    if (session.Reward is { } ticket && ticket.ExpiresAt <= now) session = session with { Reward = null };
+    if (!session.Game.Paused && !session.Game.Completed && !session.Game.OutOfLives)
     {
         if (elapsed > 12) session.Game.Paused = true;
         else if (elapsed >= 1)
@@ -87,7 +89,11 @@ static object View(WebGame session) => new
     session.Id, session.Revision, session.Started, difficulty = session.Game.Puzzle.Difficulty,
     givens = session.Game.Puzzle.Givens, session.Game.Values, session.Game.Notes,
     session.Game.Seconds, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
-    session.Game.Paused, session.Game.Completed, canUndo = session.Game.UndoStack.Count > 0,
+    session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
+    session.Game.HintCredits, session.Game.CandidateCredits, session.Game.CandidateUses, session.Game.LifeRestores,
+    session.Game.CurrentScore, session.Game.NextQuest, session.Game.AdsWatched,
+    reward = session.Reward is { } t ? new { t.Kind, remaining = Math.Max(0, (int)Math.Ceiling((t.ReadyAt - DateTimeOffset.UtcNow).TotalSeconds)) } : null,
+    canUndo = session.Game.UndoStack.Count > 0,
     canRedo = session.Game.RedoStack.Count > 0
 };
 app.MapGet("/api/web/session", (HttpContext c, ServerStore s) =>
@@ -140,8 +146,28 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         switch (request.Action)
         {
             case "heartbeat": break;
+            case "reward-start":
+                if (!game.CanReward(request.Reward ?? "")) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
+                if (session.Reward is not null && session.Reward.Kind != request.Reward)
+                    return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте попередню винагороду." });
+                if (session.Reward is null)
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    session = session with { Reward = new RewardTicket(request.Reward!, now.AddSeconds(Game.RewardSeconds), now.AddMinutes(2)) };
+                    changed = true;
+                }
+                break;
+            case "reward-claim":
+                if (session.Reward is not { } reward || reward.Kind != request.Reward ||
+                    reward.ReadyAt > DateTimeOffset.UtcNow || reward.ExpiresAt <= DateTimeOffset.UtcNow)
+                    return Results.BadRequest(new { error = "Винагорода ще не готова або термін її дії минув." });
+                if (!game.GrantReward(reward.Kind)) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
+                session = session with { Reward = null }; changed = true; break;
+            case "reward-cancel":
+                if (session.Reward is not null) { session = session with { Reward = null }; changed = true; }
+                break;
             case "pause": if (!game.Paused && !game.Completed) { game.Paused = true; changed = true; } break;
-            case "resume": if (game.Paused && !game.Completed) { game.Paused = false; changed = true; } break;
+            case "resume": if (game.Paused && !game.Completed && !game.OutOfLives) { game.Paused = false; changed = true; } break;
             case "enter":
                 if (!game.Paused && !game.Completed && game.Editable(request.Cell))
                 {
@@ -169,4 +195,4 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
 app.Run();
 
 public sealed record NewGameRequest(Difficulty Difficulty, Guid? Id, long Revision);
-public sealed record MoveRequest(Guid Id, long Revision, string Action, int Cell = 0, int Digit = 0, bool Note = false);
+public sealed record MoveRequest(Guid Id, long Revision, string Action, int Cell = 0, int Digit = 0, bool Note = false, string? Reward = null);

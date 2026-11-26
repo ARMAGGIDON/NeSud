@@ -16,10 +16,59 @@ public sealed class Game
     public bool Paused { get; set; }
     public bool Awarded { get; set; }
     public bool Completed => Values.SequenceEqual(Puzzle.Solution);
+    public const int MaxLives = 3, MaxAid = 3, RewardSeconds = 8;
+    public int RulesVersion { get; set; }
+    public int Lives { get; set; } = MaxLives;
+    public int HintCredits { get; set; } = 1;
+    public int CandidateCredits { get; set; } = 1;
+    public int CandidateUses { get; set; }
+    public int LifeRestores { get; set; }
+    public int AdsWatched { get; set; }
+    public HashSet<int> ManualCorrect { get; set; } = [];
+    public bool OutOfLives => RulesVersion > 0 && Lives == 0 && !Completed;
+    public int CurrentScore => (int)Math.Max(0L, 1000L * ((int)Puzzle.Difficulty + 1) -
+        Seconds / 3L - 75L * Mistakes - 150L * Hints -
+        (RulesVersion > 0 ? 100L * CandidateUses + 100L * LifeRestores : 0L));
+    public string NextQuest => ManualCorrect.Count < 5 ? $"5 правильних клітинок без підказок: {ManualCorrect.Count}/5 (+1 підказка)" :
+        ManualCorrect.Count < 15 ? $"15 правильних клітинок без підказок: {ManualCorrect.Count}/15 (+1 кандидати)" :
+        "Усі завдання цієї гри виконано.";
+
+    // Legacy history retains its original scoring rules; only active games are migrated.
+    public void UpgradeRules()
+    {
+        if (RulesVersion != 0 || Completed) return;
+        RulesVersion = 1; Lives = Math.Max(0, MaxLives - Mistakes);
+        HintCredits = CandidateCredits = 1;
+    }
+
+    public bool CanReward(string kind) => !Completed && RulesVersion > 0 && (kind switch
+    {
+        "life" => Lives < MaxLives,
+        "hint" => HintCredits < MaxAid,
+        "candidates" => CandidateCredits < MaxAid,
+        _ => false
+    });
+    public bool GrantReward(string kind)
+    {
+        if (!CanReward(kind)) return false;
+        switch (kind)
+        {
+            case "life": Lives++; LifeRestores++; break;
+            case "hint": HintCredits++; break;
+            case "candidates": CandidateCredits++; break;
+        }
+        AdsWatched++; return true;
+    }
+    private void CreditCorrect(int i)
+    {
+        if (RulesVersion == 0 || !ManualCorrect.Add(i)) return;
+        if (ManualCorrect.Count == 5) HintCredits = Math.Min(MaxAid, HintCredits + 1);
+        if (ManualCorrect.Count == 15) CandidateCredits = Math.Min(MaxAid, CandidateCredits + 1);
+    }
 
     public static Game Start(Puzzle puzzle) => new()
     {
-        Puzzle = puzzle, Values = (int[])puzzle.Givens.Clone(),
+        Puzzle = puzzle, Values = (int[])puzzle.Givens.Clone(), RulesVersion = 1,
         Selected = Array.FindIndex(puzzle.Givens, v => v == 0)
     };
 
@@ -34,23 +83,23 @@ public sealed class Game
         (Values, Notes) = ((int[])snapshot.Values.Clone(), (int[])snapshot.Notes.Clone());
     public bool Undo()
     {
-        if (Paused || Completed || UndoStack.Count == 0) return false;
+        if (Paused || Completed || OutOfLives || UndoStack.Count == 0) return false;
         RedoStack.Add(Capture());
         Restore(UndoStack[^1]); UndoStack.RemoveAt(UndoStack.Count - 1);
         return true;
     }
     public bool Redo()
     {
-        if (Paused || Completed || RedoStack.Count == 0) return false;
+        if (Paused || Completed || OutOfLives || RedoStack.Count == 0) return false;
         UndoStack.Add(Capture());
         Restore(RedoStack[^1]); RedoStack.RemoveAt(RedoStack.Count - 1);
         return true;
     }
 
-    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && !Paused && !Completed;
+    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && !Paused && !Completed && !OutOfLives;
     public bool Enter(int i, int digit, bool note = false, bool autoClean = true, bool hint = false)
     {
-        if (!Editable(i) || digit is < 0 or > 9) return false;
+        if (!Editable(i) || digit is < 0 or > 9 || hint && (digit != Puzzle.Solution[i] || note || RulesVersion > 0 && HintCredits == 0)) return false;
         if (note && digit != 0)
         {
             if (Values[i] != 0) return false;
@@ -60,8 +109,10 @@ public sealed class Game
         if (Values[i] == digit && Notes[i] == 0) return false;
         Remember();
         Values[i] = digit; Notes[i] = 0;
-        if (hint) Hints++;
-        else if (digit != 0 && digit != Puzzle.Solution[i]) Mistakes++;
+        if (hint) { Hints++; if (RulesVersion > 0) HintCredits--; }
+        else if (digit != 0 && digit != Puzzle.Solution[i])
+        { Mistakes++; if (RulesVersion > 0) Lives = Math.Max(0, Lives - 1); }
+        else if (digit != 0) CreditCorrect(i);
         if (autoClean && digit != 0 && digit == Puzzle.Solution[i])
             foreach (int peer in Sudoku.Peers[i]) Notes[peer] &= ~(1 << digit);
         return true;
@@ -69,15 +120,17 @@ public sealed class Game
 
     public bool FillNotes()
     {
-        if (Paused || Completed) return false;
+        if (Paused || Completed || OutOfLives) return false;
         var next = Enumerable.Range(0, 81).Select(i => Values[i] == 0 ? Sudoku.Candidates(Values, i) : 0).ToArray();
-        if (next.SequenceEqual(Notes)) return false;
-        Remember(); Notes = next; return true;
+        if (next.SequenceEqual(Notes) || RulesVersion > 0 && CandidateCredits == 0) return false;
+        Remember(); Notes = next;
+        if (RulesVersion > 0) { CandidateCredits--; CandidateUses++; }
+        return true;
     }
 
     public (int Cell, int Digit, string Reason)? GetHint()
     {
-        if (Paused || Completed) return null;
+        if (Paused || Completed || OutOfLives || RulesVersion > 0 && HintCredits == 0) return null;
         int wrong = -1;
         for (int i = 0; i < 81; i++)
             if (Values[i] != 0 && Values[i] != Puzzle.Solution[i]) { wrong = i; break; }
@@ -91,7 +144,9 @@ public sealed class Game
     {
         Values = (int[])Puzzle.Givens.Clone(); Notes = new int[81];
         UndoStack.Clear(); RedoStack.Clear(); Seconds = Mistakes = Hints = 0;
-        Paused = NotesMode = false; Selected = Array.IndexOf(Values, 0);
+        Paused = NotesMode = Awarded = false; Selected = Array.IndexOf(Values, 0);
+        RulesVersion = 1; Lives = MaxLives; HintCredits = CandidateCredits = 1;
+        CandidateUses = LifeRestores = AdsWatched = 0; ManualCorrect.Clear();
     }
 
     public bool Valid()
@@ -99,6 +154,10 @@ public sealed class Game
         if (Puzzle is null || Puzzle.Givens is null || Puzzle.Solution is null ||
             !Enum.IsDefined(Puzzle.Difficulty) || !Sudoku.IsConsistent(Puzzle.Givens) ||
             !Sudoku.IsConsistent(Puzzle.Solution) || Puzzle.Solution.Contains(0) ||
+            RulesVersion is < 0 or > 1 || Lives is < 0 or > MaxLives ||
+            HintCredits is < 0 or > MaxAid || CandidateCredits is < 0 or > MaxAid ||
+            CandidateUses < 0 || LifeRestores < 0 || AdsWatched < 0 || ManualCorrect is null ||
+            ManualCorrect.Any(i => i is < 0 or >= 81 || Puzzle.Givens[i] != 0) ||
             Seconds < 0 || Mistakes < 0 || Hints < 0 || Selected is < 0 or >= 81 ||
             UndoStack is null || RedoStack is null || UndoStack.Count > 150 || RedoStack.Count > 150)
             return false;
