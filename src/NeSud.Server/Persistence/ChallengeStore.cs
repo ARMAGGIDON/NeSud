@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using NeSud.Core;
 using NeSud.Storage;
 using System.Globalization;
+using System.Security.Cryptography;
 
 namespace NeSud.Server;
 
@@ -13,12 +14,40 @@ public sealed partial class ServerStore
     public bool ChallengeAllowed(string value) => ParseDate(value, out var date) &&
         MonthKey(date) == Day(DateTimeOffset.UtcNow)[..7] && string.CompareOrdinal(value, Day(DateTimeOffset.UtcNow)) <= 0;
 
+    private static void MigrateChallengeHistory(SqliteConnection c, SqliteTransaction tx)
+    {
+        using var exists = Tx(c, tx, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='challenge_attempts'");
+        if (exists.ExecuteScalar() is null) return;
+        // The old table is removed only after every record has been copied successfully.
+        using var migrate = Tx(c, tx, """
+            INSERT INTO history(name,id,source,score,outcome,payload)
+            SELECT name,id,'web',CASE WHEN outcome='completed' THEN json_extract(payload,'$.score') ELSE 0 END,
+                outcome,json_set(payload,'$.challengeDay',day)
+            FROM challenge_attempts;
+            DROP TABLE challenge_attempts;
+            """);
+        migrate.ExecuteNonQuery();
+    }
+
+    private Difficulty ChallengeDifficulty(string day)
+    {
+        using var c = db.Open();
+        using var tx = c.BeginTransaction();
+        using (var insert = Tx(c, tx, "INSERT OR IGNORE INTO challenge_difficulties VALUES($d,$l)",
+            ("$d", day), ("$l", (int)ChallengeRules.DifficultyForRoll(RandomNumberGenerator.GetInt32(3)))))
+            insert.ExecuteNonQuery();
+        using var get = Tx(c, tx, "SELECT difficulty FROM challenge_difficulties WHERE day=$d", ("$d", day));
+        var result = (Difficulty)Convert.ToInt32(get.ExecuteScalar());
+        tx.Commit();
+        return result;
+    }
+
     public Puzzle ChallengePuzzle(string day, CancellationToken token = default)
     {
         using (var c = db.Open())
         using (var cmd = Database.Command(c, "SELECT payload FROM challenge_puzzles WHERE day=$d", ("$d", day)))
             if (cmd.ExecuteScalar() is string existing) return Database.Decode<Puzzle > (existing);
-        var puzzle = Sudoku.Generate(Difficulty.Medium, token);
+        var puzzle = Sudoku.Generate(ChallengeDifficulty(day), token);
         using var conn = db.Open();
         using var tx = conn.BeginTransaction();
         using (var add = Tx(conn, tx, "INSERT OR IGNORE INTO challenge_puzzles VALUES($d,$p)", ("$d", day), ("$p", Database.Encode(puzzle)))) add.ExecuteNonQuery();
@@ -55,30 +84,37 @@ public sealed partial class ServerStore
         if (walletKind is not null && !Debit(c, tx, name, walletKind)) throw new InvalidOperationException("Недостатньо ресурсів.");
         if (terminal is not null)
         {
-            using var add = Tx(c, tx, "INSERT OR IGNORE INTO challenge_attempts VALUES($n,$id,$d,$o,$e,$p)",
-                ("$n", name), ("$id", terminal.Id.ToString()), ("$d", day), ("$o", terminal.Outcome),
-                ("$e", terminal.Ended.ToUniversalTime().ToString("O")), ("$p", Database.Encode(terminal)));
-            if (add.ExecuteNonQuery() == 1 && terminal.Outcome == "completed")
+            var record = terminal with { ChallengeDay = day };
+            if (Insert(c, tx, name, record) && record.Outcome == "completed")
             {
                 var audit = session.Audit ?? new MoveAudit();
-                bool flagged = audit.Flag(terminal.Game);
-                using (var log = Tx(c, tx, "INSERT OR IGNORE INTO speed_audit VALUES($n,$id,$m,$f,$flag)", ("$n", name), ("$id", terminal.Id.ToString()), ("$m", audit.Moves), ("$f", audit.FastIntervals), ("$flag", flagged?1: 0))) log.ExecuteNonQuery();
-                string endedDay = Day(terminal.Ended);
-                if (!flagged && endedDay[..7] == day[..7] && string.CompareOrdinal(endedDay, day) >= 0)
+                string endedDay = Day(record.Ended);
+                bool flagged = audit.Flag(record.Game) || endedDay[..7] != day[..7] ||
+                    string.CompareOrdinal(endedDay, day) < 0;
+                using (var log = Tx(c, tx, "INSERT OR IGNORE INTO speed_audit VALUES($n,$id,$m,$f,$flag)",
+                    ("$n", name), ("$id", record.Id.ToString()), ("$m", audit.Moves),
+                    ("$f", audit.FastIntervals), ("$flag", flagged ? 1 : 0)))
+                    log.ExecuteNonQuery();
+
+                if (!flagged)
                 {
-                using var win = Tx(c, tx, "INSERT OR IGNORE INTO challenge_wins VALUES($n,$d)", ("$n", name), ("$d", day));
-                if (win.ExecuteNonQuery() == 1)
-                {
-                    AddPack(c, tx, name, day, "challenge", 0, 1, 2);
-                    var date = ParseDay(day);
-                    string month = MonthKey(date);
-                    using var cup = Tx(c, tx, """
-                        INSERT OR IGNORE INTO monthly_cups(name,month)
-                        SELECT $n,$m WHERE (SELECT COUNT(*) FROM challenge_wins WHERE name=$n AND day >= $start AND day < $end)=$days
-                        """, ("$n", name), ("$m", month), ("$start", month + "-01"),
-                        ("$end", DateKey(new DateOnly(date.Year, date.Month, 1).AddMonths(1))), ("$days", DateTime.DaysInMonth(date.Year, date.Month)));
-                    cup.ExecuteNonQuery();
-                }
+                    using var win = Tx(c, tx, "INSERT OR IGNORE INTO challenge_wins VALUES($n,$d)",
+                        ("$n", name), ("$d", day));
+                    if (win.ExecuteNonQuery() == 1)
+                    {
+                        AddPack(c, tx, name, day, "challenge", 0,
+                            ChallengeRules.CreateRewardCards(RandomNumberGenerator.GetInt32));
+                        var date = ParseDay(day);
+                        string month = MonthKey(date);
+                        using var cup = Tx(c, tx, """
+                            INSERT OR IGNORE INTO monthly_cups(name,month)
+                            SELECT $n,$m WHERE (SELECT COUNT(*) FROM challenge_wins
+                                WHERE name=$n AND day >= $start AND day < $end)=$days
+                            """, ("$n", name), ("$m", month), ("$start", month + "-01"),
+                            ("$end", DateKey(new DateOnly(date.Year, date.Month, 1).AddMonths(1))),
+                            ("$days", DateTime.DaysInMonth(date.Year, date.Month)));
+                        cup.ExecuteNonQuery();
+                    }
                 }
             }
         }

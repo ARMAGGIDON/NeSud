@@ -9,7 +9,7 @@ internal static partial class SmokeTests
 {
     private static void TestChallenges(List<Puzzle> puzzles)
     {
-    var challengeDir = Path.Combine(Path.GetTempPath(), "NeSud-challenge-tests-" + Guid.NewGuid().ToString("N"));
+        var challengeDir = Path.Combine(Path.GetTempPath(), "NeSud-challenge-tests-" + Guid.NewGuid().ToString("N"));
         try
         {
             string path = Path.Combine(challengeDir, "server.db");
@@ -19,6 +19,18 @@ internal static partial class SmokeTests
             var cal = server.Calendar(user)!;
             string today = cal.Today;
             Check(server.ChallengeAllowed(today) && !server.ChallengeAllowed("9999-12-31") && !server.ChallengeAllowed("invalid"), "Challenge date validation");
+            Check(Enumerable.Range(0, 3).Select(ChallengeRules.DifficultyForRoll)
+                .SequenceEqual(new[] { Difficulty.Medium, Difficulty.Hard, Difficulty.Expert }), "Daily difficulty distribution");
+            var quantities = Enumerable.Range(0, 100).Select(ChallengeRules.RewardQuantity).ToArray();
+            Check(quantities.Count(x => x == 1) == 65 && quantities.Count(x => x == 2) == 30 &&
+                quantities.Count(x => x == 3) == 5, "Exact reward quantity probabilities");
+            for (int roll = 0; roll < 100; roll++)
+            {
+                int call = 0;
+                var cards = ChallengeRules.CreateRewardCards(max => call++ == 0 ? roll : max - 1);
+                Check(cards.Length == 3 && cards.All(x => x.Amount == 3) &&
+                    cards.Select(x => x.Kind).Distinct().Count() == (roll < 5 ? 1 : 2), "Single-type pack probability");
+            }
             var common = server.ChallengePuzzle(today);
             Check(common.Givens.SequenceEqual(server.ChallengePuzzle(today).Givens), "Shared daily puzzle");
             var now = DateTimeOffset.UtcNow;
@@ -41,11 +53,17 @@ internal static partial class SmokeTests
             server.SaveSession(user, challenge, terminal);
             var rewards = server.Daily(user);
             Check(server.ChallengeWon(user, today) && rewards.Wins == 0 && rewards.Packs.Count == 1 && rewards.Packs[0].Milestone == "challenge" &&
-                server.History(user).Count == 0 && server.Calendar(user)!.Days.Single(d => d.Day == today).Status == "won", "Daily challenge reward once; regular history isolated");
+                server.History(user).Count == 1 && server.History(user)[0].ChallengeDay == today && server.Calendar(user)!.Days.Single(d => d.Day == today).Status == "won", "Daily challenge reward once; shared history");
+            Check(common.Difficulty != Difficulty.Easy && server.ChallengePuzzle(today).Difficulty == common.Difficulty,
+                "Stable random daily difficulty");
+            Check(server.HistorySince(user, 0).Records.Single().ChallengeDay == today, "Challenge incremental history");
+            Check(server.Weekly().Leaders.Single(r => r.User == user).Games == 1, "Challenge included in current weekly ranking");
+            Check(server.Accumulated("wins", false, common.Difficulty).Single(r => r.User == user).Wins == 1,
+                "Challenge included in difficulty ranking");
             var pack = rewards.Packs[0];
             var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
             var result = server.Choose(user, choice)!;
-            Check((result.Item.Amount is 1 or 2) && server.Choose(user, choice)!.Item == result.Item && server.Choose(user, choice with { Card = 2 }) is null, "Challenge choice idempotence");
+            Check((result.Item.Amount is >= 1 and <= 3) && server.Choose(user, choice)!.Item == result.Item && server.Choose(user, choice with { Card = 2 }) is null, "Challenge choice idempotence");
             // Seed an entire leap-year February in a test-only database to exercise all calendar days.
             var zone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
             for (int d = 1; d <= 29; d++)
@@ -62,7 +80,7 @@ internal static partial class SmokeTests
                 Check(server.Profile(user).Cups.Contains("2024-02") == (d == 29), "Cup only after all calendar days");
             }
             var profile = server.Profile(user);
-            Check(profile.Cups.Count == 1 && profile.DailyWins == 30 && profile.Games == 0 && profile.History.Count == 30 && profile.History.All(r => r.Mode == "challenge"), "Public profile challenge stats");
+            Check(profile.Cups.Count == 1 && profile.DailyWins == 30 && profile.Games == 30 && profile.Wins == 30 && profile.History.Count == 30 && profile.History.All(r => r.Mode == "challenge"), "Public profile challenge stats");
             Check(server.Calendar(user, "2024-02")!.Days.All(d => d.Status == "won") && !server.ChallengeAllowed("2024-02-29"), "Historical calendar read only");
             Check(server.Calendar(other, "2024-02")!.Days.All(d => d.Status == "missed") && server.Profile(other).Cups.Count == 0, "Cup account isolation");
             var masked = server.Profile(other).User;

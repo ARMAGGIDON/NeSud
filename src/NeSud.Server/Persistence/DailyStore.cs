@@ -27,10 +27,15 @@ public sealed partial class ServerStore
         }
         return cards;
     }
-    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot, int amount, int thirdAmount)
+    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone,
+        int slot, int amount, int thirdAmount) =>
+        AddPack(c, tx, name, day, milestone, slot, Options(amount, thirdAmount));
+
+    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone,
+        int slot, RewardItem[] options)
     {
         using var cmd = Tx(c, tx, "INSERT OR IGNORE INTO daily_packs(name,day,milestone,slot,options) VALUES($n,$d,$m,$s,$o)",
-            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options(amount, thirdAmount))));
+            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(options)));
         cmd.ExecuteNonQuery();
     }
     private static int EnsureWinPacks(SqliteConnection c, SqliteTransaction tx, string name, string day)
@@ -41,7 +46,7 @@ public sealed partial class ServerStore
         int wins;
         using (var cmd = Tx(c, tx, """
             SELECT COUNT(DISTINCT json_extract(payload,'$.game.puzzle.givens')) FROM history
-            WHERE name=$n AND outcome='completed'
+            WHERE name=$n AND outcome='completed' AND json_extract(payload,'$.challengeDay') IS NULL
             AND julianday(json_extract(payload,'$.ended')) >= julianday($start)
             AND julianday(json_extract(payload,'$.ended')) < julianday($end)
             AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=history.name AND a.id=history.id AND a.flagged=1)

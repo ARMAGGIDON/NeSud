@@ -1,7 +1,7 @@
 namespace NeSud.Core;
 
 public sealed record GameRecord(Guid Id, DateTimeOffset Started, DateTimeOffset Ended, string Source,
-    string Outcome, Game Game)
+    string Outcome, Game Game, string? ChallengeDay = null)
 {
     public int Score => Outcome == "completed" ? Game.CurrentScore : 0;
 

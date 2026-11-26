@@ -28,7 +28,7 @@ internal static partial class Endpoints
         app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
-            if (records.Count > 20 || records.Any(r => r is null || r.Source != "desktop" || !r.Valid()))
+            if (records.Count > 20 || records.Any(r => r is null || r.Source != "desktop" || r.ChallengeDay is not null || !r.Valid()))
                 return Results.BadRequest(new { error = "Некоректний запис історії." });
             s.Upload(name, records);
             return Results.Ok(s.Acknowledge(name, records));

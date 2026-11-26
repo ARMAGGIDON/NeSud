@@ -39,8 +39,7 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS challenge_puzzles (day TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS challenge_sessions (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), payload TEXT NOT NULL, PRIMARY KEY(name,day));
             CREATE INDEX IF NOT EXISTS ix_challenge_sessions_day ON challenge_sessions(day);
-            CREATE TABLE IF NOT EXISTS challenge_attempts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, day TEXT NOT NULL REFERENCES challenge_puzzles(day), outcome TEXT NOT NULL, ended TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
-            CREATE INDEX IF NOT EXISTS ix_challenge_attempts_history ON challenge_attempts(name,ended DESC);
+            CREATE TABLE IF NOT EXISTS challenge_difficulties (day TEXT PRIMARY KEY, difficulty INTEGER NOT NULL CHECK(difficulty BETWEEN 1 AND 3));
             CREATE TABLE IF NOT EXISTS challenge_wins (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), PRIMARY KEY(name,day));
             CREATE TABLE IF NOT EXISTS monthly_cups (name TEXT NOT NULL REFERENCES accounts(name), month TEXT NOT NULL, PRIMARY KEY(name,month));
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
@@ -55,6 +54,7 @@ public sealed partial class ServerStore
             UPDATE daily_packs SET options=replace(options,'"kind":"life"','"kind":"hint"') WHERE options LIKE '%"kind":"life"%';
             """);
         convert.ExecuteNonQuery();
+        MigrateChallengeHistory(migration, tx);
         using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
         seed.ExecuteNonQuery();
         PruneChallengeSessions(migration, tx);

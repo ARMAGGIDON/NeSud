@@ -54,16 +54,15 @@ public sealed partial class ServerStore
         using (var cmd = Database.Command(c, "SELECT COUNT(*) FROM challenge_wins WHERE name=$n", ("$n", name))) dailyWins = Convert.ToInt32(cmd.ExecuteScalar());
         var history = new List<PublicGame > ();
         using (var cmd = Database.Command(c, """
-            SELECT payload,day FROM (
-              SELECT payload,NULL day,julianday(json_extract(payload,'$.ended')) finished,id FROM history WHERE name=$n
-              UNION ALL SELECT payload,day,julianday(ended) finished,id FROM challenge_attempts WHERE name=$n
-            ) WHERE ($d IS NULL OR json_extract(payload,'$.game.puzzle.difficulty')=$d) ORDER BY finished DESC,id LIMIT 51 OFFSET $offset
+            SELECT payload FROM history
+            WHERE name=$n AND ($d IS NULL OR json_extract(payload,'$.game.puzzle.difficulty')=$d)
+            ORDER BY julianday(json_extract(payload,'$.ended')) DESC,id LIMIT 51 OFFSET $offset
             """, ("$n", name), ("$offset", page * 50), ("$d", difficulty is null?null: (int)difficulty.Value)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
             var r = Database.Decode<GameRecord > (rows.GetString(0));
             var g = r.Game;
-            string? day = rows.IsDBNull(1)?null: rows.GetString(1);
+            string? day = r.ChallengeDay;
             history.Add(new(r.Ended, day is null?"regular": "challenge", r.Source, g.Puzzle.Difficulty, r.Outcome, g.Seconds, r.Score, g.Mistakes, g.Hints, g.CandidateUses, g.AutoFilled, g.LifeRestores, day));
         }
         bool more = history.Count > 50;
