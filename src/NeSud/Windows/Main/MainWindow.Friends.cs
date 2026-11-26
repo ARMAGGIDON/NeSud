@@ -77,7 +77,7 @@ public sealed partial class MainWindow
                         body.Children.Add(Text(status == "incoming"?"Вхідні запити": status == "outgoing"?"Надіслані запити": "Друзі", 17, "Text", true));
                         foreach (var f in friends.Where(x => x.Status == status))
                         {
-                            body.Children.Add(Action(f.User, () => _ = ShowProfile(f.User)));
+                            body.Children.Add(PlayerButton(f.User));
                             AddFriendActions(body, f.User, f.Status, Load);
                         }
                     }
@@ -87,7 +87,7 @@ public sealed partial class MainWindow
                 {
                     body.Children.Add(Text("Результати пошуку", 17, "Text", true));
                     var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()));
-                    foreach (var name in matches) body.Children.Add(Action(name, () => _ = ShowProfile(name)));
+                    foreach (var name in matches) body.Children.Add(PlayerButton(name));
                     if (matches.Count == 0) body.Children.Add(Text("Гравців не знайдено.", 13, "Muted"));
                 }
             }

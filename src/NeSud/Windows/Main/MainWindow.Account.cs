@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window
         var window = Modal("Акаунт", panel, 480);
         if (account is not null)
         {
-            panel.Children.Add(Text(account.Username ?? account.User, 18, "Text", true));
+            panel.Children.Add(PlayerIdentity(account.Username ?? account.User, 48));
             
             panel.Children.Add(Text(reachable ? "● Онлайн • автоматична синхронізація" : "○ Офлайн • синхронізація після відновлення зв’язку", 13, "Muted"));
             Gap(panel, 18);

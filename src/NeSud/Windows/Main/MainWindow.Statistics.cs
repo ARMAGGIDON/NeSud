@@ -130,10 +130,11 @@ public sealed partial class MainWindow : Window
                 {
                     rows.Children.Add(Text(title, 18, "Text", true));
                     Gap(rows, 8);
+                    AddPlayerListHeading(rows, "Перемоги / ідеальні", "Серія / рекорд", "Бали");
                     for (int i = 0; i < data.Count; i++)
                     {
                         var r = data[i];
-                        rows.Children.Add(Action($"{i + 1}. {r.User} • {r.Wins} перемог • {r.PerfectWins} ідеальних • серія {r.CurrentStreak}/{r.BestStreak} • {r.Score} балів", () => _ = ShowProfile(r.User)));
+                        AddPlayerRow(rows, r.User, i + 1, $"{r.Wins} / {r.PerfectWins}", $"{r.CurrentStreak} / {r.BestStreak}", r.Score.ToString("N0"));
                         Gap(rows, 5);
                     }
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
@@ -189,10 +190,11 @@ public sealed partial class MainWindow : Window
                 {
                     body.Children.Add(Text(title, 18, "Text", true));
                     Gap(body);
+                    AddPlayerListHeading(body, "Перемоги", "Бали");
                     for (int i = 0; i<leaders.Count; i++)
                     {
                         var r = leaders[i];
-                        body.Children.Add(Action($"{i+1}. {r.User} • {r.Games} перемог • {r.Score} балів", () => _ = ShowProfile(r.User)));
+                        AddPlayerRow(body, r.User, i + 1, r.Games.ToString("N0"), r.Score.ToString("N0"));
                     }
                     if (leaders.Count == 0) body.Children.Add(Text("Немає результатів.", 13, "Muted"));
                     Gap(body, 12);

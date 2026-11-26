@@ -40,12 +40,11 @@ public sealed partial class MainWindow
         var username = new TextBox { Text = settings.Username, MaxLength = 32 };
         panel.Children.Add(username);
         panel.Children.Add(Text("Електронна пошта"));
-        var email = new TextBox { Text = settings.Email ?? "", MaxLength = 254, IsReadOnly = settings.Verified };
+        var email = new TextBox { Text = settings.Email ?? "", MaxLength = 254, IsReadOnly = settings.Verified, IsEnabled = !settings.Verified };
         panel.Children.Add(email);
         var notice = Text("", 14, "Muted");
         var verification = Stack();
-        var invitePanel = Stack();
-        var avatarActions = new WrapPanel();
+
         bool busy = false;
         var window = Modal("Редагування профілю", panel, 620, 760);
 
@@ -54,27 +53,19 @@ public sealed partial class MainWindow
             settings = current;
             username.Text = current.Username;
             username.IsReadOnly = !current.Verified;
-            avatarActions.IsEnabled = current.Verified;
             email.Text = current.Email ?? "";
             email.IsReadOnly = current.Verified;
+            email.IsEnabled = !current.Verified;
+            email.ToolTip = current.Verified ? "Пошта підтверджена. Зміна недоступна." : null;
+            ToolTipService.SetShowOnDisabled(email, true);
             verification.Visibility = current.Verified ? Visibility.Collapsed : Visibility.Visible;
-            invitePanel.Visibility = current.Verified ? Visibility.Visible : Visibility.Collapsed;
-            invitePanel.Children.Clear();
-            if (current.Verified && current.Invite is not null)
-            {
-                invitePanel.Children.Add(Text($"Підтверджених запрошень: {current.Referrals}", 15, "Accent", true));
-                var link = serverUrl.TrimEnd('/') + "/?invite=" + Uri.EscapeDataString(current.Invite);
-                invitePanel.Children.Add(new TextBox { Text = link, IsReadOnly = true, TextWrapping = TextWrapping.Wrap });
-                invitePanel.Children.Add(Action("Копіювати посилання", () =>
-                {
-                    try { Clipboard.SetText(link); notice.Text = "Посилання скопійовано."; }
-                    catch (Exception ex) { notice.Text = ex.Message; }
-                }));
-                invitePanel.Children.Add(Text("За підтвердженого нового гравця: 3 підказки та 3 кандидати.", 13, "Muted"));
-            }
             if (account is not null)
             {
-                account = account with { Username = current.Username };
+                if (account.Username != current.Username)
+                {
+                    InvalidatePlayerAvatar(account.Username ?? account.User);
+                    account = account with { Username = current.Username };
+                }
                 RememberSession(account);
                 UpdateConnection();
             }
@@ -95,13 +86,6 @@ public sealed partial class MainWindow
             notice.Text = "Збережено.";
         }), primary: true));
         Gap(panel);
-        avatarActions.Children.Add(Action("Змінити аватар", async () => await Run(EditAvatar)));
-        avatarActions.Children.Add(Action("Видалити аватар", async () => await Run(async () =>
-        {
-            await Request<SyncAck>("account/avatar", new AvatarEdit(null));
-            notice.Text = "Аватар видалено.";
-        })));
-        panel.Children.Add(avatarActions);
         verification.Children.Add(Action("Надіслати код на пошту", async () => await Run(async () =>
         {
             await Request<SyncAck>("account/verification/send", new { });
@@ -113,12 +97,12 @@ public sealed partial class MainWindow
         verification.Children.Add(Action("Підтвердити пошту", async () => await Run(async () =>
         {
             Apply(await Request<AccountSettings>("account/verification", new VerificationRequest(code.Text.Trim())));
-            notice.Text = "Пошту підтверджено.";
+            notice.Text = "";
             await Sync();
+            window.Close();
         })));
         verification.Children.Add(Text("Зміна нікнейму, аватара та друзі доступні після підтвердження пошти.", 13, "Muted"));
         panel.Children.Add(verification);
-        panel.Children.Add(invitePanel);
         panel.Children.Add(notice);
         Apply(settings);
         if (sendVerification && !settings.Verified)
@@ -134,6 +118,8 @@ public sealed partial class MainWindow
 
     private async Task EditAvatar()
     {
+        var session = account;
+        if (session is null) return;
         var picker = new OpenFileDialog
         {
             Title = "Вибір аватара",
@@ -148,7 +134,9 @@ public sealed partial class MainWindow
         var panel = Stack();
         panel.Children.Add(Text("Квадратна область аватара", 20, "Text", true));
         var preview = new Image { Width = 256, Height = 256, Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center };
-        panel.Children.Add(preview);
+        var previewFrame = new Border { Child = preview, Width = 256, Height = 256, HorizontalAlignment = HorizontalAlignment.Center };
+        previewFrame.SetResourceReference(Border.BackgroundProperty, "ControlBrush");
+        panel.Children.Add(previewFrame);
         var zoom = new Slider { Minimum = 1, Maximum = 4, Value = 1 };
         var x = new Slider { Minimum = 0, Maximum = 1, Value = 0.5 };
         var y = new Slider { Minimum = 0, Maximum = 1, Value = 0.5 };
@@ -181,7 +169,10 @@ public sealed partial class MainWindow
         encoder.Frames.Add(BitmapFrame.Create(new FormatConvertedBitmap(Crop(), PixelFormats.Bgra32, null, 0)));
         using var output = new MemoryStream();
         encoder.Save(output);
-        await Request<SyncAck>("account/avatar", new AvatarEdit(output.ToArray()));
+        if (account?.Token != session.Token) return;
+        await Request<SyncAck>("account/avatar", new AvatarEdit(output.ToArray()), token: session.Token);
+        InvalidatePlayerAvatar(session.Username ?? session.User);
+        RefreshAccountAvatar(true);
     }
 
     private static BitmapSource DecodeAvatar(byte[] bytes, string extension)

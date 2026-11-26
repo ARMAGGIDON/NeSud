@@ -1,12 +1,7 @@
-using System.Diagnostics;
-using System.Globalization;
-using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
 using NeSud.Core;
 
 namespace NeSud;
@@ -16,73 +11,106 @@ public sealed partial class MainWindow
     private async Task ShowProfile(string? user)
     {
         var panel = Stack();
-        var title = Text("Профіль", 24, "Text", true);
-        panel.Children.Add(title);
-        var filter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0 };
-        panel.Children.Add(filter);
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition());
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        panel.Children.Add(header);
+        var identity = Stack();
+        identity.Margin = new Thickness(12, 0, 12, 0);
+        identity.VerticalAlignment = VerticalAlignment.Center;
+        At(header, identity, 0, 1);
+        var title = new StackPanel { Orientation = Orientation.Horizontal };
+        identity.Children.Add(title);
+        var name = Text("Профіль", 24, "Text", true);
+        title.Children.Add(name);
+        var verified = VerifiedMark();
+        verified.Visibility = Visibility.Collapsed;
+        title.Children.Add(verified);
+        var tools = Stack();
+        tools.VerticalAlignment = VerticalAlignment.Center;
+        At(header, tools, 0, 2);
+        var friendActions = Stack();
+        identity.Children.Add(friendActions);
+        var avatarHost = new Grid();
+        At(header, avatarHost, 0, 0);
         var body = Stack();
         panel.Children.Add(body);
-        var window = Page("Профіль", panel, 690, 750);
-        int page = 0;
-        bool loading = false;
+        var historyTitle = Text("Історія ігор", 18, "Text", true);
+        panel.Children.Add(historyTitle);
+        Gap(panel, 6);
+        var filter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0 };
+        panel.Children.Add(filter);
+        var history = Stack();
+        panel.Children.Add(history);
         var nav = new UniformGrid { Columns = 2 };
         panel.Children.Add(nav);
         var prev = Action("Попередня");
         var next = Action("Наступна");
-        prev.Click += async (_, _) => {
-            page--;
-            await Load();
-        };
-        next.Click += async (_, _) => {
-            page++;
-            await Load();
-        };
-        if (user is null && account is not null)
-            panel.Children.Add(Action("Налаштування акаунта", () => { window.Close(); ShowAccount(); }));
+        prev.Margin = new Thickness(0, 8, 4, 0);
+        next.Margin = new Thickness(4, 8, 0, 0);
         nav.Children.Add(prev);
         nav.Children.Add(next);
-        async Task LoadProfileAgain()
-        {
-            if (window.IsVisible) await Load();
-        }
+        var window = Page("Профіль", panel, 900);
+        int page = 0;
+        bool loading = false;
+        bool reloadPending = false;
+        bool own = user is null && account is not null;
+        string? sessionToken = account?.Token;
+
         async Task Load()
         {
-            if (loading)return;
+            if (loading) { reloadPending = true; return; }
             loading = true;
             prev.IsEnabled = next.IsEnabled = false;
             try
             {
-                var p = await Request<PublicProfile > ("profile?page=" + page + (user is null?"": "&user=" + Uri.EscapeDataString(user)) + (filter.SelectedIndex > 0?"&difficulty=" + (Difficulty)(filter.SelectedIndex - 1): ""));
-                if (!window.IsVisible)return;
-                title.Text = p.User + (p.Verified ? " ✓" : "");
-                body.Children.Clear();
-                if (p.Avatar is not null)
+                var p = await Request<PublicProfile>("profile?page=" + page +
+                    (user is null ? "" : "&user=" + Uri.EscapeDataString(user)) +
+                    (filter.SelectedIndex > 0 ? "&difficulty=" + (Difficulty)(filter.SelectedIndex - 1) : ""));
+                if (!window.IsVisible || sessionToken != account?.Token) return;
+                name.Text = p.User;
+                verified.Visibility = p.Verified ? Visibility.Visible : Visibility.Collapsed;
+                avatarHost.Children.Clear();
+                avatarHost.Children.Add(PlayerAvatar(p.User, 88, own && p.Verified ? async () =>
                 {
                     try
                     {
-                        var bytes = await http.GetByteArrayAsync(serverUrl.TrimEnd('/') + p.Avatar);
-                        if (!window.IsVisible) return;
-                        body.Children.Add(new Image { Source = ReadAvatar(bytes), Width = 80, Height = 80,
-                            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12) });
+                        await EditAvatar();
+                        if (window.IsVisible) await Load();
                     }
-                    catch (HttpRequestException) { }
-                }
-                if (user is null && account is not null)
+                    catch (Exception ex) { if (window.IsVisible) Dialog("Аватар", ex.Message, false); }
+                } : null));
+                tools.Children.Clear();
+                if (own)
                 {
-                    body.Children.Add(Action(p.Verified ? "Редагувати профіль" : "Підтвердити пошту", async () => { await EditOwnProfile(); await LoadProfileAgain(); }));
+                    tools.Children.Add(Action(p.Verified ? "Налаштування профілю" : "Підтвердити пошту", async () =>
+                    {
+                        await EditOwnProfile();
+                        if (window.IsVisible) await Load();
+                    }));
+                    if (p.Verified) tools.Children.Add(Action("Запрошення", async () => await ShowInvitations()));
+                    tools.Children.Add(Action("Акаунт", () =>
+                    {
+                        ShowAccount();
+                        if (account?.Token != sessionToken) window.Close();
+                        else _ = Load();
+                    }));
                 }
-                body.Children.Add(Text($"Ігор: {p.Games} • перемог: {p.Wins} • ідеальних: {p.PerfectWins} • балів: {p.Score:N0}", 15));
-                body.Children.Add(Text($"Серія: {p.CurrentStreak}/{p.BestStreak} • щоденних перемог: {p.DailyWins}", 14, "Muted"));
-                Gap(body);
-                foreach (var s in p.ByDifficulty ?? [])body.Children.Add(Text($"{Level(s.Difficulty)}: {s.Wins}/{s.Games} • ідеальні {s.PerfectWins} • серія {s.CurrentStreak}/{s.BestStreak} • {s.Score:N0} балів", 14));
-                if (account is not null && user is not null && p.Verified &&
-                    (await Request<AccountSettings>("account/settings")).Verified)
-                {
-                    var links = await Request<List<FriendEntry>>("friends");
-                    if (!window.IsVisible)return;
-                    var link = links.FirstOrDefault(x => x.User == p.User);
-                    AddFriendActions(body, p.User, link?.Status, async() => await Load());
-                }
+                body.Children.Clear();
+                body.Children.Add(Text("Статистика", 18, "Text", true));
+                body.Children.Add(ProfileMetrics(
+                    ("Ігор", p.Games.ToString("N0")), ("Перемог", p.Wins.ToString("N0")),
+                    ("Ідеальних", p.PerfectWins.ToString("N0")), ("Балів", p.Score.ToString("N0")),
+                    ("Серія / рекорд", $"{p.CurrentStreak} / {p.BestStreak}"), ("Щоденних перемог", p.DailyWins.ToString("N0"))));
+                body.Children.Add(Text("За складностями", 18, "Text", true));
+                var table = ProfileTable(1.2, 1.1, .8, 1.1, 1);
+                AddProfileRow(table, true, "Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали");
+                foreach (var s in p.ByDifficulty ?? [])
+                    AddProfileRow(table, false, Level(s.Difficulty), $"{s.Wins} / {s.Games}", s.PerfectWins.ToString("N0"),
+                        $"{s.CurrentStreak} / {s.BestStreak}", s.Score.ToString("N0"));
+                body.Children.Add(table);
+                Gap(body, 16);
                 body.Children.Add(Text("Місячні кубки", 18, "Text", true));
                 var cups = new WrapPanel();
                 body.Children.Add(cups);
@@ -92,20 +120,32 @@ public sealed partial class MainWindow
                     cup.Margin = new Thickness(3);
                     cups.Children.Add(cup);
                 }
-                if (p.Cups.Count == 0)body.Children.Add(Text("Кубків ще немає.", 13, "Muted"));
-                Gap(body);
-                body.Children.Add(Text("Історія ігор", 18, "Text", true));
+                if (p.Cups.Count == 0) body.Children.Add(Text("Кубків ще немає.", 13, "Muted"));
+                Gap(body, 16);
+                history.Children.Clear();
+                var games = ProfileTable(1.6, .9, 1.2, .7);
+                AddProfileRow(games, true, "Дата / режим", "Складність", "Результат / час", "Бали");
                 foreach (var r in p.History)
                 {
                     string outcome = r.Outcome switch { "completed" => "Перемога", "defeated" => "Поразка", _ => "Перервано" };
-                    body.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {(r.ChallengeDay is null?r.Source:"Щоденна "+r.ChallengeDay)} • {Level(r.Difficulty)} • {outcome} • {FormatTime(r.Seconds)} • {r.Score} балів", 13));
+                    AddProfileRow(games, false, $"{r.Ended.ToLocalTime():g}\n{(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)}",
+                        Level(r.Difficulty), outcome + " · " + FormatTime(r.Seconds), r.Score.ToString("N0"));
                 }
-                if (p.History.Count == 0)body.Children.Add(Text("Ігор ще немає.", 13, "Muted"));
+                history.Children.Add(games);
+                if (p.History.Count == 0) history.Children.Add(Text("Ігор ще немає.", 13, "Muted"));
+                friendActions.Children.Clear();
+                if (!own && account is not null && p.Verified && (await Request<AccountSettings>("account/settings")).Verified)
+                {
+                    var links = await Request<List<FriendEntry>>("friends");
+                    if (!window.IsVisible || sessionToken != account?.Token) return;
+                    AddFriendActions(friendActions, p.User, links.FirstOrDefault(x => x.User == p.User)?.Status, Load);
+                }
                 prev.IsEnabled = page > 0;
                 next.IsEnabled = p.HasMore;
             }
             catch (Exception ex)
             {
+                if (!window.IsVisible) return;
                 body.Children.Clear();
                 body.Children.Add(Text(ex.Message, 14, "Wrong"));
                 prev.IsEnabled = page > 0;
@@ -113,14 +153,14 @@ public sealed partial class MainWindow
             finally
             {
                 loading = false;
+                if (reloadPending && window.IsVisible) { reloadPending = false; _ = Load(); }
             }
         }
-        filter.SelectionChanged += async (_, _) => {
-            page = 0;
-            await Load();
-        };
+
+        prev.Click += async (_, _) => { if (page > 0) { page--; await Load(); } };
+        next.Click += async (_, _) => { page++; await Load(); };
+        filter.SelectionChanged += async (_, _) => { page = 0; await Load(); };
         window.Loaded += async (_, _) => await Load();
         window.ShowDialog();
-        await Task.CompletedTask;
     }
 }
