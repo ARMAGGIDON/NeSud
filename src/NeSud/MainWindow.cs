@@ -37,7 +37,9 @@ public sealed partial class MainWindow : Window
     private Button undo = null!, redo = null!, erase = null!, hint = null!, notes = null!, fill = null!,
         pause = null!, restart = null!, newGame = null!, theme = null!;
     private Grid board = null!, cover = null!;
-    private Border resultCard = null!, playCard = null!, sideCard = null!;
+    private Border resultCard = null!, playCard = null!, sideCard = null!, menuCard = null!;
+    private bool inMenu = true;
+    private Button continueMenu = null!;
     private TextBlock resultTitle = null!, resultSummary = null!, resultBreakdown = null!, resultComparison = null!;
     private Guid shownResult;
     private bool defeatSaved;
@@ -59,7 +61,7 @@ public sealed partial class MainWindow : Window
     private Button rewardLife = null!, rewardHint = null!, rewardCandidates = null!;
     private Game? G => state.Game;
     private bool Busy => generation is not null;
-    private bool Playing => G is { Paused: false, Completed: false, OutOfLives: false } && !Busy && !watchingReward && state.PendingReward is null;
+    private bool Playing => !inMenu && G is { Paused: false, Completed: false, OutOfLives: false } && !Busy && !watchingReward && state.PendingReward is null;
 
     public MainWindow()
     {
@@ -199,7 +201,7 @@ public sealed partial class MainWindow : Window
         theme = Action("Тема", () => { state.Dark = !state.Dark; ApplyTheme(); Render(); Save(); }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center; theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Щоденні", () => _ = ShowChallenges()), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
+        foreach (var b in new[] { Action("Головне меню", OpenMenu), Action("Акаунт", ShowAccount), theme })
         { b.Margin = new Thickness(5, 0, 0, 0); headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1); At(root, header, 0, 0, 3);
 
@@ -324,6 +326,23 @@ public sealed partial class MainWindow : Window
         result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); resultDaily = Action("Щоденні нагороди", () => { weeklyRewards = challengeRewards = false; _ = ShowDaily(); }); result.Children.Add(resultDaily);
         resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         resultCard.Visibility = Visibility.Collapsed; At(root, resultCard, 1, 0, 3);
+        var menu = Stack(); menu.MaxWidth = 580; menu.VerticalAlignment = VerticalAlignment.Center;
+        var menuTitle = Text("Головне меню", 30, "Text", true); menuTitle.TextAlignment = TextAlignment.Center; menu.Children.Add(menuTitle); Gap(menu,20);
+        continueMenu = Action("Продовжити гру", () => { inMenu=false; Render(); FocusCell(); }, primary:true); menu.Children.Add(continueMenu);
+        var menuLevels = new UniformGrid { Columns=2 }; menu.Children.Add(menuLevels);
+        foreach(var d in Enum.GetValues<Difficulty>())
+        {
+            var b=Action("Нова гра · "+Level(d),()=>{state.NextDifficulty=nextDifficulty=d;_=Generate(true);});
+            b.Margin=new Thickness(3); menuLevels.Children.Add(b);
+        }
+        Gap(menu);
+        var menuActions=new UniformGrid { Columns=2 }; menu.Children.Add(menuActions);
+        foreach(var b in new[]{Action("Щоденні ігри",()=>_=ShowChallenges()),Action("Тижневий турнір",()=>_=ShowWeekly()),
+            Action("Рейтинг",()=>_=ShowRanking()),Action("Історія та статистика",ShowHistory),
+            Action("Друзі та пошук",()=>_=ShowFriends()),Action("Мій профіль",()=>{if(account is null)ShowAccount();else _=ShowProfile(null);}),
+            Action("Довідка",ShowHelp),Action("Вийти",Close)})
+        {b.Margin=new Thickness(3);menuActions.Children.Add(b);}
+        menuCard=Card(new ScrollViewer {Content=menu,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}); At(root,menuCard,1,0,3);
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition());
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -381,6 +400,12 @@ public sealed partial class MainWindow : Window
         return result;
     }
 
+    private void OpenMenu()
+    {
+        if(Busy || watchingReward)return;
+        if(Playing){ReadClock();G!.Paused=true;}
+        inMenu=true;SyncClock();Render();Save();
+    }
     private void Render()
     {
         var g = G;
@@ -459,8 +484,12 @@ public sealed partial class MainWindow : Window
             g?.Paused == true ? "Поле приховано, таймер зупинено." : "Оберіть складність і створіть головоломку.";
         coverButton.Content = Busy ? "Скасувати" : g?.OutOfLives == true ? "Реклама · останній шанс" : g?.Paused == true ? "Продовжити" : "Нова гра";
         coverButton.IsEnabled = true; if (g?.OutOfLives == true && !Busy) UpdateDefeat();
-        bool showResult = !Busy && !watchingReward && g is not null && (g.Completed || g.FinalDefeat(DateTimeOffset.UtcNow));
-        playCard.Visibility = sideCard.Visibility = showResult ? Visibility.Collapsed : Visibility.Visible;
+        bool showResult = !inMenu && !Busy && !watchingReward && g is not null && (g.Completed || g.FinalDefeat(DateTimeOffset.UtcNow));
+        menuCard.Visibility = inMenu ? Visibility.Visible : Visibility.Collapsed;
+        continueMenu.Visibility = G is null ? Visibility.Collapsed : Visibility.Visible;
+        continueMenu.Content = G is { Completed:true } || G?.FinalDefeat(DateTimeOffset.UtcNow)==true ? "Останній результат" : "Продовжити гру";
+        continueMenu.IsEnabled = !Busy && state.PendingReward is null;
+        playCard.Visibility = sideCard.Visibility = inMenu || showResult ? Visibility.Collapsed : Visibility.Visible;
         resultCard.Visibility = showResult ? Visibility.Visible : Visibility.Collapsed;
         if (showResult && shownResult != state.GameId) { shownResult = state.GameId; _ = ShowResult(g!); }
         UpdateConnection();
@@ -793,7 +822,7 @@ public sealed partial class MainWindow : Window
         if (Busy || closing || watchingReward || state.PendingReward is not null) return;
         if (confirm && G is { Completed: false, OutOfLives: false } g && (g.UndoStack.Count > 0 || g.Seconds > 0) &&
             !Confirm("Поточну незавершену гру буде замінено. Створити нову?")) return;
-        ReadClock(); clock.Reset();
+        inMenu=false; ReadClock(); clock.Reset();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         generation = cts; var difficulty = nextDifficulty; Render();
         try
@@ -1130,7 +1159,10 @@ public sealed partial class MainWindow : Window
             var games = records.Where(r => r.Game.Puzzle.Difficulty == d).ToList();
             var done = games.Where(r => r.Outcome == "completed").ToList();
             string best = done.Count == 0 ? "немає" : FormatTime(done.Min(r => r.Game.Seconds));
-            panel.Children.Add(Text($"{Level(d)}: {done.Count}/{games.Count} перемог • найкращий час: {best}", 13, "Muted"));
+            int run=0,record=0;
+            foreach(var entry in games.OrderBy(r=>r.Ended).ThenBy(r=>r.Id)){run=entry.Outcome=="completed"?run+1:0;record=Math.Max(record,run);}
+            int clean=done.Count(r=>r.Game.Mistakes==0&&r.Game.Hints==0&&r.Game.CandidateUses==0&&r.Game.AutoFilled==0&&r.Game.LifeRestores==0);
+            panel.Children.Add(Text($"{Level(d)}: {done.Count}/{games.Count} перемог • ідеальні {clean} • серія {run}/{record} • бали {done.Sum(r=>(long)r.Score)} • найкращий час: {best}", 13, "Muted"));
         }
         Gap(panel, 12);
         if (G is { Completed: false } && !G.FinalDefeat(DateTimeOffset.UtcNow) && (state.GameScope ?? "") == Scope)
@@ -1156,6 +1188,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(Text("Серверні результати та загальні бали з офлайн-іграми.", 13, "Muted"));
         var indicator = Text("Завантаження…", 13, "Muted"); panel.Children.Add(indicator); Gap(panel);
         var metric = new ComboBox { Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line"), ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0,0,0,8) }; panel.Children.Add(metric);
+        var levelFilter = new ComboBox { ItemsSource=new[]{"Усі складності","Легка","Середня","Складна","Експерт"},SelectedIndex=0,Margin=new Thickness(0,0,0,8)};panel.Children.Add(levelFilter);
         var rows = Stack();
         panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Gap(panel); var window = Modal("Рейтинг", panel, 560);
@@ -1169,8 +1202,9 @@ public sealed partial class MainWindow : Window
             try
             {
                 string key = new[] { "score", "wins", "perfect", "current", "streak" }[Math.Max(0,metric.SelectedIndex)];
-                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric="+key, token: "");
-                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric="+key+"&all=true", token: "");
+                string filter=levelFilter.SelectedIndex>0?"&difficulty="+(Difficulty)(levelFilter.SelectedIndex-1):"";
+                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric="+key+filter, token: "");
+                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric="+key+"&all=true"+filter, token: "");
                 if (!window.IsVisible) return;
                 rows.Children.Clear();
                 void Table(string title, List<AccumulatedRank> data)
@@ -1189,7 +1223,7 @@ public sealed partial class MainWindow : Window
             catch { if (window.IsVisible) indicator.Text = "○ Офлайн • очікуємо відновлення зв’язку. Показані дані можуть бути застарілими."; }
             finally { loading = false; }
         }
-        metric.SelectionChanged += async (_, _) => await Reload();
+        metric.SelectionChanged += async (_, _) => await Reload();levelFilter.SelectionChanged += async (_, _) => await Reload();
         refresh.Tick += async (_, _) => await Reload();
         window.Loaded += async (_, _) => { refresh.Start(); await Reload(); };
         window.Closed += (_, _) => refresh.Stop();
@@ -1241,6 +1275,7 @@ public sealed partial class MainWindow : Window
     {
         Key k = e.Key; var mods = Keyboard.Modifiers;
         if (k == Key.F1) { ShowHelp(); e.Handled = true; return; }
+        if (inMenu) return;
         if (Busy && k == Key.Escape) { generation?.Cancel(); e.Handled = true; return; }
         if (mods.HasFlag(ModifierKeys.Control))
         {
