@@ -632,7 +632,7 @@ public sealed class MainWindow : Window
                 account = session; state.ServerUrl = url; state.AccountScope = url + "|" + session.User;
                 bool claim = (store.History("").Count > 0 || (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false }))
                     && Dialog("Імпорт ігор гостя", "Прив’язати локальні ігри гостя до цього акаунта?", true);
-                if (claim) { store.ClaimGuest(Scope); if (string.IsNullOrEmpty(state.GameScope) && G is { Completed: false }) state.GameScope = Scope; }
+                if (claim) { store.ClaimGuest(Scope); if (string.IsNullOrEmpty(state.GameScope) && G is not null) state.GameScope = Scope; }
                 SwitchProfileGame();
                 password.Clear(); Save(); window.Close(); _ = Sync();
             }
@@ -680,6 +680,7 @@ public sealed class MainWindow : Window
         var panel = Stack(); panel.Children.Add(Text("Історія та статистика", 24, "Text", true)); Gap(panel);
         var wins = records.Where(r => r.Outcome == "completed").ToList();
         panel.Children.Add(Text($"Ігор: {records.Count}   Перемог: {wins.Count}   Балів: {wins.Sum(r => (long)r.Score)}", 16));
+        panel.Children.Add(Text($"Час: {FormatTime(records.Sum(r => r.Game.Seconds))} • Помилки: {records.Sum(r => (long)r.Game.Mistakes)} • Підказки: {records.Sum(r => (long)r.Game.Hints)}", 13, "Muted"));
         foreach (var d in Enum.GetValues<Difficulty>())
         {
             var games = records.Where(r => r.Game.Puzzle.Difficulty == d).ToList();
@@ -710,15 +711,22 @@ public sealed class MainWindow : Window
         try
         {
             var ranks = await Request<List<RankEntry>>("ranking");
+            var allRanks = await Request<List<RankEntry>>("ranking?mode=all");
             if (closing) return;
             var panel = Stack(); panel.Children.Add(Text("Серверний рейтинг", 24, "Text", true));
-            panel.Children.Add(Text("Рейтинг обчислюється за завершеними вебіграми. Офлайн-ігри враховуються в особистих балах.", 13, "Muted"));
+            panel.Children.Add(Text("Серверний рейтинг: завершені вебігри. Загальна таблиця включає неперевірені офлайн-результати.", 13, "Muted"));
             Gap(panel); var rows = Stack();
             for (int i = 0; i < ranks.Count; i++)
             {
                 var r = ranks[i]; rows.Children.Add(Text($"{i + 1}. {r.User}  •  {r.Games} перемог  •  {r.Score} балів", 15)); Gap(rows, 5);
             }
             if (ranks.Count == 0) rows.Children.Add(Text("Рейтинг ще порожній."));
+            Gap(rows, 20); rows.Children.Add(Text("Загальні бали (офлайн включено)", 18, "Text", true)); Gap(rows);
+            for (int i = 0; i < allRanks.Count; i++)
+            {
+                var r = allRanks[i]; rows.Children.Add(Text($"{i + 1}. {r.User}  •  {r.Games} перемог  •  {r.Score} балів", 15)); Gap(rows, 5);
+            }
+            if (allRanks.Count == 0) rows.Children.Add(Text("Загальна таблиця ще порожня."));
             panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             Gap(panel); var window = Modal("Рейтинг", panel, 560);
             var close = Action("Закрити", () => window.Close(), primary: true); close.IsCancel = true; panel.Children.Add(close);

@@ -41,7 +41,7 @@ app.MapPost("/api/login", (Credentials c, ServerStore s) => Auth(c, s, false)).R
 app.MapPost("/api/logout", (HttpContext c, ServerStore s) => { s.Logout(Token(c)); return Results.Ok(); });
 app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
     User(c, s) is { } name ? Results.Ok(s.History(name)) : Results.Unauthorized());
-app.MapGet("/api/ranking", (ServerStore s) => s.Rankings());
+app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
 app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
 {
     if (User(c, s) is not { } name) return Results.Unauthorized();

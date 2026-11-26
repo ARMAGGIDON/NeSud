@@ -119,12 +119,12 @@ public sealed class ServerStore
         while (rows.Read()) result.Add(Database.Decode<DesktopDraft>(rows.GetString(0)));
         return result;
     }
-    public List<RankEntry> Rankings()
+    public List<RankEntry> Rankings(bool all = false)
     {
         using var c = db.Open(); using var cmd = Database.Command(c, """
-            SELECT name,COUNT(*),SUM(score) FROM history WHERE source='web' AND outcome='completed'
+            SELECT name,COUNT(*),SUM(score) FROM history WHERE ($all=1 OR source='web') AND outcome='completed'
             GROUP BY name ORDER BY SUM(score) DESC,name LIMIT 100
-            """);
+            """, ("$all", all ? 1 : 0));
         using var rows = cmd.ExecuteReader(); var result = new List<RankEntry>();
         while (rows.Read()) result.Add(new(rows.GetString(0), rows.GetInt32(1), rows.GetInt64(2)));
         return result;

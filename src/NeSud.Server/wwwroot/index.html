@@ -12,7 +12,7 @@
 <aside class="panel"><h2>Нова гра</h2><label>Складність<select id="difficulty"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="newgame" class="primary wide">Нова головоломка</button>
 <h2>Цифри та нотатки</h2><div id="pad"></div><div class="actions" id="tools"><button data-action="undo">↶ Скасувати</button><button data-action="redo">↷ Повторити</button><button data-action="erase">Стерти</button><button id="notes">Нотатки</button><button data-action="hint">Підказка</button><button data-action="candidates">Кандидати</button><button data-action="pause">Пауза</button></div><p>Стрілки · 1–9 · N · H · P · Ctrl+Z/Y</p></aside></section>
 <section id="history" class="panel" hidden><h2>Історія та статистика</h2><div id="summary" class="metrics"></div><div id="historyrows"></div></section>
-<section id="ranking" class="panel" hidden><h2>Серверний рейтинг</h2><p>Тільки завершені серверні ігри. Офлайн-ігри є в особистій статистиці.</p><div id="rankrows"></div></section></div>
+<section id="ranking" class="panel" hidden><h2>Серверний рейтинг</h2><p>Серверні результати та загальна таблиця з неперевіреними офлайн-іграми.</p><label>Таблиця<select id="rankmode"><option value="server">Серверний рейтинг</option><option value="all">Загальні бали (офлайн включено)</option></select></label><div id="rankrows"></div></section></div>
 <p id="status" role="status" aria-live="polite"></p></main>
 <dialog id="confirm"><h2>Нова головоломка?</h2><p>Поточна незавершена гра залишиться в історії.</p><form method="dialog" class="actions"><button value="cancel">Скасувати</button><button value="yes" class="primary">Створити</button></form></dialog>
 </body></html>
