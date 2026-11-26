@@ -81,10 +81,10 @@ public sealed partial class ServerStore
         cmd.ExecuteNonQuery();
         using var migration = db.Open(); using var tx = migration.BeginTransaction();
         using var convert = Tx(migration, tx, """
-            INSERT INTO wallet(name,kind,amount) SELECT name,\'hint\',amount FROM wallet WHERE kind=\'life\'
+            INSERT INTO wallet(name,kind,amount) SELECT name,'hint',amount FROM wallet WHERE kind='life'
             ON CONFLICT(name,kind) DO UPDATE SET amount=amount+excluded.amount;
-            DELETE FROM wallet WHERE kind=\'life\';
-            UPDATE daily_packs SET options=replace(options,\'"kind":"life"\',\'"kind":"hint"\') WHERE options LIKE \'%"kind":"life"%\';
+            DELETE FROM wallet WHERE kind='life';
+            UPDATE daily_packs SET options=replace(options,'"kind":"life"','"kind":"hint"') WHERE options LIKE '%"kind":"life"%';
             """);
         convert.ExecuteNonQuery(); tx.Commit();
     }
