@@ -91,7 +91,3 @@ async function navigate(t) {
     }
 }
 $("rankmode").onchange = $("rankmetric").onchange = $("ranklevel").onchange = () => navigate("ranking");
-$("help-open").onclick = async() => {
-    if (await pauseForNavigation()) $("help").showModal()
-};
-$("help-close").onclick = () => $("help").close();
