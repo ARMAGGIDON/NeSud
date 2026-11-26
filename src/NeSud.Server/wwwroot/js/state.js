@@ -14,7 +14,7 @@ $("theme").onclick = () => {
     localStorage.setItem("theme", document.documentElement.classList.contains("light") ? "light": "dark")
 };
 async function api(path, body) {
-    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), path === 'web/new' ? 30000: 5000);
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), path === "web/new" || path === "account/verification/send" ? 30000 : 5000);
     try {
         const r = await fetch("/api/" + path, { method: body === undefined ? "GET": "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: body === undefined ? undefined: JSON.stringify(body), signal: controller.signal });
         if (r.status === 401 && path !== "login") {

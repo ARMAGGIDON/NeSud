@@ -56,8 +56,8 @@ public sealed partial class ServerStore
     private static string TokenHash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     public AccountSession? Login(Credentials input, bool register)
     {
-        string name = input.User.Trim().ToLowerInvariant();
         if (ValidateCredentials(input, register) is not null) return null;
+        string name = input.User.Trim().ToLowerInvariant();
         using var c = db.Open();
         if (register && input.Email is not null)
             return RegisterProfile(input);

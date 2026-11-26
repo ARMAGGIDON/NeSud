@@ -27,7 +27,7 @@ public sealed partial class MainWindow
         return image;
     }
 
-    private async Task EditOwnProfile()
+    private async Task EditOwnProfile(bool sendVerification = false)
     {
         if (account is null) return;
         AccountSettings settings;
@@ -118,6 +118,14 @@ public sealed partial class MainWindow
         panel.Children.Add(invitePanel);
         panel.Children.Add(notice);
         Apply(settings);
+        if (sendVerification && !settings.Verified)
+        {
+            window.Loaded += async (_, _) => await Run(async () =>
+            {
+                await Request<SyncAck>("account/verification/send", new { });
+                if (window.IsVisible) notice.Text = "Код надіслано на пошту.";
+            });
+        }
         window.ShowDialog();
     }
 

@@ -180,6 +180,8 @@ public sealed partial class ServerStore
                 int length = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset, 4));
                 if (length < 0 || length > png.Length - offset - 12) return false;
                 var type = png.AsSpan(offset + 4, 4);
+                uint expectedCrc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(offset + 8 + length, 4));
+                if (PngCrc(png.AsSpan(offset + 4, length + 4)) != expectedCrc) return false;
                 if (type.SequenceEqual("IHDR"u8))
                 {
                     if (header || offset != 8 || length != 13) return false;
@@ -212,6 +214,18 @@ public sealed partial class ServerStore
         }
         catch (InvalidDataException) { return false; }
         catch (IOException) { return false; }
+    }
+
+    private static uint PngCrc(ReadOnlySpan<byte> bytes)
+    {
+        uint crc = uint.MaxValue;
+        foreach (byte value in bytes)
+        {
+            crc ^= value;
+            for (int bit = 0; bit < 8; bit++)
+                crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0u : 0xEDB88320u);
+        }
+        return ~crc;
     }
 
     public byte[]? GetAvatar(string user)

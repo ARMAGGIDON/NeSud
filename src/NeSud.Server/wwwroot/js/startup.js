@@ -14,9 +14,16 @@ document.querySelectorAll("[data-new-level]").forEach(button => {
 document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => b.dataset.tab === "play" ? openRegular(): navigate(b.dataset.tab));
 const inviteCode = new URLSearchParams(location.search).get("invite");
 if (inviteCode) $("register-invite").value = inviteCode;
-render();
-if (token) start();
-else {
-    resetSession();
-    login(true)
+async function initialize() {
+    render();
+    if (token) await start();
+    else {
+        resetSession();
+        await login(true);
+    }
+    if (inviteCode && guestMode) {
+        await showAuth();
+        if ($("auth").open) mode(true);
+    }
 }
+initialize().catch(error => message(error.message));

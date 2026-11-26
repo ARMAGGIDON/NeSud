@@ -205,7 +205,7 @@ public sealed partial class MainWindow : Window
                     UpdateConnection();
                     window.Close();
                     _ = Sync();
-                    if (register) Dispatcher.BeginInvoke(new Action(() => _ = EditOwnProfile()));
+                    if (register) Dispatcher.BeginInvoke(new Action(() => _ = EditOwnProfile(true)));
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode is not null)
                 {
