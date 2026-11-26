@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<body><header><div><h1>NeSud</h1><p>Логіка. Спокій. Концентрація.</p></div><div class="header-actions"><button id="theme">Тема</button><button id="logout" hidden>Вийти</button></div></header>
+<main><section id="auth" class="panel"><h2>Ваш акаунт</h2><p>Історія та рейтинг доступні на всіх пристроях.</p>
+<form id="login"><label>Логін<input id="user" required minlength="3" maxlength="32" autocomplete="username"></label>
+<label>Пароль<input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password"></label>
+<div class="actions"><button type="submit" class="primary">Увійти</button><button type="button" id="register">Реєстрація</button></div></form></section>
+<div id="app" hidden><nav><button data-tab="play">Гра</button><button data-tab="history">Історія та статистика</button><button data-tab="ranking">Рейтинг</button></nav>
+<section id="play" class="layout"><article class="panel"><div class="metrics"><div>СКЛАДНІСТЬ<strong id="level">–</strong></div><div>ЧАС<strong id="time">00:00</strong></div><div>ПОМИЛКИ<strong id="errors">0</strong></div></div>
+<div class="boardwrap"><div id="board" role="group" aria-label="Поле судоку"></div><div id="cover"><h2 id="covertext">Нова головоломка</h2><button id="resume" class="primary">Продовжити</button></div></div><p id="progress"></p></article>
+<aside class="panel"><h2>Нова гра</h2><label>Складність<select id="difficulty"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="newgame" class="primary wide">Нова головоломка</button>
+<h2>Цифри та нотатки</h2><div id="pad"></div><div class="actions" id="tools"><button data-action="undo">↶ Скасувати</button><button data-action="redo">↷ Повторити</button><button data-action="erase">Стерти</button><button id="notes">Нотатки</button><button data-action="hint">Підказка</button><button data-action="candidates">Кандидати</button><button data-action="pause">Пауза</button></div><p>Стрілки · 1–9 · N · H · P · Ctrl+Z/Y</p></aside></section>
+<section id="history" class="panel" hidden><h2>Історія та статистика</h2><div id="summary" class="metrics"></div><div id="historyrows"></div></section>
+<section id="ranking" class="panel" hidden><h2>Серверний рейтинг</h2><p>Тільки завершені серверні ігри. Офлайн-ігри є в особистій статистиці.</p><div id="rankrows"></div></section></div>
+<p id="status" role="status" aria-live="polite"></p></main>
+<dialog id="confirm"><h2>Нова головоломка?</h2><p>Поточна незавершена гра залишиться в історії.</p><form method="dialog" class="actions"><button value="cancel">Скасувати</button><button value="yes" class="primary">Створити</button></form></dialog>
+</body></html>
