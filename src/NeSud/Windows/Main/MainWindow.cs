@@ -23,7 +23,10 @@ namespace NeSud;
 public sealed partial class MainWindow : Window
 {
     private readonly LocalStore store = new(LocalStore.DefaultPath, StateStore.DefaultPath);
-    private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private readonly HttpClient http = new()
+    {
+        Timeout = TimeSpan.FromSeconds(12)
+    };
     private AccountSession? account;
     private bool syncing, reachable, probing;
     private DateTimeOffset nextProbe = DateTimeOffset.MinValue;
@@ -31,7 +34,10 @@ public sealed partial class MainWindow : Window
     private DateTimeOffset nextSync = DateTimeOffset.MinValue;
     private string Scope => state.AccountScope ?? "";
     private readonly AppState state;
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly DispatcherTimer timer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(250)
+    };
     private readonly Stopwatch clock = new();
     private readonly Button[] cells = new Button[81], digits = new Button[9], levels = new Button[4];
     private Button undo = null!, redo = null!, erase = null!, hint = null!, notes = null!, fill = null!,
@@ -53,8 +59,8 @@ public sealed partial class MainWindow : Window
     private int lastSavedSecond, accountedSeconds;
     private bool closing, watchingReward, spending;
     private DailyStatus? daily;
-    private readonly Dictionary<string,long> historyCursors = new();
-    private readonly Dictionary<string,string> draftFingerprints = new();
+    private readonly Dictionary<string, long> historyCursors = new();
+    private readonly Dictionary<string, string> draftFingerprints = new();
     private Button resultDaily = null!;
     private bool weeklyRewards, challengeRewards;
     private TextBlock lives = null!, score = null!, quest = null!;
@@ -73,14 +79,20 @@ public sealed partial class MainWindow : Window
         // A legacy life purchase cannot be used outside the new last-chance rule.
         if (state.PendingReward?.Request.Kind == "life") state.PendingReward = null;
         account = RestoreSession();
-        if (state.Game is not null && state.GameId == Guid.Empty) { state.GameId = Guid.NewGuid(); state.Started = DateTimeOffset.UtcNow; }
+        if (state.Game is not null && state.GameId == Guid.Empty)
+        {
+            state.GameId = Guid.NewGuid();
+            state.Started = DateTimeOffset.UtcNow;
+        }
         nextDifficulty = state.NextDifficulty ?? G?.Puzzle.Difficulty ?? Difficulty.Medium;
         Title = "NeSud • Судоку";
-        MinWidth = 790; MinHeight = 620;
+        MinWidth = 790;
+        MinHeight = 620;
         Width = Math.Clamp(state.Width, MinWidth, Math.Max(MinWidth, SystemParameters.WorkArea.Width));
         Height = Math.Clamp(state.Height, MinHeight, Math.Max(MinHeight, SystemParameters.WorkArea.Height));
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        FontFamily = new FontFamily("Segoe UI"); FontSize = 14;
+        FontFamily = new FontFamily("Segoe UI");
+        FontSize = 14;
         ApplyTheme();
         Build();
         if (state.Maximized) WindowState = WindowState.Maximized;
@@ -88,7 +100,16 @@ public sealed partial class MainWindow : Window
         timer.Tick += (_, _) =>
         {
             ReadClock();
-            if (G is { OutOfLives: true } && !Busy) { UpdateDefeat(); if (!watchingReward && G.FinalDefeat(DateTimeOffset.UtcNow) && !defeatSaved) { defeatSaved = true; Render(); Save(); } }
+            if (G is { OutOfLives: true } && !Busy)
+            {
+                UpdateDefeat();
+                if (!watchingReward && G.FinalDefeat(DateTimeOffset.UtcNow) && !defeatSaved)
+                {
+                    defeatSaved = true;
+                    Render();
+                    Save();
+                }
+            }
             if (G is not null && G.Seconds - lastSavedSecond >= 5) Save();
             if (account is not null && !syncing && DateTimeOffset.UtcNow >= nextSync) _ = Sync();
             if (!probing && DateTimeOffset.UtcNow >= nextProbe) _ = Probe();
@@ -96,7 +117,11 @@ public sealed partial class MainWindow : Window
         timer.Start();
         Closing += (_, _) =>
         {
-            closing = true; generation?.Cancel(); ReadClock(); clock.Stop(); timer.Stop();
+            closing = true;
+            generation?.Cancel();
+            ReadClock();
+            clock.Stop();
+            timer.Stop();
             state.Width = RestoreBounds.Width > 0 ? RestoreBounds.Width : Width;
             state.Height = RestoreBounds.Height > 0 ? RestoreBounds.Height : Height;
             state.Maximized = WindowState == WindowState.Maximized;
@@ -104,7 +129,9 @@ public sealed partial class MainWindow : Window
         };
         Loaded += (_, _) =>
         {
-            SyncClock(); Render(); FocusCell();
+            SyncClock();
+            Render();
+            FocusCell();
             if (store.Warning is { } warning) status.Text = warning;
         };
         Render();

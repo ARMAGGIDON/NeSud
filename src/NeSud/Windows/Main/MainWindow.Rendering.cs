@@ -24,9 +24,16 @@ public sealed partial class MainWindow : Window
 {
     private void OpenMenu()
     {
-        if(Busy || watchingReward)return;
-        if(Playing){ReadClock();G!.Paused=true;}
-        inMenu=true;SyncClock();Render();Save();
+        if (Busy || watchingReward)return;
+        if (Playing)
+        {
+            ReadClock();
+            G!.Paused = true;
+        }
+        inMenu = true;
+        SyncClock();
+        Render();
+        Save();
     }
     private void Render()
     {
@@ -46,8 +53,14 @@ public sealed partial class MainWindow : Window
         int selectedValue = g is null ? 0 : g.Values[g.Selected];
         for (int i = 0; i < 81; i++)
         {
-            var b = cells[i]; b.IsTabStop = active && i == g!.Selected;
-            if (g is null) { b.Content = null; b.Background = B("Panel"); continue; }
+            var b = cells[i];
+            b.IsTabStop = active && i == g!.Selected;
+            if (g is null)
+            {
+                b.Content = null;
+                b.Background = B("Panel");
+                continue;
+            }
             int value = g.Values[i];
             bool given = g.Puzzle.Givens[i] != 0, selected = i == g.Selected;
             bool wrong = value != 0 && value != g.Puzzle.Solution[i];
@@ -68,9 +81,16 @@ public sealed partial class MainWindow : Window
             int d = i + 1;
             int remaining = g is null ? 9 : g.Remaining(d);
             var grid = new Grid { MinHeight = 35 };
-            var number = Text(d.ToString(), 21, "Text", true); number.HorizontalAlignment = HorizontalAlignment.Center; number.VerticalAlignment = VerticalAlignment.Center;
-            var count = Text(remaining.ToString(), 10, "Muted"); count.HorizontalAlignment = HorizontalAlignment.Right; count.VerticalAlignment = VerticalAlignment.Bottom;
-            grid.Children.Add(number); grid.Children.Add(count); digits[i].HorizontalContentAlignment = HorizontalAlignment.Stretch; digits[i].Content = grid;
+            var number = Text(d.ToString(), 21, "Text", true);
+            number.HorizontalAlignment = HorizontalAlignment.Center;
+            number.VerticalAlignment = VerticalAlignment.Center;
+            var count = Text(remaining.ToString(), 10, "Muted");
+            count.HorizontalAlignment = HorizontalAlignment.Right;
+            count.VerticalAlignment = VerticalAlignment.Bottom;
+            grid.Children.Add(number);
+            grid.Children.Add(count);
+            digits[i].HorizontalContentAlignment = HorizontalAlignment.Stretch;
+            digits[i].Content = grid;
             digits[i].IsEnabled = active && g!.Editable(g.Selected) && (g.NotesMode || remaining > 0);
             digits[i].Opacity = remaining == 0 ? 0.55 : 1;
             AutomationProperties.SetName(digits[i], $"Цифра {d}, залишилось {remaining}");
@@ -79,9 +99,12 @@ public sealed partial class MainWindow : Window
         int givens = g?.Puzzle.Givens.Count(v => v != 0) ?? 0;
         progress.Text = g is null ? "Підготовка поля" : g.Completed ? $"✓ Судоку розв’язано!  •  Час: {FormatTime(g.Seconds)}  •  Підказки: {g.Hints}" : $"Заповнено {filled}/81  •  Ваші клітинки: {filled - givens}/{81 - givens}  •  Підказки: {g.Hints}";
         progressBar.Value = filled;
-        undo.IsEnabled = active && g!.UndoStack.Count > 0; redo.IsEnabled = active && g!.RedoStack.Count > 0;
-        erase.IsEnabled = active && g!.Editable(g.Selected); hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
-        hint.Content = $"Підказка ({g?.HintCredits ?? 0})"; fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
+        undo.IsEnabled = active && g!.UndoStack.Count > 0;
+        redo.IsEnabled = active && g!.RedoStack.Count > 0;
+        erase.IsEnabled = active && g!.Editable(g.Selected);
+        hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
+        hint.Content = $"Підказка ({g?.HintCredits ?? 0})";
+        fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
         fill.ToolTip = g is null ? null : $"Зміниться {g.CandidateDelta()} кандидатів • −{(long)Game.CandidatePointCost * g.CandidateDelta()} балів";
         quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди • онлайн" : $"Сьогодні: {daily.Wins}/7 перемог • наборів: {daily.Packs.Count}";
         rewardLife.IsEnabled = false;
@@ -94,7 +117,8 @@ public sealed partial class MainWindow : Window
         notes.Background = B(g?.NotesMode == true ? "Same" : "Control");
         pause.IsEnabled = g is not null && !Busy && !g.Completed && !g.OutOfLives;
         pause.Content = g?.Paused == true ? "Продовжити" : "Пауза";
-        restart.IsEnabled = g is not null && !Busy && state.PendingReward is null; newGame.IsEnabled = !Busy && state.PendingReward is null;
+        restart.IsEnabled = g is not null && !Busy && state.PendingReward is null;
+        newGame.IsEnabled = !Busy && state.PendingReward is null;
         theme.Content = state.Dark ? "☀  Світла тема" : "☾  Темна тема";
         board.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
         cover.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
@@ -105,15 +129,20 @@ public sealed partial class MainWindow : Window
             g?.OutOfLives == true ? "Останній шанс відновити життя." :
             g?.Paused == true ? "Поле приховано, таймер зупинено." : "Оберіть складність і створіть головоломку.";
         coverButton.Content = Busy ? "Скасувати" : g?.OutOfLives == true ? "Реклама · останній шанс" : g?.Paused == true ? "Продовжити" : "Нова гра";
-        coverButton.IsEnabled = true; if (g?.OutOfLives == true && !Busy) UpdateDefeat();
+        coverButton.IsEnabled = true;
+        if (g?.OutOfLives == true && !Busy) UpdateDefeat();
         bool showResult = !inMenu && !Busy && !watchingReward && g is not null && (g.Completed || g.FinalDefeat(DateTimeOffset.UtcNow));
         menuCard.Visibility = inMenu ? Visibility.Visible : Visibility.Collapsed;
         continueMenu.Visibility = G is null ? Visibility.Collapsed : Visibility.Visible;
-        continueMenu.Content = G is { Completed:true } || G?.FinalDefeat(DateTimeOffset.UtcNow)==true ? "Останній результат" : "Продовжити гру";
+        continueMenu.Content = G is { Completed: true } || G?.FinalDefeat(DateTimeOffset.UtcNow) == true ? "Останній результат" : "Продовжити гру";
         continueMenu.IsEnabled = !Busy && state.PendingReward is null;
         playCard.Visibility = sideCard.Visibility = inMenu || showResult ? Visibility.Collapsed : Visibility.Visible;
         resultCard.Visibility = showResult ? Visibility.Visible : Visibility.Collapsed;
-        if (showResult && shownResult != state.GameId) { shownResult = state.GameId; _ = ShowResult(g!); }
+        if (showResult && shownResult != state.GameId)
+        {
+            shownResult = state.GameId;
+            _ = ShowResult(g!);
+        }
         UpdateConnection();
     }
 
@@ -141,7 +170,7 @@ public sealed partial class MainWindow : Window
         var id = state.GameId;
         try
         {
-            var c = await Request<DifficultyComparison>($"comparison?difficulty={g.Puzzle.Difficulty}&score={g.CurrentScore}&seconds={g.Seconds}&rules={g.RulesVersion}", token: "");
+            var c = await Request<DifficultyComparison > ($"comparison?difficulty={g.Puzzle.Difficulty}&score={g.CurrentScore}&seconds={g.Seconds}&rules={g.RulesVersion}", token: "");
             if (closing || id != state.GameId) return;
             resultComparison.Text = c.Games == 0 ? "Поки недостатньо результатів." :
                 $"Ігор: {c.Games} • гравців: {c.Players}\n" +
@@ -149,7 +178,10 @@ public sealed partial class MainWindow : Window
                 $"Середній бал: {c.AverageScore:N0} • помилки: {c.AverageMistakes:F1} • підказки: {c.AverageHints:F1}\n" +
                 $"Ваш бал не нижче ніж у {c.ScorePercentile}% ігор; час не довше ніж у {c.TimePercentile}% ігор.";
         }
-        catch { if (!closing && id == state.GameId) resultComparison.Text = "Порівняння тимчасово недоступне офлайн."; }
+        catch
+        {
+            if (!closing && id == state.GameId) resultComparison.Text = "Порівняння тимчасово недоступне офлайн.";
+        }
     }
 
     private static void Fade(UIElement element)
@@ -160,9 +192,10 @@ public sealed partial class MainWindow : Window
     private static void Shake(UIElement element)
     {
         if (!SystemParameters.ClientAreaAnimation) return;
-        var transform = new TranslateTransform(); element.RenderTransform = transform;
+        var transform = new TranslateTransform();
+        element.RenderTransform = transform;
         var animation = new DoubleAnimationUsingKeyFrames();
-        foreach (var (ms, x) in new[] { (0,0), (60,-3), (120,3), (180,-2), (240,0) })
+        foreach (var (ms, x) in new[] { (0, 0), (60, - 3), (120, 3), (180, - 2), (240, 0) })
             animation.KeyFrames.Add(new LinearDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
         transform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
@@ -173,7 +206,8 @@ public sealed partial class MainWindow : Window
         for (int n = 1; n <= 9; n++)
         {
             var t = Text((mask & (1 << n)) != 0 ? n.ToString() : "", 13, "Muted");
-            t.TextAlignment = TextAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center;
+            t.TextAlignment = TextAlignment.Center;
+            t.VerticalAlignment = VerticalAlignment.Center;
             grid.Children.Add(t);
         }
         return grid;

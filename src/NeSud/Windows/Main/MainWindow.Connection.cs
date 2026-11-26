@@ -22,7 +22,7 @@ namespace NeSud;
 
 public sealed partial class MainWindow : Window
 {
-    private async Task<T> Request<T>(string path, object? body = null, string? endpoint = null, string? token = null)
+    private async Task<T> Request<T > (string path, object? body = null, string? endpoint = null, string? token = null)
     {
         string url = endpoint ?? serverUrl;
         using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post,
@@ -34,23 +34,30 @@ public sealed partial class MainWindow : Window
         if (!response.IsSuccessStatusCode)
         {
             string? error = null;
-            try { using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                if (json.RootElement.TryGetProperty("error", out var value)) error = value.GetString(); } catch (System.Text.Json.JsonException) { }
+            try
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                if (json.RootElement.TryGetProperty("error", out var value)) error = value.GetString();
+                }
+                catch (System.Text.Json.JsonException) { }
             throw new HttpRequestException(error ?? (response.StatusCode == HttpStatusCode.TooManyRequests ? "Забагато спроб. Спробуйте пізніше." : "Сервіс тимчасово недоступний."), null, response.StatusCode);
         }
-        return await response.Content.ReadFromJsonAsync<T>() ?? throw new InvalidDataException("Порожня відповідь сервера.");
+        return await response.Content.ReadFromJsonAsync<T > () ?? throw new InvalidDataException("Порожня відповідь сервера.");
     }
 
     private async Task Sync()
     {
         if (syncing || account is null || closing) return;
-        syncing = true; nextSync = DateTimeOffset.UtcNow.AddSeconds(30);
-        var session = account; var scope = Scope; var endpoint = serverUrl;
+        syncing = true;
+        nextSync = DateTimeOffset.UtcNow.AddSeconds(30);
+        var session = account;
+        var scope = Scope;
+        var endpoint = serverUrl;
         try
         {
             var pending = store.History(scope, true);
             DesktopDraft? draft = G is { Completed: false } && (state.GameScope ?? "") == scope
-                ? new(state.GameId, state.Started, DateTimeOffset.UtcNow, Database.Decode<Game>(Database.Encode(G))) : null;
+                ? new(state.GameId, state.Started, DateTimeOffset.UtcNow, Database.Decode<Game > (Database.Encode(G))) : null;
             foreach (var batch in pending.Chunk(10))
             {
                 var records = await Request<List<GameRecord>>("sync", batch, endpoint, session.Token);
@@ -62,37 +69,57 @@ public sealed partial class MainWindow : Window
                 string fingerprint = draft.Id + ":" + Database.Encode(draft.Game);
                 if (draftFingerprints.GetValueOrDefault(scope) != fingerprint)
                 {
-                    await Request<SyncAck>("desktop/draft", draft, endpoint, session.Token);
+                    await Request<SyncAck > ("desktop/draft", draft, endpoint, session.Token);
                     draftFingerprints[scope] = fingerprint;
                 }
             }
             long cursor = historyCursors.GetValueOrDefault(scope);
             while (true)
             {
-                var page = await Request<HistoryPage>($"history/changes?after={cursor}", endpoint: endpoint, token: session.Token);
+                var page = await Request<HistoryPage > ($"history/changes?after={cursor}", endpoint: endpoint, token: session.Token);
                 if (closing) return;
                 if (page.Records.Count > 0) store.Merge(scope, page.Records);
-                cursor = page.Cursor; historyCursors[scope] = cursor;
+                cursor = page.Cursor;
+                historyCursors[scope] = cursor;
                 if (page.Records.Count < 100) break;
             }
-            if (ReferenceEquals(account, session)) { reachable = true; await ResumeSpend(); var updated = await Request<DailyStatus>("daily", token: session.Token); if (ReferenceEquals(account, session) && !closing) { daily = updated; Render(); } }
+            if (ReferenceEquals(account, session))
+            {
+                reachable = true;
+                await ResumeSpend();
+                var updated = await Request<DailyStatus > ("daily", token: session.Token);
+                if (ReferenceEquals(account, session) && !closing)
+                {
+                    daily = updated;
+                    Render();
+                }
+            }
         }
         catch (Exception ex)
         {
             if (!closing && ReferenceEquals(account, session))
             {
                 if (ex is HttpRequestException { StatusCode: HttpStatusCode.Unauthorized })
-                { account = null; state.ProtectedSession = null; Save(); }
-                else { reachable = false; nextSync = DateTimeOffset.UtcNow.AddSeconds(5); }
+                { account = null;
+                state.ProtectedSession = null;
+                Save(); }
+                else
+                {
+                    reachable = false;
+                    nextSync = DateTimeOffset.UtcNow.AddSeconds(5);
+                }
                 UpdateConnection();
             }
         }
-        finally { syncing = false; }
+        finally
+        {
+            syncing = false;
+        }
     }
 
     private static string ServiceUrl()
     {
-        var configured = typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+        var configured = typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute > ()
             .FirstOrDefault(a => a.Key == "NeSudServerUrl")?.Value ?? "http://localhost:5080";
         var url = Environment.GetEnvironmentVariable("NESUD_SERVER_URL") ?? configured;
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
@@ -108,10 +135,13 @@ public sealed partial class MainWindow : Window
         {
             if (state.ProtectedSession is null || !Scope.StartsWith(serverUrl + "|", StringComparison.Ordinal)) return null;
             var bytes = ProtectedData.Unprotect(Convert.FromBase64String(state.ProtectedSession), null, DataProtectionScope.CurrentUser);
-            var restored = System.Text.Json.JsonSerializer.Deserialize<AccountSession>(bytes);
+            var restored = System.Text.Json.JsonSerializer.Deserialize<AccountSession > (bytes);
             return restored is not null && Scope == serverUrl + "|" + restored.User ? restored : null;
         }
-        catch (Exception) { return null; }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private void RememberSession(AccountSession session)
@@ -121,7 +151,10 @@ public sealed partial class MainWindow : Window
             state.ProtectedSession = Convert.ToBase64String(ProtectedData.Protect(
                 System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(session), null, DataProtectionScope.CurrentUser));
         }
-        catch (CryptographicException) { state.ProtectedSession = null; }
+        catch (CryptographicException)
+        {
+            state.ProtectedSession = null;
+        }
     }
 
     private void UpdateConnection()
@@ -137,15 +170,27 @@ public sealed partial class MainWindow : Window
         if (closing || probing) return;
         probing = true;
         bool wasReachable = reachable;
-        try { await Request<SyncAck>("health", token: ""); reachable = true; }
-        catch { reachable = false; }
+        try
+        {
+            await Request<SyncAck > ("health", token: "");
+            reachable = true;
+        }
+        catch
+        {
+            reachable = false;
+        }
         finally
         {
-            probing = false; nextProbe = DateTimeOffset.UtcNow.AddSeconds(reachable ? 15 : 5);
+            probing = false;
+            nextProbe = DateTimeOffset.UtcNow.AddSeconds(reachable ? 15 : 5);
             if (!closing)
             {
                 UpdateConnection();
-                if (reachable && !wasReachable && account is not null) { nextSync = DateTimeOffset.MinValue; _ = Sync(); }
+                if (reachable && !wasReachable && account is not null)
+                {
+                    nextSync = DateTimeOffset.MinValue;
+                    _ = Sync();
+                }
             }
         }
     }

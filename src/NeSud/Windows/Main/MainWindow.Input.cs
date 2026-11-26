@@ -36,10 +36,21 @@ public sealed partial class MainWindow : Window
 
     private void OnKey(object sender, KeyEventArgs e)
     {
-        Key k = e.Key; var mods = Keyboard.Modifiers;
-        if (k == Key.F1) { ShowHelp(); e.Handled = true; return; }
+        Key k = e.Key;
+        var mods = Keyboard.Modifiers;
+        if (k == Key.F1)
+        {
+            ShowHelp();
+            e.Handled = true;
+            return;
+        }
         if (inMenu) return;
-        if (Busy && k == Key.Escape) { generation?.Cancel(); e.Handled = true; return; }
+        if (Busy && k == Key.Escape)
+        {
+            generation?.Cancel();
+            e.Handled = true;
+            return;
+        }
         if (mods.HasFlag(ModifierKeys.Control))
         {
             if (k == Key.N) _ = Generate(true);
@@ -47,14 +58,20 @@ public sealed partial class MainWindow : Window
             else if (k == Key.Z) Change(g => g.Undo());
             else if (k == Key.Y) Change(g => g.Redo());
             else return;
-            e.Handled = true; return;
+            e.Handled = true;
+            return;
         }
         if (mods.HasFlag(ModifierKeys.Alt) || mods.HasFlag(ModifierKeys.Windows)) return;
-        if (k is Key.P or Key.Escape) { TogglePause(); e.Handled = true; return; }
+        if (k is Key.P or Key.Escape)
+        {
+            TogglePause();
+            e.Handled = true;
+            return;
+        }
         if (!Playing) return;
         int code = (int)k;
         int d = code >= (int)Key.D0 && code <= (int)Key.D9 ? code - (int)Key.D0 :
-            code >= (int)Key.NumPad0 && code <= (int)Key.NumPad9 ? code - (int)Key.NumPad0 : -1;
+            code >= (int)Key.NumPad0 && code <= (int)Key.NumPad9 ? code - (int)Key.NumPad0 : - 1;
         if (d >= 0) Enter(d, mods.HasFlag(ModifierKeys.Shift));
         else if (k is Key.Delete or Key.Back) Enter(0);
         else if (k == Key.N || k == Key.Space && Keyboard.FocusedElement is Button b && cells.Contains(b)) ToggleNotes();
