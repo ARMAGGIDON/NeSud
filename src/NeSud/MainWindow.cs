@@ -287,8 +287,8 @@ public sealed class MainWindow : Window
         side.Children.Add(actions); Gap(side, 10);
         quest = Text("", 12, "Muted");
         rewardLife = Action("+1 життя · 8 с", () => Reward("life"));
-        rewardHint = Action("+1 підказка · 8 с", () => Reward("hint"));
-        rewardCandidates = Action("+1 кандидати · 8 с", () => Reward("candidates"));
+        rewardHint = Action("+1 підказка", () => _ = ChooseResource("hint"));
+        rewardCandidates = Action("+1 кандидати", () => _ = ChooseResource("candidates"));
         foreach (var b in new[] { rewardHint, rewardCandidates }) side.Children.Add(b);
         Gap(side, 10);
         side.Children.Add(Text("Налаштування", 16, "Text", true));
@@ -302,7 +302,7 @@ public sealed class MainWindow : Window
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
         Gap(side, 9);
         stats = Text("", 12, "Muted"); side.Children.Add(stats);
-        var help = Action("Клавіатурне керування", ShowHelp, "F1"); Gap(side, 8); side.Children.Add(help);
+        var help = Action("Довідка", ShowHelp, "F1"); Gap(side, 8); side.Children.Add(help);
         var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         sideCard = Card(scroll, 13); At(root, sideCard, 1, 2);
@@ -598,7 +598,7 @@ public sealed class MainWindow : Window
     private void ToggleNotes()
     {
         if (!Playing) return;
-        G!.NotesMode = !G.NotesMode; status.Text = G.NotesMode ? "Режим нотаток увімкнено." : "Режим введення цифр.";
+        G!.NotesMode = !G.NotesMode; status.Text = "";
         Render(); Save(); FocusCell();
     }
     private void Hint()
@@ -615,7 +615,7 @@ public sealed class MainWindow : Window
         if (!Playing) return;
         if (G!.CandidateCredits == 0) { _ = ChooseResource("candidates"); return; }
         int delta = G.CandidateDelta();
-        if (delta == 0) { status.Text = "Кандидати вже актуальні."; return; }
+        if (delta == 0) return;
         Change(g => g.FillNotes(), $"Кандидати: {delta} змін • −{delta * Game.CandidatePointCost} балів.");
     }
 
@@ -1154,7 +1154,7 @@ public sealed class MainWindow : Window
         var panel = Stack(); panel.Children.Add(Text("Рейтинг", 24, "Text", true));
         panel.Children.Add(Text("Серверні результати та загальні бали з офлайн-іграми.", 13, "Muted"));
         var indicator = Text("Завантаження…", 13, "Muted"); panel.Children.Add(indicator); Gap(panel);
-        var metric = new ComboBox { ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0,0,0,8) }; panel.Children.Add(metric);
+        var metric = new ComboBox { Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line"), ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0,0,0,8) }; panel.Children.Add(metric);
         var rows = Stack();
         panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Gap(panel); var window = Modal("Рейтинг", panel, 560);

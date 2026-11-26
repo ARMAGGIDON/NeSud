@@ -120,7 +120,7 @@ static object View(WebGame session) => new
     canUndo = session.Game.UndoStack.Count > 0,
     canRedo = session.Game.RedoStack.Count > 0
 };
-app.MapGet("/api/web/session", (HttpContext c, ServerStore s) =>
+app.MapGet("/api/web/session", (HttpContext c, ServerStore s, bool? pause) =>
 {
     if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
     lock (s.Gate)
@@ -128,6 +128,7 @@ app.MapGet("/api/web/session", (HttpContext c, ServerStore s) =>
         if (s.Session(name) is not { } session) return Results.Ok(new { empty = true });
         bool paused = session.Game.Paused;
         session = Tick(session);
+        if (pause == true && !session.Game.Completed && !session.Game.OutOfLives) session.Game.Paused = true;
         if (session.Game.Paused != paused) session = session with { Revision = session.Revision + 1 };
         s.SaveSession(name, session, session.Game.FinalDefeat(DateTimeOffset.UtcNow) ? new(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "defeated", session.Game) : null);
         return Results.Ok(View(session));

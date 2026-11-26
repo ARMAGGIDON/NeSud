@@ -75,6 +75,7 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS daily_packs (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL, milestone TEXT NOT NULL, slot INTEGER NOT NULL, options TEXT NOT NULL, chosen INTEGER, PRIMARY KEY(name,day,milestone,slot));
             CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
             CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
+            CREATE INDEX IF NOT EXISTS ix_history_name ON history(name);
             CREATE INDEX IF NOT EXISTS ix_history_day ON history(name, outcome, julianday(json_extract(payload,'$.ended')));
             CREATE INDEX IF NOT EXISTS ix_history_rank ON history(source,outcome,name,score);
             CREATE INDEX IF NOT EXISTS ix_history_compare ON history(source,outcome,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.rulesVersion'),0));

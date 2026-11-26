@@ -55,16 +55,17 @@ function accept(data){
 }
 async function reconnect(){
  if(busy||!token)return;const e=epoch;busy=true;
- try{const data=await api("web/session");if(e!==epoch)return;accept(data);if(game?.reward&&!$("ad").open){const cleared=await api("web/action",{id:game.id,revision:game.revision,action:"reward-cancel"});if(e!==epoch)return;accept(cleared);}if(game&&!game.paused&&!game.completed&&!game.outOfLives){const paused=await api("web/action",{id:game.id,revision:game.revision,action:"pause"});if(e!==epoch)return;accept(paused);}message("");}
+ try{const data=await api("web/session?pause=true");if(e!==epoch)return;accept(data);if(game?.reward&&!$("ad").open){const cleared=await api("web/action",{id:game.id,revision:game.revision,action:"reward-cancel"});if(e!==epoch)return;accept(cleared);}if(game&&!game.paused&&!game.completed&&!game.outOfLives){const paused=await api("web/action",{id:game.id,revision:game.revision,action:"pause"});if(e!==epoch)return;accept(paused);}message("");}
  catch(e){if(token)disconnect(e);else authError(e.message)}finally{busy=false;render()}
 }
 function disconnect(e){online=false;message("Гру призупинено: "+e.message+". Очікуємо з’єднання.");render()}
 window.addEventListener("offline",()=>disconnect(Error("немає мережі")));
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&game&&!game.paused&&!game.completed&&!game.outOfLives&&!adPending)pauseForNavigation()});
 window.addEventListener("online",()=>token?reconnect():login(true));
 async function act(action,extra={}){
  if(action!=="heartbeat"&&pulse)await pulse;
  if(!online||busy||!game)return false;const e=epoch;busy=true;
- try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;if(data.pulseOnly){game={...game,...data};clockAnchor=performance.now();updateClock();return true}accept(data);if(action==="hint"){selected=game.selected;animate(buttons[selected],"hint-pulse")}if(game.completed&&!previousGame?.completed&&!guestMode)refreshDaily();return true;}
+ try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;if(data.pulseOnly){game={...game,...data};clockAnchor=performance.now();updateClock();return true}accept(data);if(action==="hint"){selected=game.selected;animate(buttons[selected],"hint-pulse")}if(game.completed&&!previousGame?.completed&&!guestMode)refreshDaily();message("");return true;}
  catch(e){if(e.status===400||e.status===409&&action==="wallet")message(e.message);else disconnect(e);return false}finally{busy=false;if(action!=="heartbeat"||!online||game?.outOfLives||game?.paused||game?.completed||game?.reward)render()}
 }
 setInterval(()=>{if(busy||authBusy||adBusy||pulse)return;if(!token){if(navigator.onLine&&!$("auth").open&&Date.now()>=nextGuest)login(true);return}if(!online){reconnect();return}if(game&&!game.completed&&!game.finalDefeat&&(!game.paused||game.reward||game.outOfLives)){pulse=act("heartbeat").finally(()=>{pulse=null})}},6000);
