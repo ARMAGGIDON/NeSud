@@ -44,6 +44,7 @@ public sealed partial class ServerStore
             @"^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$");
         if (!username && !email) return "Введіть коректний логін (3–32 символи) або email.";
         if (input.Password.Length is < 10 or > 128) return "Пароль має містити від 10 до 128 символів.";
+        if (register && input.Email is not null && (!username || !ValidEmail(input.Email))) return "Введіть окремий нікнейм і коректну електронну пошту.";
         if (register && input.Password != input.Confirmation) return "Паролі не збігаються.";
         return null;
     }
@@ -58,6 +59,8 @@ public sealed partial class ServerStore
         string name = input.User.Trim().ToLowerInvariant();
         if (ValidateCredentials(input, register) is not null) return null;
         using var c = db.Open();
+        if (register && input.Email is not null)
+            return RegisterProfile(input);
         if (register)
         {
             byte[] salt = RandomNumberGenerator.GetBytes(16);
@@ -67,6 +70,8 @@ public sealed partial class ServerStore
         }
         else
         {
+            using (var resolve = Database.Command(c, "SELECT name FROM account_profiles WHERE username=$n OR email=$n", ("$n", name)))
+                name = resolve.ExecuteScalar() as string ?? name;
             using var get = Database.Command(c, "SELECT salt,hash FROM accounts WHERE name=$n", ("$n", name));
             using var rows = get.ExecuteReader();
             bool found = rows.Read();
@@ -74,6 +79,12 @@ public sealed partial class ServerStore
             byte[] hash = found ? (byte[])rows[1] : new byte[32];
             if (!CryptographicOperations.FixedTimeEquals(Password(input.Password, salt), hash) || !found) return null;
         }
+        if (register) EnsureLegacyProfile(c, name);
+        return IssueSession(c, name);
+    }
+
+    private AccountSession IssueSession(Microsoft.Data.Sqlite.SqliteConnection c, string name)
+    {
         string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         using var clean = Database.Command(c, "DELETE FROM tokens WHERE expires <= $t",
             ("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
@@ -81,7 +92,7 @@ public sealed partial class ServerStore
         using var issue = Database.Command(c, "INSERT INTO tokens VALUES($h,$n,$e)", ("$h", TokenHash(token)),
             ("$n", name), ("$e", DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds()));
         issue.ExecuteNonQuery();
-        return new(token, name);
+        return new(token, name, Settings(name).Username);
     }
     public string? Authenticate(string token)
     {

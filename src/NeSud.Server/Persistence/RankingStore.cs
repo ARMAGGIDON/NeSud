@@ -11,14 +11,14 @@ public sealed partial class ServerStore
     {
         using var c = db.Open();
         using var cmd = Database.Command(c, """
-            SELECT h.name,COUNT(*),SUM(h.score),a.salt FROM history h JOIN accounts a ON a.name=h.name
+            SELECT h.name,COUNT(*),SUM(h.score),a.username FROM history h JOIN account_profiles a ON a.name=h.name
             WHERE ($all=1 OR h.source='web') AND h.outcome='completed'
             AND NOT EXISTS(SELECT 1 FROM speed_audit v WHERE v.name=h.name AND v.id=h.id AND v.flagged=1)
-            GROUP BY h.name,a.salt ORDER BY SUM(h.score) DESC,h.name LIMIT 100
+            GROUP BY h.name,a.username ORDER BY SUM(h.score) DESC,h.name LIMIT 100
             """, ("$all", all ? 1 : 0));
         using var rows = cmd.ExecuteReader();
         var result = new List<RankEntry > ();
-        while (rows.Read()) result.Add(new(PublicName(rows.GetString(0), (byte[])rows[3]), rows.GetInt32(1), rows.GetInt64(2)));
+        while (rows.Read()) result.Add(new(rows.GetString(3), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
     }
     public DifficultyComparison Compare(Difficulty level, int score, int seconds, int rules = 3)

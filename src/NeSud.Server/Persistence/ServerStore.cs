@@ -15,6 +15,15 @@ public sealed partial class ServerStore
         using var c = db.Open();
         using var cmd = Database.Command(c, """
             CREATE TABLE IF NOT EXISTS accounts (name TEXT PRIMARY KEY, salt BLOB NOT NULL, hash BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS account_profiles (
+                name TEXT PRIMARY KEY REFERENCES accounts(name), username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                email TEXT COLLATE NOCASE UNIQUE, verified INTEGER NOT NULL DEFAULT 0,
+                invite TEXT NOT NULL UNIQUE, referred_by TEXT REFERENCES accounts(name),
+                avatar BLOB, verification_hash TEXT, verification_expiry INTEGER NOT NULL DEFAULT 0,
+                verification_sent INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS referral_rewards (
+                invited TEXT PRIMARY KEY REFERENCES accounts(name), inviter TEXT NOT NULL REFERENCES accounts(name),
+                rewarded_at INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS tokens (hash TEXT PRIMARY KEY, name TEXT NOT NULL REFERENCES accounts(name), expires INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS history (
               name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, source TEXT NOT NULL,
@@ -55,6 +64,7 @@ public sealed partial class ServerStore
             """);
         convert.ExecuteNonQuery();
         MigrateChallengeHistory(migration, tx);
+        MigrateProfiles(migration, tx);
         using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
         seed.ExecuteNonQuery();
         PruneChallengeSessions(migration, tx);

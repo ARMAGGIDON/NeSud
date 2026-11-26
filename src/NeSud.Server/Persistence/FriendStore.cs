@@ -11,7 +11,7 @@ public sealed partial class ServerStore
         if (q.Length < 2 || q.Length > 80 || q.Contains('@'))return [];
         using var c = db.Open();
         using var cmd = Database.Command(c, """
-            SELECT label FROM (SELECT CASE WHEN instr(name,'@')=0 THEN name ELSE 'Гравець-'||substr(hex(salt),1,12) END label FROM accounts)
+            SELECT label FROM (SELECT username label FROM account_profiles)
             WHERE instr(lower(label),lower($q))>0 ORDER BY label LIMIT 30
             """, ("$q", q));
         using var rows = cmd.ExecuteReader();
@@ -23,13 +23,13 @@ public sealed partial class ServerStore
     {
         using var c = db.Open();
         using var cmd = Database.Command(c, """
-            SELECT a.name,a.salt,CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender=$n THEN 'outgoing' ELSE 'incoming' END
-            FROM friendships f JOIN accounts a ON a.name=CASE WHEN f.sender=$n THEN f.recipient ELSE f.sender END
+            SELECT a.username,CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender=$n THEN 'outgoing' ELSE 'incoming' END
+            FROM friendships f JOIN account_profiles a ON a.name=CASE WHEN f.sender=$n THEN f.recipient ELSE f.sender END
             WHERE f.sender=$n OR f.recipient=$n ORDER BY f.accepted DESC,a.name
             """, ("$n", name));
         using var rows = cmd.ExecuteReader();
         var result = new List<FriendEntry > ();
-        while (rows.Read())result.Add(new(PublicName(rows.GetString(0), (byte[])rows[1]), rows.GetString(2)));
+        while (rows.Read())result.Add(new(rows.GetString(0), rows.GetString(1)));
         return result;
     }
     public bool ChangeFriend(string name, FriendRequest request)

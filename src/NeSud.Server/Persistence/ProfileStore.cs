@@ -12,8 +12,7 @@ public sealed partial class ServerStore
         if (user.Length > 80) return null;
         using var c = db.Open();
         using var cmd = Database.Command(c, """
-            SELECT name FROM accounts WHERE (instr(name,'@')=0 AND name=lower($u))
-              OR (instr(name,'@')>0 AND 'Гравець-'||substr(hex(salt),1,12)=$u) LIMIT 1
+            SELECT name FROM account_profiles WHERE username=$u LIMIT 1
             """, ("$u", user));
         return cmd.ExecuteScalar() as string;
     }
@@ -21,8 +20,15 @@ public sealed partial class ServerStore
     {
         using var c = db.Open();
         string label;
-        using (var cmd = Database.Command(c, "SELECT salt FROM accounts WHERE name=$n", ("$n", name)))
-            label = PublicName(name, (byte[])cmd.ExecuteScalar()!);
+        bool verified, avatar;
+        using (var cmd = Database.Command(c, "SELECT username,verified,avatar IS NOT NULL FROM account_profiles WHERE name=$n", ("$n", name)))
+        using (var info = cmd.ExecuteReader())
+        {
+            info.Read();
+            label = info.GetString(0);
+            verified = info.GetBoolean(1);
+            avatar = info.GetBoolean(2);
+        }
         int games = 0, wins = 0, perfect = 0, streak = 0, best = 0, dailyWins = 0;
         long score = 0;
         var perLevel = Enum.GetValues<Difficulty > ().Select(d => new LevelStats(d, 0, 0, 0, 0, 0, 0)).ToArray();
@@ -67,6 +73,6 @@ public sealed partial class ServerStore
         }
         bool more = history.Count > 50;
         if (more)history.RemoveAt(50);
-        return new(label, games, wins, perfect, streak, best, score, dailyWins, Cups(c, name), history, more, perLevel.ToList());
+        return new(label, games, wins, perfect, streak, best, score, dailyWins, Cups(c, name), history, more, perLevel.ToList(), verified, avatar ? "/api/avatar?user=" + Uri.EscapeDataString(label) : null);
     }
 }

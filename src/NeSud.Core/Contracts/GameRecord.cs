@@ -10,8 +10,8 @@ public sealed record GameRecord(Guid Id, DateTimeOffset Started, DateTimeOffset 
         && Game is not null && Game.Valid() && (Outcome == "completed") == Game.Completed && (Outcome != "defeated" || Game.OutOfLives);
 }
 
-public sealed record AccountSession(string Token, string User);
-public sealed record Credentials(string User, string Password, string? Confirmation = null);
+public sealed record AccountSession(string Token, string User, string? Username = null);
+public sealed record Credentials(string User, string Password, string? Confirmation = null, string? Email = null, string? Invite = null);
 public sealed record RankEntry(string User, int Games, long Score);
 
 public sealed record DesktopDraft(Guid Id, DateTimeOffset Started, DateTimeOffset Updated, Game Game);

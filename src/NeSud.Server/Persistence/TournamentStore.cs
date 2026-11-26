@@ -21,16 +21,16 @@ public sealed partial class ServerStore
     {
         string end = DateKey(ParseDay(week).AddDays(7));
         using var cmd = Tx(c, tx, """
-            SELECT h.name,COUNT(*),SUM(h.score),a.salt FROM history h JOIN accounts a ON a.name=h.name
+            SELECT h.name,COUNT(*),SUM(h.score),a.username FROM history h JOIN account_profiles a ON a.name=h.name
             WHERE h.source='web' AND h.outcome='completed'
             AND julianday(json_extract(h.payload,'$.ended'))>=julianday($start)
             AND julianday(json_extract(h.payload,'$.ended'))<julianday($end)
             AND NOT EXISTS(SELECT 1 FROM speed_audit v WHERE v.name=h.name AND v.id=h.id AND v.flagged=1)
-            GROUP BY h.name,a.salt ORDER BY SUM(h.score) DESC,COUNT(*) DESC,h.name LIMIT 100
+            GROUP BY h.name,a.username ORDER BY SUM(h.score) DESC,COUNT(*) DESC,h.name LIMIT 100
             """, ("$start", Boundary(week)), ("$end", Boundary(end)));
         using var rows = cmd.ExecuteReader();
         var result = new List < (string, int, long, string) > ();
-        while (rows.Read()) result.Add((rows.GetString(0), rows.GetInt32(1), rows.GetInt64(2), PublicName(rows.GetString(0), (byte[])rows[3])));
+        while (rows.Read()) result.Add((rows.GetString(0), rows.GetInt32(1), rows.GetInt64(2), rows.GetString(3)));
         return result;
     }
 
@@ -68,8 +68,8 @@ public sealed partial class ServerStore
             string week = Week(DateTimeOffset.UtcNow), previous = DateKey(ParseDay(week).AddDays(-7));
             var leaders = WeekRows(c, tx, week).Select(r => new RankEntry(r.Public, r.Wins, r.Score)).ToList();
             var old = new List<RankEntry > ();
-            using (var cmd = Tx(c, tx, "SELECT r.name,r.wins,r.score,a.salt FROM tournament_results r JOIN accounts a ON a.name=r.name WHERE week=$w ORDER BY rank", ("$w", previous)))
-            using (var rows = cmd.ExecuteReader()) while (rows.Read()) old.Add(new(PublicName(rows.GetString(0), (byte[])rows[3]), rows.GetInt32(1), rows.GetInt64(2)));
+            using (var cmd = Tx(c, tx, "SELECT r.name,r.wins,r.score,a.username FROM tournament_results r JOIN account_profiles a ON a.name=r.name WHERE week=$w ORDER BY rank", ("$w", previous)))
+            using (var rows = cmd.ExecuteReader()) while (rows.Read()) old.Add(new(rows.GetString(3), rows.GetInt32(1), rows.GetInt64(2)));
             tx.Commit();
             return new(week, leaders, previous, old);
         }
@@ -99,12 +99,12 @@ public sealed partial class ServerStore
                 coalesce(MAX(CASE WHEN r.last=t.last THEN r.wins END),0) current
               FROM totals t LEFT JOIN runs r ON r.name=t.name GROUP BY t.name
             )
-            SELECT s.name,s.wins,s.perfect,s.current,s.best,s.score,a.salt FROM stats s JOIN accounts a ON a.name=s.name
+            SELECT s.name,s.wins,s.perfect,s.current,s.best,s.score,a.username FROM stats s JOIN account_profiles a ON a.name=s.name
             ORDER BY
             """ + " " + order + " DESC,s.score DESC,s.name LIMIT 100", ("$all", all?1: 0), ("$d", difficulty is null?null: (int)difficulty.Value));
         using var rows = cmd.ExecuteReader();
         var result = new List<AccumulatedRank > ();
-        while (rows.Read()) result.Add(new(PublicName(rows.GetString(0), (byte[])rows[6]), rows.GetInt64(1), rows.GetInt64(2), rows.GetInt64(3), rows.GetInt64(4), rows.GetInt64(5)));
+        while (rows.Read()) result.Add(new(rows.GetString(6), rows.GetInt64(1), rows.GetInt64(2), rows.GetInt64(3), rows.GetInt64(4), rows.GetInt64(5)));
         return result;
     }
 }
