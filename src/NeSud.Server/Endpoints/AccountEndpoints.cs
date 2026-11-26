@@ -14,6 +14,7 @@ internal static partial class Endpoints
             User(c, s) is { } name ? Results.Ok(s.Settings(name)) : Results.Unauthorized());
         app.MapPost("/api/account/settings", (HttpContext c, ServerStore s, ProfileEdit edit) =>
             User(c, s) is not { } name ? Results.Unauthorized() :
+            !s.IsVerified(name) && !string.Equals(edit.Username?.Trim(), s.Settings(name).Username, StringComparison.Ordinal) ? VerificationRequired() :
             s.EditProfile(name, edit) ? Results.Ok(s.Settings(name)) : Results.BadRequest(new { error = "Некоректний або зайнятий нікнейм/email. Підтверджений email змінити не можна." }));
         app.MapPost("/api/account/verification/send", async (HttpContext c, ServerStore s, IConfiguration config) =>
         {
@@ -41,6 +42,7 @@ internal static partial class Endpoints
             Results.BadRequest(new { error = "Код недійсний або прострочений." })).RequireRateLimiting("auth");
         app.MapPost("/api/account/avatar", (HttpContext c, ServerStore s, AvatarEdit edit) =>
             User(c, s) is not { } name ? Results.Unauthorized() :
+            !s.IsVerified(name) ? VerificationRequired() :
             s.SetAvatar(name, edit.Png) ? Results.Ok(new SyncAck(true)) : Results.BadRequest(new { error = "Некоректне квадратне PNG-зображення." }));
         app.MapGet("/api/avatar", (ServerStore s, string user) =>
             s.GetAvatar(user) is { } png ? Results.File(png, "image/png") : Results.NotFound());
@@ -51,6 +53,9 @@ internal static partial class Endpoints
             return Results.Ok();
         });
     }
+
+    private static IResult VerificationRequired() =>
+        Results.Json(new { error = "Спочатку підтвердьте електронну пошту." }, statusCode: 403);
 
     private static string Token(HttpContext context)
     {

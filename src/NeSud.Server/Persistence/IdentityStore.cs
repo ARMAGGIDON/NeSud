@@ -80,19 +80,31 @@ public sealed partial class ServerStore
             verified ? rows.GetString(3) : null, rows.GetInt32(5), rows.GetBoolean(4));
     }
 
+    public bool IsVerified(string name)
+    {
+        using var c = db.Open();
+        using var cmd = Database.Command(c, "SELECT verified FROM account_profiles WHERE name=$n", ("$n", name));
+        return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+    }
+
     public bool EditProfile(string name, ProfileEdit edit)
     {
-        string user = (edit.Username ?? "").Trim().ToLowerInvariant();
+        string requested = (edit.Username ?? "").Trim();
+        string user = requested.ToLowerInvariant();
         string? email = string.IsNullOrWhiteSpace(edit.Email) ? null : edit.Email.Trim().ToLowerInvariant();
-        if (!ValidUsername(user) || email is not null && !ValidEmail(email)) return false;
+        if (email is not null && !ValidEmail(email)) return false;
         lock (Gate)
         {
+            var current = Settings(name);
+            bool rename = !string.Equals(requested, current.Username, StringComparison.Ordinal);
+            if (rename && (!current.Verified || !ValidUsername(user))) return false;
+            if (!rename) user = current.Username;
             using var c = db.Open();
             using var cmd = Database.Command(c, """
                 UPDATE account_profiles SET username=$u, email=$e,
                     verification_hash=CASE WHEN email IS $e THEN verification_hash ELSE NULL END,
                     verification_expiry=CASE WHEN email IS $e THEN verification_expiry ELSE 0 END
-                WHERE name=$n AND (verified=0 OR email IS $e)
+                WHERE name=$n AND (verified=1 OR username=$u) AND (verified=0 OR email IS $e)
                 """, ("$u", user), ("$e", email), ("$n", name));
             try { return cmd.ExecuteNonQuery() == 1; }
             catch (SqliteException ex) when (ex.SqliteErrorCode == 19) { return false; }
@@ -154,6 +166,7 @@ public sealed partial class ServerStore
 
     public bool SetAvatar(string name, byte[]? png)
     {
+        if (!IsVerified(name)) return false;
         // Accept only bounded, canonical 256x256 PNG output, never original SVG markup.
         if (png is not null && (png.Length is < 33 or > 5 * 1024 * 1024 ||
             !png.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}) ||
@@ -161,7 +174,7 @@ public sealed partial class ServerStore
             System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16,4)) != 256 ||
             System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4)) != 256 || !ValidAvatarPng(png))) return false;
         using var c = db.Open();
-        using var cmd = Database.Command(c, "UPDATE account_profiles SET avatar=$a WHERE name=$n", ("$a", png), ("$n", name));
+        using var cmd = Database.Command(c, "UPDATE account_profiles SET avatar=$a WHERE name=$n AND verified=1", ("$a", png), ("$n", name));
         return cmd.ExecuteNonQuery() == 1;
     }
 

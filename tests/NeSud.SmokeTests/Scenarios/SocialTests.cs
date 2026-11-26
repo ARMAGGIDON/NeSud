@@ -16,6 +16,12 @@ internal static partial class SmokeTests
             var server = new ServerStore(path);
             var a = server.Login(new Credentials("social-alice", "test-password-123", "test-password-123"), true)!.User;
             var b = server.Login(new Credentials("social-bob", "test-password-123", "test-password-123"), true)!.User;
+            Check(!server.ChangeFriend(a, new(b, "send")) && server.Friends(a).Count == 0, "Unverified friendship denied");
+            foreach (string user in new[] { a, b })
+            {
+                Check(server.EditProfile(user, new(user, user + "@example.test")), "Legacy email enrollment");
+                Check(server.VerifyEmail(user, server.StartVerification(user)!.Value.Code), "Verify social account");
+            }
             Check(server.FindPlayers("social-").Contains(a) && server.FindPlayers("social-").Contains(b), "Nickname lookup");
             Check(!server.ChangeFriend(a, new(a, "send")) && !server.ChangeFriend(a, new(b, "accept")), "No self friend or unsolicited acceptance");
             Check(server.ChangeFriend(a, new(b, "send")) && !server.ChangeFriend(a, new(b, "send")) && !server.ChangeFriend(b, new(a, "send")), "Unique pending request");

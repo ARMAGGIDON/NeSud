@@ -120,15 +120,19 @@ $profile = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.username)"
 Assert ($profile.user -eq $a.username -and $profile.games -eq 1 -and $null -eq $profile.history[0].game) 'Public profile metadata only'
 $hiddenEmail = Invoke-WebRequest -Uri "$BaseUrl/api/profile?user=$([Uri]::EscapeDataString("smoke_$id@example.com"))" -SkipHttpErrorCheck
 Assert ([int]$hiddenEmail.StatusCode -eq 404) 'Email is not a public profile identifier'
-$found = Invoke-RestMethod -Uri "$BaseUrl/api/players?q=$($a.username)"
-Assert ($found -contains $a.username) 'Nickname search'
-Post 'friends' @{user=$b.username;action='send'} $ha | Out-Null
-$incoming = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $hb
-Assert ($incoming[0].status -eq 'incoming' -and $incoming[0].user -eq $a.username) 'Incoming friend request'
-Post 'friends' @{user=$a.username;action='accept'} $hb | Out-Null
-$friends = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $ha
-Assert ($friends[0].status -eq 'friend') 'Mutual friendship'
-Post 'friends' @{user=$b.username;action='remove'} $ha | Out-Null
+# Test unauthorised social and profile operations without requiring SMTP.
+$deniedSearch = Invoke-WebRequest -Uri "$BaseUrl/api/players?q=$($a.username)" -Headers $ha -SkipHttpErrorCheck
+Assert ([int]$deniedSearch.StatusCode -eq 403) 'Unverified player search denied'
+$deniedFriends = Invoke-WebRequest -Uri "$BaseUrl/api/friends" -Headers $ha -SkipHttpErrorCheck
+Assert ([int]$deniedFriends.StatusCode -eq 403) 'Unverified friend list denied'
+$deniedSend = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/friends" -Headers $ha -ContentType 'application/json' -Body (@{user=$b.username;action='send'} | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$deniedSend.StatusCode -eq 403) 'Unverified friend request denied'
+$deniedRename = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/account/settings" -Headers $ha -ContentType 'application/json' -Body (@{username="rename_$id";email="smoke_a_$id@example.com"} | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$deniedRename.StatusCode -eq 403) 'Unverified rename denied'
+$deniedAvatar = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/account/avatar" -Headers $ha -ContentType 'application/json' -Body '{"png":null}' -SkipHttpErrorCheck
+Assert ([int]$deniedAvatar.StatusCode -eq 403) 'Unverified avatar removal denied'
+$settings = Invoke-RestMethod -Uri "$BaseUrl/api/account/settings" -Headers $ha
+Assert (-not $settings.verified -and $null -eq $settings.invite) 'Unverified invite unavailable'
 $filtered = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.username)&difficulty=Easy"
 Assert ($filtered.byDifficulty.Count -eq 4 -and $filtered.history[0].difficulty -eq 0) 'Profile difficulty breakdown'
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

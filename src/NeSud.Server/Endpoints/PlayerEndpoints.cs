@@ -18,10 +18,16 @@ internal static partial class Endpoints
             string? name = user is null ? User(c, s) : s.ResolvePublicName(user);
             return name is null ? Results.NotFound() : Results.Ok(s.Profile(name, Math.Clamp(page ?? 0, 0, 10000), difficulty));
         });
-        app.MapGet("/api/players", (ServerStore s, string? q) => s.FindPlayers(q ?? ""));
-        app.MapGet("/api/friends", (HttpContext c, ServerStore s) => User(c, s) is { } name ? Results.Ok(s.Friends(name)) : Results.Unauthorized());
+        app.MapGet("/api/players", (HttpContext c, ServerStore s, string? q) =>
+            User(c, s) is not { } name ? Results.Unauthorized() :
+            !s.IsVerified(name) ? VerificationRequired() : Results.Ok(s.FindPlayers(q ?? "")));
+        app.MapGet("/api/friends", (HttpContext c, ServerStore s) =>
+            User(c, s) is not { } name ? Results.Unauthorized() :
+            !s.IsVerified(name) ? VerificationRequired() : Results.Ok(s.Friends(name)));
         app.MapPost("/api/friends", (HttpContext c, ServerStore s, FriendRequest request) =>
-            User(c, s) is not { } name ? Results.Unauthorized() : s.ChangeFriend(name, request) ? Results.Ok(new SyncAck(true)) : Results.Conflict(new { error = "Дія недоступна." }));
+            User(c, s) is not { } name ? Results.Unauthorized() :
+            !s.IsVerified(name) ? VerificationRequired() :
+            s.ChangeFriend(name, request) ? Results.Ok(new SyncAck(true)) : Results.Conflict(new { error = "Дія недоступна." }));
         app.MapGet("/api/weekly", (ServerStore s) => s.Weekly());
         app.MapGet("/api/accumulated", (ServerStore s, string? metric, bool? all, Difficulty? difficulty) => difficulty is { } level && !Enum.IsDefined(level) ? Results.BadRequest() : Results.Ok(s.Accumulated(metric ?? "score", all ?? false, difficulty)));
         app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));

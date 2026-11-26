@@ -21,6 +21,10 @@ public sealed partial class ServerStore
                 invite TEXT NOT NULL UNIQUE, referred_by TEXT REFERENCES accounts(name),
                 avatar BLOB, verification_hash TEXT, verification_expiry INTEGER NOT NULL DEFAULT 0,
                 verification_sent INTEGER NOT NULL DEFAULT 0);
+            CREATE TRIGGER IF NOT EXISTS immutable_invite
+                BEFORE UPDATE OF invite ON account_profiles
+                WHEN OLD.invite IS NOT NEW.invite
+                BEGIN SELECT RAISE(ABORT,'Invitation code is immutable'); END;
             CREATE TABLE IF NOT EXISTS referral_rewards (
                 invited TEXT PRIMARY KEY REFERENCES accounts(name), inviter TEXT NOT NULL REFERENCES accounts(name),
                 rewarded_at INTEGER NOT NULL);

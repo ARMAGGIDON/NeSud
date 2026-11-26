@@ -14,16 +14,32 @@ internal static partial class SmokeTests
             const string password = "test-password-123";
             var inviter = server.Login(new("inviter", password, password, "inviter@example.test"), true)!;
             Check(!server.Settings(inviter.User).Verified && server.Settings(inviter.User).Invite is null, "Unverified invite disabled");
+            Check(!server.EditProfile(inviter.User, new("blocked", "inviter@example.test")), "Unverified rename denied");
+            Check(server.EditProfile(inviter.User, new("inviter", "inviter@example.test")), "Unverified email update allowed");
+            Check(!server.SetAvatar(inviter.User, MakeAvatar()) && !server.SetAvatar(inviter.User, null), "Unverified avatar changes denied");
             var code = server.StartVerification(inviter.User)!.Value.Code;
             Check(!server.VerifyEmail(inviter.User, "0000000000000000") && server.VerifyEmail(inviter.User, code), "Correct verification");
             string invite = server.Settings(inviter.User).Invite!;
             var invited = server.Login(new("invited", password, password, "invited@example.test", invite), true)!;
             Check(server.Daily(inviter.User).Hints == 0 && server.Daily(inviter.User).Candidates == 0, "No reward before verification");
+            Check(!server.ChangeFriend(inviter.User, new("invited", "send")) &&
+                !server.ChangeFriend(invited.User, new("inviter", "send")) &&
+                !server.FindPlayers("invited").Contains("invited"), "Both friends must be verified");
             var invitedCode = server.StartVerification(invited.User)!.Value.Code;
             Check(server.VerifyEmail(invited.User, invitedCode) && !server.VerifyEmail(invited.User, invitedCode), "Exactly-once verification");
             Check(server.Daily(inviter.User).Hints == 3 && server.Daily(inviter.User).Candidates == 3 &&
                 server.Settings(inviter.User).Referrals == 1, "Atomic referral reward");
+            Check(server.ChangeFriend(inviter.User, new("invited", "send")) &&
+                server.ChangeFriend(invited.User, new("inviter", "accept")), "Verified friendship allowed");
             Check(server.EditProfile(inviter.User, new("renamed", "inviter@example.test")), "Rename");
+            Check(server.Settings(inviter.User).Invite == invite &&
+                new ServerStore(Path.Combine(directory, "server.db")).Settings(inviter.User).Invite == invite,
+                "Single permanent invite across rename and restart");
+            Check(server.Friends(invited.User).Single().User == "renamed", "Friendship survives rename");
+            var second = server.Login(new("second-invited", password, password, "second@example.test", invite), true)!;
+            Check(server.VerifyEmail(second.User, server.StartVerification(second.User)!.Value.Code) &&
+                server.Settings(inviter.User).Referrals == 2 && server.Daily(inviter.User).Hints == 6 &&
+                server.Daily(inviter.User).Candidates == 6, "Permanent invite can refer multiple distinct players");
             Check(server.Authenticate(inviter.Token) == inviter.User && server.ResolvePublicName("renamed") == inviter.User &&
                 server.ResolvePublicName("inviter") is null, "Stable identity");
             Check(server.Login(new("renamed", password), false)?.User == inviter.User &&
