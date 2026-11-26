@@ -32,12 +32,17 @@ static string Token(HttpContext context)
 static string? User(HttpContext context, ServerStore store) => store.Authenticate(Token(context));
 static IResult Auth(Credentials c, ServerStore store, bool register)
 {
-    if (c.User is null || c.Password is null) return Results.BadRequest();
+    if (ServerStore.ValidateCredentials(c, register) is { } error) return Results.BadRequest(new { error });
     var session = store.Login(c, register);
-    return session is null ? Results.BadRequest(new { error = "Некоректні дані або акаунт уже існує." }) : Results.Ok(session);
+    return session is not null ? Results.Ok(session) : register
+        ? Results.Conflict(new { error = "Цей логін уже зайнятий." })
+        : Results.Json(new { error = "Неправильний логін або пароль." }, statusCode: 401);
 }
 app.MapPost("/api/register", (Credentials c, ServerStore s) => Auth(c, s, true)).RequireRateLimiting("auth");
 app.MapPost("/api/login", (Credentials c, ServerStore s) => Auth(c, s, false)).RequireRateLimiting("auth");
+app.MapPost("/api/guest", (ServerStore s) => s.Guest() is { } guest
+    ? Results.Ok(guest) : Results.Problem("Демонстраційні сеанси зайняті. Спробуйте пізніше.", statusCode: 503)).RequireRateLimiting("auth");
+app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
 app.MapPost("/api/logout", (HttpContext c, ServerStore s) => { s.Logout(Token(c)); return Results.Ok(); });
 app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
     User(c, s) is { } name ? Results.Ok(s.History(name)) : Results.Unauthorized());
@@ -87,7 +92,7 @@ static object View(WebGame session) => new
 };
 app.MapGet("/api/web/session", (HttpContext c, ServerStore s) =>
 {
-    if (User(c, s) is not { } name) return Results.Unauthorized();
+    if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
     lock (s.Gate)
     {
         if (s.Session(name) is not { } session) return Results.Ok(new { empty = true });
@@ -100,7 +105,7 @@ app.MapGet("/api/web/session", (HttpContext c, ServerStore s) =>
 });
 app.MapPost("/api/web/new", async (HttpContext c, ServerStore s, NewGameRequest request) =>
 {
-    if (User(c, s) is not { } name) return Results.Unauthorized();
+    if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
     if (!Enum.IsDefined(request.Difficulty)) return Results.BadRequest();
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(c.RequestAborted);
     timeout.CancelAfter(TimeSpan.FromSeconds(25));
@@ -122,7 +127,7 @@ app.MapPost("/api/web/new", async (HttpContext c, ServerStore s, NewGameRequest 
 });
 app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest request) =>
 {
-    if (User(c, s) is not { } name) return Results.Unauthorized();
+    if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
     lock (s.Gate)
     {
         if (s.Session(name) is not { } session || session.Id != request.Id ||

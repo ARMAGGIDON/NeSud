@@ -10,6 +10,49 @@ public sealed class ServerStore
 {
     private readonly Database db;
     public object Gate { get; } = new();
+    private readonly Dictionary<string, (DateTimeOffset Expires, WebGame? Game)> guests = new();
+    private const string GuestPrefix = ":guest:";
+    public static bool IsGuest(string name) => name.StartsWith(GuestPrefix, StringComparison.Ordinal);
+    public AccountSession? Guest()
+    {
+        lock (Gate)
+        {
+            var now = DateTimeOffset.UtcNow;
+            foreach (var expired in guests.Where(x => x.Value.Expires <= now).Select(x => x.Key).ToArray())
+                guests.Remove(expired);
+            if (guests.Count >= 500) return null;
+            string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            guests[GuestPrefix + TokenHash(token)] = (now.AddHours(2), null);
+            return new(token, "Гість");
+        }
+    }
+    public string? WebUser(string token)
+    {
+        if (Authenticate(token) is { } user) return user;
+        if (token.Length != 64) return null;
+        string key = GuestPrefix + TokenHash(token);
+        lock (Gate)
+        {
+            if (!guests.TryGetValue(key, out var entry) || entry.Expires <= DateTimeOffset.UtcNow) return null;
+            guests[key] = (DateTimeOffset.UtcNow.AddHours(2), entry.Game);
+            return key;
+        }
+    }
+    public static string? ValidateCredentials(Credentials input, bool register)
+    {
+        if (input.User is null || input.Password is null) return "Введіть логін і пароль.";
+        string name = input.User.Trim().ToLowerInvariant();
+        bool username = name.Length is >= 3 and <= 32 && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
+        bool email = name.Length <= 254 && System.Text.RegularExpressions.Regex.IsMatch(name,
+            @"^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$");
+        if (!username && !email) return "Введіть коректний логін (3–32 символи) або email.";
+        if (input.Password.Length is < 10 or > 128) return "Пароль має містити від 10 до 128 символів.";
+        if (register && input.Password != input.Confirmation) return "Паролі не збігаються.";
+        return null;
+    }
+    private static string PublicName(string name) => name.Contains('@')
+        ? "Гравець-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)))[..12]
+        : name;
     public ServerStore(string path)
     {
         db = new Database(path);
@@ -31,8 +74,7 @@ public sealed class ServerStore
     public AccountSession? Login(Credentials input, bool register)
     {
         string name = input.User.Trim().ToLowerInvariant();
-        if (name.Length is < 3 or > 32 || !name.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-') ||
-            input.Password.Length is < 10 or > 128) return null;
+        if (ValidateCredentials(input, register) is not null) return null;
         using var c = db.Open();
         if (register)
         {
@@ -68,6 +110,7 @@ public sealed class ServerStore
     }
     public void Logout(string token)
     {
+        lock (Gate) guests.Remove(GuestPrefix + TokenHash(token));
         using var c = db.Open();
         using var cmd = Database.Command(c, "DELETE FROM tokens WHERE hash=$h", ("$h", TokenHash(token)));
         cmd.ExecuteNonQuery();
@@ -126,16 +169,18 @@ public sealed class ServerStore
             GROUP BY name ORDER BY SUM(score) DESC,name LIMIT 100
             """, ("$all", all ? 1 : 0));
         using var rows = cmd.ExecuteReader(); var result = new List<RankEntry>();
-        while (rows.Read()) result.Add(new(rows.GetString(0), rows.GetInt32(1), rows.GetInt64(2)));
+        while (rows.Read()) result.Add(new(PublicName(rows.GetString(0)), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
     }
     public WebGame? Session(string name)
     {
+        if (IsGuest(name)) { lock (Gate) return guests.TryGetValue(name, out var entry) ? entry.Game : null; }
         using var c = db.Open(); using var cmd = Database.Command(c, "SELECT payload FROM web_sessions WHERE name=$n", ("$n", name));
         return cmd.ExecuteScalar() is string s ? Database.Decode<WebGame>(s) : null;
     }
     public void SaveSession(string name, WebGame session, GameRecord? terminal = null)
     {
+        if (IsGuest(name)) { lock (Gate) { if (guests.ContainsKey(name)) guests[name] = (DateTimeOffset.UtcNow.AddHours(2), session); } return; }
         using var c = db.Open(); using var tx = c.BeginTransaction();
         if (terminal is not null) Insert(c, tx, name, terminal);
         using var cmd = Database.Command(c, """
