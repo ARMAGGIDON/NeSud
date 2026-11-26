@@ -11,6 +11,7 @@ function resetSession() {
     game = null;
     online = false;
     guestMode = true;
+    verifiedAccount = false;
     selected = 0;
     note = false;
     adPending = false;
@@ -95,6 +96,7 @@ async function login(guest = false) {
         note = false;
         token = a.token;
         guestMode = guest;
+        verifiedAccount = false;
         sessionStorage.setItem("token", token);
         sessionStorage.setItem("guest", guest ? "1": "0");
         $("password").value = $("confirmation").value = "";
@@ -144,5 +146,22 @@ async function start() {
     $("history-tab").disabled = guestMode;
     await navigate("menu");
     await reconnect();
-    if (!guestMode) refreshDaily()
+    if (!guestMode) {
+        try { await refreshVerification(); } catch { verifiedAccount = false; }
+        refreshDaily();
+    }
+    render();
 }
+
+async function refreshVerification() {
+    if (guestMode || !token) { verifiedAccount = false; return false; }
+    const currentEpoch = epoch;
+    const settings = await api("account/settings");
+    if (epoch !== currentEpoch || guestMode) return false;
+    verifiedAccount = settings.verified === true;
+    return verifiedAccount;
+}
+window.addEventListener("focus", async () => {
+    if (guestMode || !token) return;
+    try { await refreshVerification(); render(); } catch { }
+});

@@ -20,7 +20,12 @@ function setTab(t) {
 }
 
 async function navigate(t) {
-    if (guestMode && (t === "challenge" || t === "history")) return;
+    if (guestMode && (t === "challenge" || t === "history" || t === "friends")) return;
+    if (t === "friends") {
+        try {
+            if (!await refreshVerification()) { message("Підтвердьте електронну пошту."); return; }
+        } catch (error) { message(error.message); return; }
+    }
     if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
     setTab(t);
     try {

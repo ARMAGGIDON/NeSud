@@ -21,7 +21,7 @@ function friendActions(target, user, status, reload) {
 async function loadFriends() {
     const target = $("friend-list");
     target.replaceChildren();
-    if (!guestMode) {
+    if (!guestMode && verifiedAccount) {
         const list = await api("friends");
         if (tab !== "friends") return;
         for (const [status, label] of [["incoming", "Вхідні запити"], ["outgoing", "Надіслані запити"], ["friend", "Друзі"]]) {
@@ -41,7 +41,9 @@ async function loadFriends() {
             }
         }
     }else {
-        target.textContent = "Для додавання друзів увійдіть до акаунта."
+        target.textContent = "Підтвердьте електронну пошту, щоб користуватися друзями.";
+        $("player-results").replaceChildren();
+        return;
     }
     const q = $("player-search").value.trim(), results = $("player-results");
     results.replaceChildren();

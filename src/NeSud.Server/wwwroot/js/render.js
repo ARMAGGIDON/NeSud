@@ -29,6 +29,8 @@ function render() {
     $("menu-continue").textContent = regularGame?.completed || regularGame?.finalDefeat
         ? "Останній результат" : "Продовжити гру";
     document.querySelectorAll("[data-new-level]").forEach(button => { button.disabled = !online || busy; });
+    $("menu-friends").disabled = guestMode || !verifiedAccount || !online;
+    $("menu-friends").title = guestMode ? "Увійдіть і підтвердьте пошту" : !verifiedAccount ? "Підтвердьте електронну пошту" : "";
     $("menu-challenge").disabled = guestMode || !online;
     $("menu-challenge").title = guestMode ? "Доступно після входу" : "";
     $("history-tab").disabled = guestMode || !online;

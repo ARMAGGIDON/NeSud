@@ -53,6 +53,8 @@ public sealed partial class MainWindow
         {
             settings = current;
             username.Text = current.Username;
+            username.IsReadOnly = !current.Verified;
+            avatarActions.IsEnabled = current.Verified;
             email.Text = current.Email ?? "";
             email.IsReadOnly = current.Verified;
             verification.Visibility = current.Verified ? Visibility.Collapsed : Visibility.Visible;
@@ -87,7 +89,7 @@ public sealed partial class MainWindow
             finally { busy = false; }
         }
 
-        panel.Children.Add(Action("Зберегти нікнейм та пошту", async () => await Run(async () =>
+        panel.Children.Add(Action("Зберегти", async () => await Run(async () =>
         {
             Apply(await Request<AccountSettings>("account/settings", new ProfileEdit(username.Text, email.Text)));
             notice.Text = "Збережено.";
@@ -114,6 +116,7 @@ public sealed partial class MainWindow
             notice.Text = "Пошту підтверджено.";
             await Sync();
         })));
+        verification.Children.Add(Text("Зміна нікнейму, аватара та друзі доступні після підтвердження пошти.", 13, "Muted"));
         panel.Children.Add(verification);
         panel.Children.Add(invitePanel);
         panel.Children.Add(notice);

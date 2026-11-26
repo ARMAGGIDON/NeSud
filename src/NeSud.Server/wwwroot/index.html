@@ -84,7 +84,7 @@
                             <button data-tab="weekly">Тижневий турнір</button>
                             <button data-tab="ranking">Рейтинг</button>
                             <button id="history-tab" data-tab="history" disabled title="Доступно після входу">Історія та статистика</button>
-                            <button data-tab="friends">Друзі та пошук</button>
+                            <button id="menu-friends" data-tab="friends" disabled title="Підтвердьте електронну пошту">Друзі та пошук</button>
                             
                         </div>
                     </div>
@@ -209,11 +209,12 @@
                     <div id="profile-settings" hidden>
                         <h3>Редагування профілю</h3>
                         <form id="profile-edit" class="profile-edit">
-                            <label>Нікнейм<input id="edit-username" required minlength="3" maxlength="32"></label>
+                            <label>Нікнейм<input id="edit-username" required minlength="3" maxlength="32" readonly></label>
                             <label>Email<input id="edit-email" type="email" maxlength="254"></label>
                             <button class="primary" type="submit">Зберегти</button>
                         </form>
-                        <div class="actions"><button id="avatar-edit">Змінити аватар</button><button id="avatar-remove">Видалити аватар</button></div>
+                        <p id="verification-required">Підтвердьте пошту, щоб змінювати нікнейм та аватар і користуватися друзями.</p>
+                        <div class="actions"><button id="avatar-edit" disabled>Змінити аватар</button><button id="avatar-remove" disabled>Видалити аватар</button></div>
                         <div id="verify-controls">
                             <button id="verify-send">Надіслати код на пошту</button>
                             <form id="verify-form" class="actions"><input id="verify-code" placeholder="Код з листа" required maxlength="16"><button type="submit">Підтвердити</button></form>

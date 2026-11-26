@@ -37,6 +37,25 @@ public sealed partial class MainWindow
     }
     private async Task ShowFriends()
     {
+        if (account is null)
+        {
+            Dialog("Друзі", "Увійдіть та підтвердьте електронну пошту.", false);
+            return;
+        }
+        try
+        {
+            if (!(await Request<AccountSettings>("account/settings")).Verified)
+            {
+                Dialog("Друзі", "Спочатку підтвердьте електронну пошту в профілі.", false);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Dialog("Друзі", ex.Message, false);
+            return;
+        }
+
         var panel = Stack();
         panel.Children.Add(Text("Друзі та пошук гравців", 24, "Text", true));
         var search = new TextBox { MinWidth = 250, Padding = new Thickness(6), Margin = new Thickness(0, 6, 0, 6) };
@@ -67,7 +86,7 @@ public sealed partial class MainWindow
                 if (search.Text.Trim().Length >= 2)
                 {
                     body.Children.Add(Text("Результати пошуку", 17, "Text", true));
-                    var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()), token: "");
+                    var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()));
                     foreach (var name in matches) body.Children.Add(Action(name, () => _ = ShowProfile(name)));
                     if (matches.Count == 0) body.Children.Add(Text("Гравців не знайдено.", 13, "Muted"));
                 }

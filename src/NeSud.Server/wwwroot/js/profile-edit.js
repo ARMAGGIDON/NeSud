@@ -4,12 +4,17 @@ const profileNotice = text => { $("profile-edit-status").textContent = text; };
 async function loadProfileSettings() {
     const settings = await api("account/settings");
     if (tab !== "profile" || profileUser || guestMode) return;
+    verifiedAccount = settings.verified === true;
     $("edit-username").value = settings.username;
+    $("edit-username").readOnly = !verifiedAccount;
+    $("verification-required").hidden = verifiedAccount;
+    $("avatar-edit").disabled = !verifiedAccount;
     $("edit-email").value = settings.email || "";
     $("edit-email").readOnly = settings.verified;
     $("verify-controls").hidden = settings.verified;
     $("invite-controls").hidden = !settings.verified;
-    $("avatar-remove").disabled = !settings.hasAvatar;
+    $("avatar-remove").disabled = !verifiedAccount || !settings.hasAvatar;
+    render();
     $("invite-count").textContent = "Підтверджених запрошень: " + settings.referrals;
     $("invite-link").value = settings.invite ? new URL("?invite=" + encodeURIComponent(settings.invite), location.origin + "/").href : "";
 }
@@ -67,6 +72,7 @@ function drawAvatar() {
         -(height - size) * Number($("avatar-y").value) / 100, width, height);
 }
 $("avatar-edit").onclick = () => {
+    if (!verifiedAccount) return;
     clearAvatar();
     avatarStatus("");
     $("avatar-dialog").showModal();
@@ -103,7 +109,7 @@ $("avatar-file").onchange = async () => {
 };
 for (const id of ["avatar-zoom", "avatar-x", "avatar-y"]) $(id).oninput = drawAvatar;
 $("avatar-save").onclick = async () => {
-    if (!avatarImage) return;
+    if (!avatarImage || !verifiedAccount) return;
     $("avatar-save").disabled = true;
     try {
         const png = $("avatar-preview").toDataURL("image/png").split(",")[1];
@@ -113,6 +119,7 @@ $("avatar-save").onclick = async () => {
     } catch (error) { avatarStatus(error.message); $("avatar-save").disabled = false; }
 };
 $("avatar-remove").onclick = async () => {
+    if (!verifiedAccount) return;
     try { await api("account/avatar", { png: null }); await loadProfile(); }
     catch (error) { profileNotice(error.message); }
 };

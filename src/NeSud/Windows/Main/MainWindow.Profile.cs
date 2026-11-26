@@ -68,13 +68,14 @@ public sealed partial class MainWindow
                 }
                 if (user is null && account is not null)
                 {
-                    body.Children.Add(Action("Редагувати профіль", async () => { await EditOwnProfile(); await LoadProfileAgain(); }));
+                    body.Children.Add(Action(p.Verified ? "Редагувати профіль" : "Підтвердити пошту", async () => { await EditOwnProfile(); await LoadProfileAgain(); }));
                 }
                 body.Children.Add(Text($"Ігор: {p.Games} • перемог: {p.Wins} • ідеальних: {p.PerfectWins} • балів: {p.Score:N0}", 15));
                 body.Children.Add(Text($"Серія: {p.CurrentStreak}/{p.BestStreak} • щоденних перемог: {p.DailyWins}", 14, "Muted"));
                 Gap(body);
                 foreach (var s in p.ByDifficulty ?? [])body.Children.Add(Text($"{Level(s.Difficulty)}: {s.Wins}/{s.Games} • ідеальні {s.PerfectWins} • серія {s.CurrentStreak}/{s.BestStreak} • {s.Score:N0} балів", 14));
-                if (account is not null && user is not null)
+                if (account is not null && user is not null && p.Verified &&
+                    (await Request<AccountSettings>("account/settings")).Verified)
                 {
                     var links = await Request<List<FriendEntry>>("friends");
                     if (!window.IsVisible)return;

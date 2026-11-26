@@ -31,7 +31,8 @@ async function loadProfile() {
     row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали"]);
     for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score]);
     $("profile-friend").replaceChildren();
-    if (!guestMode && user) {
+    if (!guestMode && user && p.verified && await refreshVerification()) {
+        if (tab !== "profile" || epoch !== e || profileUser !== user) return;
         const friends = await api("friends");
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;
         friendActions($("profile-friend"), user, friends.find(f => f.user === user)?.status, loadProfile)
