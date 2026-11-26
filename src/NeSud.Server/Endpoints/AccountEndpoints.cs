@@ -33,13 +33,26 @@ internal static partial class Endpoints
             if (challenge is null) return Results.BadRequest(new { error = "Немає пошти, вона вже підтверджена або не минула хвилина після попереднього запиту." });
             try
             {
-                using var client = new System.Net.Mail.SmtpClient(config["Smtp:Host"]!, config.GetValue("Smtp:Port", 587));
-                client.EnableSsl = true;
+                int port = config.GetValue("Smtp:Port", 587);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(c.RequestAborted);
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                using var client = new MailKit.Net.Smtp.SmtpClient();
+                var security = port == 465 ? MailKit.Security.SecureSocketOptions.SslOnConnect
+                    : MailKit.Security.SecureSocketOptions.StartTls;
+                var mail = new MimeKit.MimeMessage();
+                mail.From.Add(new MimeKit.MailboxAddress("NeSud", config["Smtp:From"]!));
+                mail.To.Add(MimeKit.MailboxAddress.Parse(challenge.Value.Email));
+                mail.Subject = "NeSud: підтвердження пошти";
+                mail.Body = new MimeKit.TextPart("plain")
+                {
+                    Text = "Код підтвердження: " + challenge.Value.Code + "\nДіє 30 хвилин."
+                };
+                await client.ConnectAsync(config["Smtp:Host"]!, port, security, timeout.Token);
                 if (!string.IsNullOrEmpty(config["Smtp:User"]))
-                    client.Credentials = new System.Net.NetworkCredential(config["Smtp:User"], config["Smtp:Password"]);
-                using var mail = new System.Net.Mail.MailMessage(config["Smtp:From"]!, challenge.Value.Email,
-                    "NeSud: підтвердження пошти", "Код підтвердження: " + challenge.Value.Code + "\nДіє 30 хвилин.");
-                await client.SendMailAsync(mail, c.RequestAborted);
+                    await client.AuthenticateAsync(config["Smtp:User"]!, config["Smtp:Password"] ?? "", timeout.Token);
+                await client.SendAsync(mail, timeout.Token);
+                // Delivery succeeded; failure to send QUIT must not report it as unsent.
+                try { await client.DisconnectAsync(true, timeout.Token); } catch { }
                 return Results.Ok(new SyncAck(true));
             }
             catch (Exception) { return Results.Problem("Не вдалося надіслати лист.", statusCode: 503); }
