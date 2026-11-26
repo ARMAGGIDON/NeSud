@@ -2,11 +2,14 @@
 <html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
 <body><header><div><h1>NeSud</h1><p>Логіка. Спокій. Концентрація.</p></div><div class="header-actions"><button id="theme">Тема</button><button id="logout" hidden>Вийти</button></div></header>
-<main><section id="auth" class="panel"><h2>Ваш акаунт</h2><p>Історія та рейтинг доступні на всіх пристроях.</p>
-<form id="login"><label>Логін<input id="user" required minlength="3" maxlength="32" autocomplete="username"></label>
-<label>Пароль<input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password"></label>
-<div class="actions"><button type="submit" class="primary">Увійти</button><button type="button" id="register">Реєстрація</button></div></form></section>
-<div id="app" hidden><nav><button data-tab="play">Гра</button><button data-tab="history">Історія та статистика</button><button data-tab="ranking">Рейтинг</button></nav>
+<main><section id="auth" class="panel"><h2 id="auth-title">Вхід до акаунта</h2><p>Історія та рейтинг доступні на всіх пристроях.</p>
+<div class="auth-tabs"><button id="login-tab" type="button" class="active">Вхід</button><button id="register-tab" type="button">Реєстрація</button></div>
+<form id="login"><label>Логін або email<input id="user" required minlength="3" maxlength="254" autocomplete="username" placeholder="Логін або email"></label>
+<label for="password">Пароль</label><div class="secret"><input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password"><button type="button" data-secret="password" aria-label="Показати пароль" aria-pressed="false">Показати</button></div>
+<div id="confirmation-wrap" hidden><label for="confirmation">Підтвердження пароля</label><div class="secret"><input id="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password"><button type="button" data-secret="confirmation" aria-label="Показати підтвердження пароля" aria-pressed="false">Показати</button></div></div>
+<p id="auth-error" role="alert" hidden></p><button id="submit-auth" type="submit" class="primary wide">Увійти</button></form>
+<div class="guest-section"><p>Не маєте акаунта? Спробуйте судоку без реєстрації.</p><button id="guest" type="button" class="wide">Грати як гість</button><small>Демонстраційні ігри не потрапляють до рейтингу.</small></div></section>
+<div id="app" hidden><p id="guest-notice" hidden>Демонстраційний режим · історія та рейтинг не зберігаються.</p><nav><button data-tab="play">Гра</button><button id="history-tab" data-tab="history">Історія та статистика</button><button data-tab="ranking">Рейтинг</button></nav>
 <section id="play" class="layout"><article class="panel"><div class="metrics"><div>СКЛАДНІСТЬ<strong id="level">–</strong></div><div>ЧАС<strong id="time">00:00</strong></div><div>ПОМИЛКИ<strong id="errors">0</strong></div></div>
 <div class="boardwrap"><div id="board" role="group" aria-label="Поле судоку"></div><div id="cover"><h2 id="covertext">Нова головоломка</h2><button id="resume" class="primary">Продовжити</button></div></div><p id="progress"></p></article>
 <aside class="panel"><h2>Нова гра</h2><label>Складність<select id="difficulty"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="newgame" class="primary wide">Нова головоломка</button>
