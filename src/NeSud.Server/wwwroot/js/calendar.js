@@ -65,7 +65,10 @@ async function openRegular() {
         comparison = null;
         await navigate("play");
         await reconnect()
-    }else await navigate("play")
+    } else {
+        await navigate("play");
+        await reconnect();
+    }
 }
 $("calendar-prev").onclick = () => changeMonth(-1);
 $("calendar-next").onclick = () => changeMonth(1);

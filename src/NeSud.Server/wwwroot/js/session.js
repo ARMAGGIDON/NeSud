@@ -27,16 +27,16 @@ async function reconnect() {
     const e = epoch;
     busy = true;
     try {
-        const data = await api("web/session?pause=true" + (challengeDay ? "&challengeDay=" + encodeURIComponent(challengeDay): ""));
+        const data = await gameSnapshot(challengeDay, tab === "play");
         if (e !== epoch) return;
         accept(data);
-        if (game?.reward && !$("ad").open) {
-            const cleared = await api("web/action", { id: game.id, revision: game.revision, challengeDay, action: "reward-cancel" });
+        if (tab === "play" && game?.reward && !$("ad").open) {
+            const cleared = await gameMove({ id: game.id, revision: game.revision, challengeDay, action: "reward-cancel" });
             if (e !== epoch) return;
             accept(cleared);
         }
-        if (game && !game.paused && !game.completed && !game.outOfLives) {
-            const paused = await api("web/action", { id: game.id, revision: game.revision, challengeDay, action: "pause" });
+        if (tab === "play" && game && !game.paused && !game.completed && !game.outOfLives) {
+            const paused = await gameMove({ id: game.id, revision: game.revision, challengeDay, action: "pause" });
             if (e !== epoch) return;
             accept(paused);
         }message("");
@@ -72,7 +72,7 @@ async function act(action, extra = { }) {
     const e = epoch;
     busy = true;
     try {
-        const data = await api("web/action", { id: game.id, revision: game.revision, challengeDay, action, ...extra });
+        const data = await gameMove({ id: game.id, revision: game.revision, challengeDay, action, ...extra });
         if (e !== epoch) return;
         if (data.pulseOnly) {
             game = { ...game, ...data };
@@ -90,7 +90,8 @@ async function act(action, extra = { }) {
         return true;
     }
     catch (e) {
-        if (e.status === 400 || e.status === 409 && action === "wallet") message(e.message);
+        if (e.status === 409) { queueGameRefresh(challengeDay); message(e.message); }
+        else if (e.status === 400) message(e.message);
         else disconnect(e);
         return false
     }finally {
@@ -108,15 +109,13 @@ setInterval(() => {
         reconnect();
         return
     }
-    if (game && !game.completed && !game.finalDefeat && (!game.paused || game.reward || game.outOfLives)) {
+    if (tab === "play" && game && !game.completed && !game.finalDefeat && (!game.paused || game.reward || game.outOfLives)) {
         pulse = act("heartbeat").finally(() => {
             pulse = null
         })
     }
 }, 6000);
-setInterval(() => {
-    if (online && (tab === "ranking" || tab === "weekly")) navigate(tab)
-}, 30000);
+
 function confirmNew() {
     return new Promise(resolve => {
         const d = $("confirm");
@@ -136,14 +135,15 @@ $("newgame").onclick = async() => {
     render();
     message("Генерація головоломки…");
     try {
-        const data = await api("web/new", { difficulty: Number($("difficulty").value), id: game?.id ?? null, revision: game?.revision ?? 0, autoFinish, challengeDay });
+        const data = await gameNew({ difficulty: Number($("difficulty").value), id: game?.id ?? null, revision: game?.revision ?? 0, autoFinish, challengeDay });
         if (e !== epoch) return;
         selected = data.selected;
         accept(data);
         message("");
     }
     catch (e) {
-        if (e.status === 400 || e.status === 409) message(e.message);
+        if (e.status === 409) { queueGameRefresh(challengeDay); message(e.message); }
+        else if (e.status === 400) message(e.message);
         else disconnect(e)
     }finally {
         busy = false;

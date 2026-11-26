@@ -10,6 +10,7 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
 {
     private const string TokenKey = "token";
     private const string NameKey = "account";
+    internal const string RankingsGroup = "rankings";
 
     internal static string Group(string name) => "account:" + name;
 
@@ -17,7 +18,6 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
     {
         if (Context.Items.ContainsKey(TokenKey) || token is null || store.WebUser(token) is not { } name)
         {
-            Context.Abort();
             return false;
         }
         Context.Items[TokenKey] = token;
@@ -31,8 +31,15 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         if (Context.Items.TryGetValue(TokenKey, out var token) && token is string secret &&
             Context.Items.TryGetValue(NameKey, out var expected) && store.WebUser(secret) is { } name &&
             Equals(name, expected)) return name;
-        Context.Abort();
         return null;
+    }
+
+    public async Task<bool> WatchRankings(bool watch)
+    {
+        if (Account() is null) return false;
+        if (watch) await Groups.AddToGroupAsync(Context.ConnectionId, RankingsGroup);
+        else await Groups.RemoveFromGroupAsync(Context.ConnectionId, RankingsGroup);
+        return true;
     }
 
     public async Task<Dictionary<string, object?>> Snapshot(string? day, bool pause)
@@ -51,6 +58,8 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
             id is null ? null : Guid.Parse(id), revision, autoFinish, day);
         var result = await Endpoints.NewGame(store, name, request, Context.ConnectionAborted);
         await Publish(name, day, result);
+        if (!ServerStore.IsGuest(name) && result is IStatusCodeHttpResult { StatusCode: 200 })
+            await NotifyRankings(Clients.Group(RankingsGroup));
         return Wire.Response(result);
     }
 
@@ -68,6 +77,13 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         {
             if (action != "heartbeat" || data.TryGetValue("revision", out var next) && Convert.ToInt64(next) != revision)
                 await Publish(name, day, result);
+            if (!ServerStore.IsGuest(name) && action != "heartbeat" &&
+                (data.GetValueOrDefault("completed") is true || data.GetValueOrDefault("finalDefeat") is true))
+            {
+                await NotifyRankings(Clients.Group(RankingsGroup));
+                await NotifyAccount(Clients.OthersInGroup(Group(name)));
+            }
+            else if (action == "wallet") await NotifyAccount(Clients.OthersInGroup(Group(name)));
             if (before is not null && data.ContainsKey("values"))
                 response["data"] = Wire.Delta(before, data, revision);
         }
@@ -85,7 +101,17 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         if (result is not IStatusCodeHttpResult { StatusCode: 200 } ||
             result is not IValueHttpResult { Value: not null } value) return;
         // Invalidation only; receivers authenticate again before requesting a snapshot.
-        await clients.SendAsync("GameChanged", day);
+        try { await clients.SendAsync("GameChanged", day); } catch { }
+    }
+
+    internal static async Task NotifyRankings(IClientProxy clients)
+    {
+        try { await clients.SendAsync("RankingsChanged"); } catch { }
+    }
+
+    internal static async Task NotifyAccount(IClientProxy clients)
+    {
+        try { await clients.SendAsync("AccountChanged"); } catch { }
     }
 }
 

@@ -1,6 +1,7 @@
 "use strict";
 
 function resetSession() {
+    stopRealtime();
     regularGame = null;
     challengeDay = null;
     calendarMonth = null;
@@ -27,7 +28,7 @@ function resetSession() {
 async function pauseForNavigation() {
     if (pulse) await pulse;
     if (busy) return false;
-    if (game && !game.paused && !game.completed && !game.outOfLives && online) return await act("pause");
+    if (tab === "play" && game && !game.paused && !game.completed && !game.outOfLives && online) return await act("pause");
     return true
 }
 async function showAuth() {
@@ -86,6 +87,7 @@ async function login(guest = false) {
         }
         const oldToken = token, oldGuest = guestMode;
         const a = await api(guest ? "guest": registration ? "register": "login", guest ? { }: { user: $("user").value, password: $("password").value, confirmation: registration ? $("confirmation").value : null, email: registration ? $("register-email").value : null, invite: registration ? $("register-invite").value : null });
+        stopRealtime();
         regularGame = null;
         challengeDay = null;
         calendarMonth = null;

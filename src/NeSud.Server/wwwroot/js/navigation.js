@@ -12,6 +12,7 @@ function row(parent, values) {
 }
 function setTab(t) {
     tab = t;
+    watchRankings(t === "ranking" || t === "weekly");
     $("back-menu").hidden = t === "menu";
 
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
