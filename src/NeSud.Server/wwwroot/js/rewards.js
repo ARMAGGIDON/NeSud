@@ -118,7 +118,6 @@ $("daily-open").onclick = async() => {
     drawDaily();
     await refreshDaily()
 };
-$("daily-close").onclick = () => $("daily").close();
 
 function adRender() {
     $("ad-time").textContent = adRemaining > 0 ? adRemaining + " с": "Готово!";
@@ -162,7 +161,6 @@ $("ad-claim").onclick = async() => {
         $("ad").close()
     }else adRender()
 };
-$("ad-cancel").onclick = () => $("ad").close();
 $("ad").addEventListener("cancel", e => {
     if (adBusy) e.preventDefault()
 });

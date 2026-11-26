@@ -33,4 +33,4 @@ $("help-open").onclick = async () => {
         $("help").showModal();
     }
 };
-$("help-close").onclick = () => $("help").close();
+

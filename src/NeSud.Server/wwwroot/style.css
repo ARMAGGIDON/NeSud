@@ -1162,3 +1162,65 @@ nav { justify-content: space-between; }
     #menu { padding: 14px; }
     #menu button { padding-inline: 6px; font-size: 14px; }
 }
+
+/* Compact calendar with no unused side column. */
+#challenge {
+    width: 100%;
+    max-width: 680px;
+    margin-inline: auto;
+}
+#challenge .calendar-head, #challenge .calendar-grid {
+    max-width: none;
+}
+#challenge .calendar-head {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 8px;
+}
+#calendar-title {
+    text-align: center;
+}
+#calendar-progress {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+#challenge .calendar-day {
+    min-height: 48px;
+}
+#challenge .cups {
+    margin-bottom: 0;
+}
+
+/* Consistent dismiss control on every dialog. */
+dialog {
+    position: fixed;
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+dialog > h2 {
+    padding-right: 48px;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+}
+dialog > .dialog-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    line-height: 1;
+    z-index: 1;
+}
+#help > .help-content {
+    flex: 1 1 auto;
+}
+#ad .actions {
+    justify-content: flex-end;
+}

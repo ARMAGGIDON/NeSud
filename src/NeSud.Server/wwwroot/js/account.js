@@ -36,10 +36,6 @@ async function showAuth() {
     if (!$("auth").open) $("auth").showModal()
 }
 $("account").onclick = () => guestMode ? showAuth() : openProfile();
-$("auth-close").onclick = () => {
-    $("auth").close();
-    $("password").value = $("confirmation").value = ""
-};
 $("auth").addEventListener("close", () => {
     $("password").value = $("confirmation").value = ""
 });
