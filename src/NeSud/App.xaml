@@ -39,6 +39,48 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Style x:Key="ScrollPage" TargetType="RepeatButton">
+   <Setter Property="Focusable" Value="False"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ScrollBar">
+   <Setter Property="Width" Value="10"/>
+   <Setter Property="MinWidth" Value="10"/>
+   <Setter Property="Background" Value="{DynamicResource PanelBrush}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ScrollBar">
+      <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="1">
+       <Track x:Name="PART_Track" IsDirectionReversed="True">
+        <Track.DecreaseRepeatButton>
+         <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource ScrollPage}"/>
+        </Track.DecreaseRepeatButton>
+        <Track.IncreaseRepeatButton>
+         <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource ScrollPage}"/>
+        </Track.IncreaseRepeatButton>
+        <Track.Thumb>
+         <Thumb MinHeight="28">
+          <Thumb.Template>
+           <ControlTemplate TargetType="Thumb">
+            <Border x:Name="thumb" Background="{DynamicResource StrongLineBrush}" CornerRadius="4" Opacity="0.72"/>
+            <ControlTemplate.Triggers>
+             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="thumb" Property="Opacity" Value="1"/></Trigger>
+             <Trigger Property="IsDragging" Value="True"><Setter TargetName="thumb" Property="Background" Value="{DynamicResource AccentBrush}"/></Trigger>
+            </ControlTemplate.Triggers>
+           </ControlTemplate>
+          </Thumb.Template>
+         </Thumb>
+        </Track.Thumb>
+       </Track>
+      </Border>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <Style TargetType="CheckBox">
    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
    <Setter Property="FontSize" Value="14"/>

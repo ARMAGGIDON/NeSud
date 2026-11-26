@@ -12,6 +12,7 @@ public sealed class AppState
 {
     public int Version { get; set; } = 1;
     public Game? Game { get; set; }
+    public Difficulty? NextDifficulty { get; set; }
     public bool Dark { get; set; } = true;
     public bool ShowMistakes { get; set; } = true;
     public bool AutoClean { get; set; } = true;
@@ -37,6 +38,7 @@ public sealed class StateStore(string path)
             {
                 var state = JsonSerializer.Deserialize<AppState>(File.ReadAllText(candidate));
                 if (state is null || state.Version != 1 || state.Stats is null ||
+                    state.NextDifficulty is Difficulty difficulty && !Enum.IsDefined(difficulty) ||
                     state.Stats.Any(p => !Enum.IsDefined(p.Key) || p.Value is null ||
                         p.Value.Wins < 0 || p.Value.BestSeconds is < 0) ||
                     !double.IsFinite(state.Width) || !double.IsFinite(state.Height) ||

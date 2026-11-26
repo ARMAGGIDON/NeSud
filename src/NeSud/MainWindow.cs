@@ -37,7 +37,7 @@ public sealed class MainWindow : Window
     public MainWindow()
     {
         state = store.Load();
-        nextDifficulty = G?.Puzzle.Difficulty ?? Difficulty.Medium;
+        nextDifficulty = state.NextDifficulty ?? G?.Puzzle.Difficulty ?? Difficulty.Medium;
         Title = "NeSud • Судоку";
         MinWidth = 790; MinHeight = 620;
         Width = Math.Clamp(state.Width, MinWidth, Math.Max(MinWidth, SystemParameters.WorkArea.Width));
@@ -213,7 +213,7 @@ public sealed class MainWindow : Window
         for (int i = 0; i < 4; i++)
         {
             var d = (Difficulty)i;
-            levels[i] = Action(Level(d), () => { nextDifficulty = d; Render(); }, "Обрати складність наступної гри");
+            levels[i] = Action(Level(d), () => { state.NextDifficulty = nextDifficulty = d; Render(); Save(); }, "Обрати складність наступної гри");
             levels[i].Margin = new Thickness(2, 2, 2, 3); levelGrid.Children.Add(levels[i]);
         }
         side.Children.Add(levelGrid);
@@ -243,7 +243,7 @@ public sealed class MainWindow : Window
         { b.Margin = new Thickness(2); actions.Children.Add(b); }
         side.Children.Add(actions); Gap(side, 12);
         side.Children.Add(Text("Налаштування", 16, "Text", true));
-        side.Children.Add(Option("Показувати помилки", state.ShowMistakes, v => state.ShowMistakes = v));
+        side.Children.Add(Option("Підсвічувати помилки", state.ShowMistakes, v => state.ShowMistakes = v));
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
         Gap(side, 9);
@@ -290,7 +290,11 @@ public sealed class MainWindow : Window
         var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
         presenter.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
         presenter.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.Name = "CellChrome";
         border.AppendChild(presenter); template.VisualTree = border;
+        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.82, "CellChrome"));
+        template.Triggers.Add(hover);
         for (int i = 0; i < 81; i++)
         {
             int index = i, r = i / 9, c = i % 9;
@@ -525,8 +529,9 @@ public sealed class MainWindow : Window
         if (mods.HasFlag(ModifierKeys.Alt) || mods.HasFlag(ModifierKeys.Windows)) return;
         if (k is Key.P or Key.Escape) { TogglePause(); e.Handled = true; return; }
         if (!Playing) return;
-        int d = k is >= Key.D0 and <= Key.D9 ? (int)k - (int)Key.D0 :
-            k is >= Key.NumPad0 and <= Key.NumPad9 ? (int)k - (int)Key.NumPad0 : -1;
+        int code = (int)k;
+        int d = code >= (int)Key.D0 && code <= (int)Key.D9 ? code - (int)Key.D0 :
+            code >= (int)Key.NumPad0 && code <= (int)Key.NumPad9 ? code - (int)Key.NumPad0 : -1;
         if (d >= 0) Enter(d, mods.HasFlag(ModifierKeys.Shift));
         else if (k is Key.Delete or Key.Back) Enter(0);
         else if (k == Key.N || k == Key.Space && Keyboard.FocusedElement is Button b && cells.Contains(b)) ToggleNotes();
