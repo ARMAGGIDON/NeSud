@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="js/state.js" defer></script>
+<script src="js/account.js" defer></script>
+<script src="js/session.js" defer></script>
+<script src="js/board.js" defer></script>
+<script src="js/rewards.js" defer></script>
+<script src="js/results.js" defer></script>
+<script src="js/render.js" defer></script>
+<script src="js/navigation.js" defer></script>
+<script src="js/profile.js" defer></script>
+<script src="js/calendar.js" defer></script>
+<script src="js/friends.js" defer></script>
+<script src="js/startup.js" defer></script></head>
 <body><header><div><h1>NeSud</h1></div><div class="header-actions"><button id="help-open">Довідка</button><button id="theme">Тема</button><button id="account" class="primary">Увійти</button><button id="logout" hidden>Вийти</button></div></header>
 <main><dialog id="auth" class="panel"><button id="auth-close" type="button" aria-label="Закрити" class="dialog-close">×</button><h2 id="auth-title">Вхід до акаунта</h2>
 <div class="auth-tabs"><button id="login-tab" type="button" class="active">Вхід</button><button id="register-tab" type="button">Реєстрація</button></div>
