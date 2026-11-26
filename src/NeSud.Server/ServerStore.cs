@@ -89,6 +89,7 @@ public sealed partial class ServerStore
             CREATE INDEX IF NOT EXISTS ix_history_level ON history(name,json_extract(payload,'$.game.puzzle.difficulty'));
             CREATE TABLE IF NOT EXISTS challenge_puzzles (day TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS challenge_sessions (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), payload TEXT NOT NULL, PRIMARY KEY(name,day));
+            CREATE INDEX IF NOT EXISTS ix_challenge_sessions_day ON challenge_sessions(day);
             CREATE TABLE IF NOT EXISTS challenge_attempts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, day TEXT NOT NULL REFERENCES challenge_puzzles(day), outcome TEXT NOT NULL, ended TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             CREATE INDEX IF NOT EXISTS ix_challenge_attempts_history ON challenge_attempts(name,ended DESC);
             CREATE TABLE IF NOT EXISTS challenge_wins (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), PRIMARY KEY(name,day));

@@ -64,6 +64,7 @@ app.MapGet("/api/history/changes", (HttpContext c, ServerStore s, long? after) =
 app.MapGet("/api/challenge/calendar", (HttpContext c, ServerStore s, string? month) => User(c,s) is { } name ? (s.Calendar(name,month) is { } calendar ? Results.Ok(calendar) : Results.BadRequest()) : Results.Unauthorized());
 app.MapGet("/api/profile", (HttpContext c, ServerStore s, string? user, int? page, Difficulty? difficulty) =>
 {
+    if(difficulty is { } level && !Enum.IsDefined(level)) return Results.BadRequest();
     string? name = user is null ? User(c,s) : s.ResolvePublicName(user);
     return name is null ? Results.NotFound() : Results.Ok(s.Profile(name,Math.Clamp(page ?? 0,0,10000),difficulty));
 });
@@ -72,7 +73,7 @@ app.MapGet("/api/friends", (HttpContext c,ServerStore s) => User(c,s) is { } nam
 app.MapPost("/api/friends", (HttpContext c,ServerStore s,FriendRequest request) =>
     User(c,s) is not { } name ? Results.Unauthorized() : s.ChangeFriend(name,request) ? Results.Ok(new SyncAck(true)) : Results.Conflict(new { error="Дія недоступна." }));
 app.MapGet("/api/weekly", (ServerStore s) => s.Weekly());
-app.MapGet("/api/accumulated", (ServerStore s,string? metric,bool? all,Difficulty? difficulty) => s.Accumulated(metric ?? "score",all ?? false,difficulty));
+app.MapGet("/api/accumulated", (ServerStore s,string? metric,bool? all,Difficulty? difficulty) => difficulty is { } level && !Enum.IsDefined(level) ? Results.BadRequest() : Results.Ok(s.Accumulated(metric ?? "score",all ?? false,difficulty)));
 app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
 app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
 {

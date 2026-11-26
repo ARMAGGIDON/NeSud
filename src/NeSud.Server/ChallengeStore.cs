@@ -73,7 +73,6 @@ public sealed partial class ServerStore
                 }
             }
         }
-        PruneChallengeSessions(c,tx);
         if(!ChallengeAllowed(day)){tx.Commit();return;}
         using var save=Tx(c,tx,"INSERT INTO challenge_sessions VALUES($n,$d,$p) ON CONFLICT(name,day) DO UPDATE SET payload=excluded.payload",
             ("$n",name),("$d",day),("$p",Database.Encode(session)));
@@ -112,7 +111,7 @@ public sealed partial class ServerStore
     {
         if(user.Length>80) return null;
         using var c=db.Open(); using var cmd=Database.Command(c,"""
-            SELECT name FROM accounts WHERE (instr(name,'@')=0 AND name=$u)
+            SELECT name FROM accounts WHERE (instr(name,'@')=0 AND name=lower($u))
               OR (instr(name,'@')>0 AND 'Гравець-'||substr(hex(salt),1,12)=$u) LIMIT 1
             """,("$u",user));
         return cmd.ExecuteScalar() as string;

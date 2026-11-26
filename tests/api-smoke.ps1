@@ -114,4 +114,15 @@ $profile = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.user)"
 Assert ($profile.user -eq $a.user -and $profile.games -eq 1 -and $null -eq $profile.history[0].game) 'Public profile metadata only'
 $hiddenEmail = Invoke-WebRequest -Uri "$BaseUrl/api/profile?user=$([Uri]::EscapeDataString($email.user))" -SkipHttpErrorCheck
 Assert ([int]$hiddenEmail.StatusCode -eq 404) 'Email is not a public profile identifier'
+$found = Invoke-RestMethod -Uri "$BaseUrl/api/players?q=$($a.user)"
+Assert ($found -contains $a.user) 'Nickname search'
+Post 'friends' @{user=$b.user;action='send'} $ha | Out-Null
+$incoming = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $hb
+Assert ($incoming[0].status -eq 'incoming' -and $incoming[0].user -eq $a.user) 'Incoming friend request'
+Post 'friends' @{user=$a.user;action='accept'} $hb | Out-Null
+$friends = Invoke-RestMethod -Uri "$BaseUrl/api/friends" -Headers $ha
+Assert ($friends[0].status -eq 'friend') 'Mutual friendship'
+Post 'friends' @{user=$b.user;action='remove'} $ha | Out-Null
+$filtered = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.user)&difficulty=Easy"
+Assert ($filtered.byDifficulty.Count -eq 4 -and $filtered.history[0].difficulty -eq 0) 'Profile difficulty breakdown'
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green
