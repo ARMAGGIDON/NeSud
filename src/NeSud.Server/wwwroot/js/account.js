@@ -19,7 +19,7 @@ function resetSession() {
     adPending = false;
     if ($("ad").open) $("ad").close();
     $("account").hidden = false;
-    $("account").textContent = "Увійти";
+    updateAccountAvatar(null);
     $("logout").hidden = true;
     $("history-tab").disabled = true;
     $("guest-notice").hidden = false;
@@ -89,6 +89,8 @@ async function login(guest = false) {
         const oldToken = token, oldGuest = guestMode;
         const a = await api(guest ? "guest": registration ? "register": "login", guest ? { }: { user: $("user").value, password: $("password").value, confirmation: registration ? $("confirmation").value : null, email: registration ? $("register-email").value : null, invite: registration ? $("register-invite").value : null });
         stopRealtime();
+        ownUsername = null;
+        avatarVersion = 0;
         regularGame = null;
         challengeDay = null;
         calendarMonth = null;

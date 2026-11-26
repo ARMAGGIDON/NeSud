@@ -1,6 +1,6 @@
 "use strict";
 
-let avatarVersion = 0;
+let avatarVersion = 0, ownUsername = null;
 function playerAvatar(user, known = true) {
     const box = document.createElement("span");
     box.className = "player-avatar";
@@ -19,14 +19,16 @@ function setPlayerAvatar(box, user, known = true) {
     const img = document.createElement("img");
     img.alt = "";
     img.loading = box.classList.contains("large") ? "eager" : "lazy";
-    img.hidden = true;
-    img.onload = () => { img.hidden = false; fallback.hidden = true; };
+    img.className = "avatar-pending";
+    img.onload = () => { img.classList.remove("avatar-pending"); fallback.hidden = true; };
     img.onerror = () => img.remove();
-    img.src = "/api/avatar?user=" + encodeURIComponent(user) + (avatarVersion ? "&v=" + avatarVersion : "");
+    img.src = "/api/avatar?user=" + encodeURIComponent(user) +
+        (avatarVersion && user === ownUsername ? "&v=" + avatarVersion : "");
     box.append(img);
 }
 function updateAccountAvatar(settings) {
     const button = $("account");
+    ownUsername = !guestMode && settings ? settings.username : null;
     button.replaceChildren();
     if (!guestMode && settings) {
         button.append(playerAvatar(settings.username, settings.hasAvatar), document.createTextNode("Мій профіль"));
@@ -51,7 +53,7 @@ function profileLink(el, user) {
     el.replaceChildren(b)
 }
 async function openProfile(user = null) {
-    profileUser = user;
+    profileUser = !guestMode && ownUsername && user?.toLowerCase() === ownUsername.toLowerCase() ? null : user;
     profilePage = 0;
     $("profile-level").value = "";
     await navigate("profile")
@@ -76,7 +78,7 @@ async function loadProfile() {
     row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали"]);
     for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score]);
     $("profile-friend").replaceChildren();
-    if (!guestMode && user && p.verified && verifiedAccount) {
+    if (!guestMode && user && p.verified && verifiedAccount && p.user !== ownUsername) {
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;
         const friends = await api("friends");
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;

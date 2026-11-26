@@ -10,6 +10,9 @@ public sealed partial class MainWindow
 {
     private async Task ShowProfile(string? user)
     {
+        if (user is not null && account is not null &&
+            string.Equals(user, account.Username ?? account.User, StringComparison.OrdinalIgnoreCase))
+            user = null;
         var panel = Stack();
         var header = new Grid { Margin = new Thickness(0, 0, 0, 16) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -134,7 +137,9 @@ public sealed partial class MainWindow
                 history.Children.Add(games);
                 if (p.History.Count == 0) history.Children.Add(Text("Ігор ще немає.", 13, "Muted"));
                 friendActions.Children.Clear();
-                if (!own && account is not null && p.Verified && (await Request<AccountSettings>("account/settings")).Verified)
+                if (!own && account is not null && p.Verified &&
+                    !string.Equals(p.User, account.Username ?? account.User, StringComparison.OrdinalIgnoreCase) &&
+                    (await Request<AccountSettings>("account/settings")).Verified)
                 {
                     var links = await Request<List<FriendEntry>>("friends");
                     if (!window.IsVisible || sessionToken != account?.Token) return;

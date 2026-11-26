@@ -2,8 +2,9 @@
 
 const profileNotice = text => { $("profile-edit-status").textContent = text; };
 async function loadProfileSettings() {
+    const e = epoch, secret = token;
     const settings = await api("account/settings");
-    if (tab !== "profile" || profileUser || guestMode) return;
+    if (epoch !== e || secret !== token || tab !== "profile" || profileUser || guestMode) return;
     verifiedAccount = settings.verified === true;
     $("edit-username").value = settings.username;
     $("edit-username").readOnly = !verifiedAccount;
@@ -25,7 +26,7 @@ async function loadProfileSettings() {
 }
 $("profile-settings-open").onclick = async () => {
     try {
-        await loadProfileSettings();
+        if (!await loadProfileSettings()) return;
         profileNotice("");
         if (!$("profile-settings-dialog").open) $("profile-settings-dialog").showModal();
     } catch (error) { message(error.message); }
@@ -40,8 +41,10 @@ $("invite-open").onclick = async () => {
 };
 $("profile-edit").onsubmit = async event => {
     event.preventDefault();
+    const secret = token;
     try {
         await api("account/settings", { username: $("edit-username").value, email: $("edit-email").value });
+        if (secret !== token) return;
         await loadProfileSettings();
         await loadProfile();
         profileNotice("Збережено.");
@@ -150,10 +153,12 @@ $("avatar-file").onchange = async () => {
 for (const id of ["avatar-zoom", "avatar-x", "avatar-y"]) $(id).oninput = drawAvatar;
 $("avatar-save").onclick = async () => {
     if (!avatarImage || !verifiedAccount) return;
+    const secret = token;
     $("avatar-save").disabled = true;
     try {
         const png = $("avatar-preview").toDataURL("image/png").split(",")[1];
         await api("account/avatar", { png });
+        if (secret !== token) return;
         avatarVersion = Date.now();
         $("avatar-dialog").close();
         await refreshVerification();

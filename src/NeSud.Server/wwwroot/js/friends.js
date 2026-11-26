@@ -49,6 +49,7 @@ async function loadFriends() {
     results.replaceChildren();
     if (q.length >= 2) {
         for (const name of await api("players?q=" + encodeURIComponent(q))) {
+            if (name.toLowerCase() === ownUsername?.toLowerCase()) continue;
             if (tab !== "friends") return;
             const b = document.createElement("button");
             b.className = "profile-link";

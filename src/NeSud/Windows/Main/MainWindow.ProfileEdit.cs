@@ -29,10 +29,13 @@ public sealed partial class MainWindow
 
     private async Task EditOwnProfile(bool sendVerification = false)
     {
-        if (account is null) return;
+        var sessionToken = account?.Token;
+        if (sessionToken is null) return;
+        var parent = surfaces.LastOrDefault();
         AccountSettings settings;
         try { settings = await Request<AccountSettings>("account/settings"); }
         catch (Exception ex) { Dialog("Профіль", ex.Message, false); return; }
+        if (account?.Token != sessionToken || closing || parent != surfaces.LastOrDefault()) return;
 
         var panel = Stack();
         panel.Children.Add(Text("Редагування профілю", 24, "Text", true));
@@ -50,6 +53,7 @@ public sealed partial class MainWindow
 
         void Apply(AccountSettings current)
         {
+            if (account?.Token != sessionToken) return;
             settings = current;
             username.Text = current.Username;
             username.IsReadOnly = !current.Verified;
@@ -73,7 +77,7 @@ public sealed partial class MainWindow
 
         async Task Run(Func<Task> action)
         {
-            if (busy) return;
+            if (busy || account?.Token != sessionToken || !window.IsVisible) return;
             busy = true;
             try { await action(); }
             catch (Exception ex) { if (window.IsVisible) notice.Text = ex.Message; }
@@ -120,6 +124,7 @@ public sealed partial class MainWindow
     {
         var session = account;
         if (session is null) return;
+        var parent = surfaces.LastOrDefault();
         var picker = new OpenFileDialog
         {
             Title = "Вибір аватара",
@@ -131,6 +136,7 @@ public sealed partial class MainWindow
         byte[] bytes = await File.ReadAllBytesAsync(picker.FileName);
         if (bytes.Length > 5 * 1024 * 1024) throw new InvalidDataException("Максимальний розмір зображення: 5 МБ.");
         BitmapSource source = await Task.Run(() => DecodeAvatar(bytes, info.Extension));
+        if (account?.Token != session.Token || closing || parent != surfaces.LastOrDefault()) return;
         var panel = Stack();
         panel.Children.Add(Text("Квадратна область аватара", 20, "Text", true));
         var preview = new Image { Width = 256, Height = 256, Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center };

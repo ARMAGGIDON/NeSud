@@ -194,9 +194,8 @@ public sealed partial class MainWindow
     private Grid PlayerListGrid(int metrics)
     {
         var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
-        grid.ColumnDefinitions[0].Width = new GridLength(42);
         for (int i = 0; i < metrics; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         return grid;
     }
@@ -230,11 +229,14 @@ public sealed partial class MainWindow
 
     private async Task ShowInvitations()
     {
-        if (account is null) return;
+        var sessionToken = account?.Token;
+        if (sessionToken is null) return;
+        var parent = surfaces.LastOrDefault();
         try
         {
             var settings = await Request<AccountSettings>("account/settings");
-            if (!settings.Verified || settings.Invite is null) return;
+            if (!settings.Verified || settings.Invite is null || account?.Token != sessionToken ||
+                closing || parent != surfaces.LastOrDefault()) return;
             var panel = Stack();
             panel.Children.Add(Text("Запрошення", 24, "Text", true));
             panel.Children.Add(ProfileMetrics(("Підтверджених запрошень", settings.Referrals.ToString("N0"))));

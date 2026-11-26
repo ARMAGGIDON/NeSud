@@ -1293,3 +1293,8 @@ dialog > .dialog-close {
 #avatar-preview { background: repeating-conic-gradient(var(--control) 0% 25%, var(--panel) 0% 50%) 0 0 / 20px 20px; }
 @media (max-width: 650px) { .stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } #profile-settings { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { .avatar-overlay, #invite-copy span { animation: none !important; transition: none !important; } }
+
+.player-avatar img.avatar-pending { opacity: 0; }
+#profile-settings-dialog, #invite-dialog { width: min(560px, calc(100vw - 32px)); }
+.profile-heading .actions:empty { display: none; }
+.record > span { min-width: 0; overflow-wrap: anywhere; }
