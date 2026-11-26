@@ -6,7 +6,14 @@ using NeSud.Storage;
 namespace NeSud.Server;
 
 public sealed record RewardTicket(string Kind, DateTimeOffset ReadyAt, DateTimeOffset ExpiresAt);
-public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null);
+public sealed record MoveAudit(int Moves = 0, int FastIntervals = 0, DateTimeOffset? LastMove = null)
+{
+    public MoveAudit Record(DateTimeOffset now) => this with
+    { Moves = Moves + 1, FastIntervals = FastIntervals + (LastMove is { } last && (now-last).TotalMilliseconds < 90 ? 1 : 0), LastMove = now };
+    public bool Flag(Game game) => Moves >= 16 && (FastIntervals >= 12 && FastIntervals * 5 >= (Moves - 1) * 4 ||
+        game.Seconds * 1000L < Moves * 90L);
+}
+public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null, MoveAudit? Audit = null);
 public sealed partial class ServerStore
 {
     private readonly Database db;
@@ -65,12 +72,21 @@ public sealed partial class ServerStore
               name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, source TEXT NOT NULL,
               score INTEGER NOT NULL, outcome TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             CREATE TABLE IF NOT EXISTS web_sessions (name TEXT PRIMARY KEY REFERENCES accounts(name), payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS speed_audit (name TEXT NOT NULL, id TEXT NOT NULL, moves INTEGER NOT NULL, fast_intervals INTEGER NOT NULL, flagged INTEGER NOT NULL, PRIMARY KEY(name,id));
             CREATE TABLE IF NOT EXISTS daily_packs (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL, milestone TEXT NOT NULL, slot INTEGER NOT NULL, options TEXT NOT NULL, chosen INTEGER, PRIMARY KEY(name,day,milestone,slot));
             CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
             CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
+        using var migration = db.Open(); using var tx = migration.BeginTransaction();
+        using var convert = Tx(migration, tx, """
+            INSERT INTO wallet(name,kind,amount) SELECT name,\'hint\',amount FROM wallet WHERE kind=\'life\'
+            ON CONFLICT(name,kind) DO UPDATE SET amount=amount+excluded.amount;
+            DELETE FROM wallet WHERE kind=\'life\';
+            UPDATE daily_packs SET options=replace(options,\'"kind":"life"\',\'"kind":"hint"\') WHERE options LIKE \'%"kind":"life"%\';
+            """);
+        convert.ExecuteNonQuery(); tx.Commit();
     }
     private static byte[] Password(string password, byte[] salt) =>
         Rfc2898DeriveBytes.Pbkdf2(password, salt, 600_000, HashAlgorithmName.SHA256, 32);
@@ -173,11 +189,30 @@ public sealed partial class ServerStore
         using var c = db.Open(); using var cmd = Database.Command(c, """
             SELECT h.name,COUNT(*),SUM(h.score),a.salt FROM history h JOIN accounts a ON a.name=h.name
             WHERE ($all=1 OR h.source='web') AND h.outcome='completed'
+            AND NOT EXISTS(SELECT 1 FROM speed_audit v WHERE v.name=h.name AND v.id=h.id AND v.flagged=1)
             GROUP BY h.name,a.salt ORDER BY SUM(h.score) DESC,h.name LIMIT 100
             """, ("$all", all ? 1 : 0));
         using var rows = cmd.ExecuteReader(); var result = new List<RankEntry>();
         while (rows.Read()) result.Add(new(PublicName(rows.GetString(0), (byte[])rows[3]), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
+    }
+    public DifficultyComparison Compare(Difficulty level, int score, int seconds)
+    {
+        using var c = db.Open(); using var cmd = Database.Command(c, """
+            SELECT h.name,h.payload FROM history h WHERE h.source='web' AND h.outcome='completed'
+            AND json_extract(h.payload,'$.game.puzzle.difficulty')=$d
+            AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=h.name AND a.id=h.id AND a.flagged=1)
+            """, ("$d", (int)level));
+        using var rows = cmd.ExecuteReader();
+        var records = new List<GameRecord>(); var users = new HashSet<string>();
+        while (rows.Read()) { users.Add(rows.GetString(0)); records.Add(Database.Decode<GameRecord>(rows.GetString(1))); }
+        if (records.Count == 0) return new(0,0,0,0,0,0,0,0,0,0,0);
+        var times = records.Select(r => r.Game.Seconds).Order().ToArray(); int n = times.Length;
+        double median = ((long)times[(n-1)/2]+times[n/2])/2.0;
+        return new(n, users.Count, times.Average(), median, times[0], records.Average(r => r.Score),
+            records.Average(r => r.Game.Mistakes), records.Average(r => r.Game.Hints), records.Average(r => r.Game.CandidateChanges),
+            (int)Math.Round(100.0 * records.Count(r => r.Score <= score)/n),
+            (int)Math.Round(100.0 * times.Count(t => t >= seconds)/n));
     }
     public WebGame? Session(string name)
     {
@@ -191,7 +226,12 @@ public sealed partial class ServerStore
         using var c = db.Open(); using var tx = c.BeginTransaction();
         if (walletKind is not null && !Debit(c, tx, name, walletKind)) throw new InvalidOperationException("Недостатньо ресурсів.");
         if (terminal is not null && Insert(c, tx, name, terminal) && terminal.Outcome == "completed")
-            EnsureWinPacks(c, tx, name, Day(terminal.Ended));
+        {
+            var audit = session.Audit ?? new MoveAudit();
+            using var log = Tx(c, tx, "INSERT OR IGNORE INTO speed_audit VALUES($n,$id,$m,$f,$flag)",
+                ("$n", name), ("$id", terminal.Id.ToString()), ("$m", audit.Moves), ("$f", audit.FastIntervals), ("$flag", audit.Flag(terminal.Game) ? 1 : 0));
+            log.ExecuteNonQuery(); EnsureWinPacks(c, tx, name, Day(terminal.Ended));
+        }
         using var cmd = Database.Command(c, """
             INSERT INTO web_sessions VALUES($n,$p) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload
             """, ("$n", name), ("$p", Database.Encode(session)));

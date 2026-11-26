@@ -20,6 +20,7 @@ public sealed class AppState
     public PendingReward? PendingReward { get; set; }
     public Difficulty? NextDifficulty { get; set; }
     public bool Dark { get; set; } = true;
+    public bool AutoFinish { get; set; }
     public bool ShowMistakes { get; set; } = true;
     public bool AutoClean { get; set; } = true;
     public bool HighlightPeers { get; set; } = true;

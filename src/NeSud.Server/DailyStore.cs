@@ -15,9 +15,9 @@ public sealed partial class ServerStore
     }
     private static RewardItem[] Options()
     {
-        string[] kinds = ["life", "hint", "candidates"];
+        string[] kinds = ["hint", "candidates"];
         // Independent random prizes, precommitted in the database before the card is selected.
-        return Enumerable.Range(0, 3).Select(_ => new RewardItem(kinds[RandomNumberGenerator.GetInt32(3)], RandomNumberGenerator.GetInt32(1, 4))).ToArray();
+        return Enumerable.Range(0, 3).Select(_ => new RewardItem(kinds[RandomNumberGenerator.GetInt32(kinds.Length)], RandomNumberGenerator.GetInt32(1, 4))).ToArray();
     }
     private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot)
     {
@@ -33,6 +33,7 @@ public sealed partial class ServerStore
         var puzzles = new HashSet<string>();
         using (var cmd = Tx(c, tx, """
             SELECT payload FROM history WHERE name=$n AND outcome='completed'
+            AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=history.name AND a.id=history.id AND a.flagged=1)
             AND julianday(json_extract(payload,'$.ended')) >= julianday($start)
             AND julianday(json_extract(payload,'$.ended')) < julianday($end)
             """, ("$n", name), ("$start", start.ToString("O")), ("$end", end.ToString("O"))))
@@ -126,7 +127,7 @@ public sealed partial class ServerStore
                 if (rows.Read())
                     return rows.GetString(0) == request.GameId.ToString() && rows.GetString(1) == request.Kind
                         ? new(request.Operation, request.GameId, request.Kind) : null;
-            if (!Debit(c, tx, name, request.Kind)) return null;
+            if (request.Kind == "life" || !Debit(c, tx, name, request.Kind)) return null;
             using var add = Tx(c, tx, "INSERT INTO wallet_spends VALUES($n,$o,$g,$k)", ("$n", name),
                 ("$o", request.Operation.ToString()), ("$g", request.GameId.ToString()), ("$k", request.Kind));
             add.ExecuteNonQuery(); tx.Commit(); return new(request.Operation, request.GameId, request.Kind);
