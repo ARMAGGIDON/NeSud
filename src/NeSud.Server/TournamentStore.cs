@@ -48,7 +48,7 @@ public sealed partial class ServerStore
                     ("$w",week),("$r",rank),("$n",r.Name),("$v",r.Wins),("$s",r.Score));
                 save.ExecuteNonQuery();
                 int amount = WeeklyPrize(rank);
-                if (amount > 0) AddPack(c,tx,r.Name,week,"weekly",0,amount);
+                if (amount > 0) AddPack(c,tx,r.Name,week,"weekly",0,amount,rank <= 2 ? 3 : 2);
             }
             week=DateKey(ParseDay(week).AddDays(7));
         }

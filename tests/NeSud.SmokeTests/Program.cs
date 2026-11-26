@@ -199,7 +199,7 @@ try
     var first = server.Daily(user);
     var pack = first.Packs[0]; var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
     var result = server.Choose(user, choice)!; var again = server.Choose(user, choice)!;
-    Check(result.Item == again.Item && result.Item.Amount == 1 && result.Status.Packs.Count == 2 && again.Status.Packs.Count == 2 &&
+    Check(result.Item == again.Item && (result.Item.Amount is 1 or 2) && result.Status.Packs.Count == 2 && again.Status.Packs.Count == 2 &&
         again.Status.Lives + again.Status.Hints + again.Status.Candidates == result.Item.Amount, "Idempotent card claim");
     Check(server.Choose(user, choice with { Card = 0 }) is null, "Cannot open another card");
     Check(server.Daily(other).Packs.Count == 0 && server.Daily(other).Lives + server.Daily(other).Hints + server.Daily(other).Candidates == 0, "Wallet isolation");
@@ -228,11 +228,31 @@ try
     var priorTime = new DateTimeOffset(previousWeek.ToDateTime(new TimeOnly(12,0)),TimeSpan.Zero);
     var webRecord = new GameRecord(Guid.NewGuid(),priorTime,priorTime,"web","completed",oldGame);
     server.SaveSession(other,new WebGame(webRecord.Id,priorTime,oldGame,priorTime,1),webRecord);
+    var rankedUsers = new List<string> { other };
+    for (int rank=2;rank<=11;rank++)
+    {
+        var name=server.Login(new Credentials($"weekly-rank-{rank:00}","test-password-123","test-password-123"),true)!.User;
+        rankedUsers.Add(name);
+        var solved=Database.Decode<Game>(Database.Encode(oldGame));
+        solved.Seconds=rank*60;
+        var entry=new GameRecord(Guid.NewGuid(),priorTime,priorTime,"web","completed",solved);
+        server.SaveSession(name,new WebGame(entry.Id,priorTime,solved,priorTime,1),entry);
+    }
     using (var conn = new Database(Path.Combine(dailyDir,"server.db")).Open())
     using (var command = Database.Command(conn,"UPDATE tournament_state SET next_week=$w WHERE id=1",("$w",prior)))
         command.ExecuteNonQuery();
     var closed = server.Weekly();
-    Check(closed.PreviousLeaders.Count==1 && closed.PreviousLeaders[0].User==other, "Weekly settlement");
+    Check(closed.PreviousLeaders.Select(r=>r.User).SequenceEqual(rankedUsers), "Weekly settlement");
+    for(int rank=1;rank<=11;rank++)
+    {
+        using var conn=new Database(Path.Combine(dailyDir,"server.db")).Open();
+        using var command=Database.Command(conn,"SELECT options FROM daily_packs WHERE name=$n AND milestone=\'weekly\'",("$n",rankedUsers[rank-1]));
+        var cards=Database.Decode<RewardItem[]>((string)command.ExecuteScalar()!);
+        int[] expected=rank<=2?[3,3,3]:rank==3?[2,3,3]:rank<=10?[2,2,2]:[1,1,2];
+        Check(cards.Select(x=>x.Amount).Order().SequenceEqual(expected) && cards.Select(x=>x.Kind).Distinct().Count()==2, "Weekly distribution rank "+rank);
+        int main=ServerStore.WeeklyPrize(rank);
+        Check(cards.Any(x=>x.Kind=="hint" && x.Amount==main) && cards.Any(x=>x.Kind=="candidates" && x.Amount==main), "Both weekly base resources");
+    }
     Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==1, "Top three get one pack");
     server.Weekly(); Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==1, "Weekly award idempotency");
     var weeklyPack = server.Daily(other).Packs.Single(p=>p.Milestone=="weekly");
@@ -258,20 +278,24 @@ try
     var earned = server.Daily(weekUser).Packs;
     Check(earned.Count==21 && earned.GroupBy(p=>p.Day).All(group=>group.Count()==3), "Seven days yield 21 daily packs");
     int units=0;
+    var bestCards=new Dictionary<(string,string,int),int>();
     using (var conn = new Database(Path.Combine(dailyDir,"server.db")).Open())
-    using (var command = Database.Command(conn,"SELECT milestone,options FROM daily_packs WHERE name=$n",("$n",weekUser)))
+    using (var command = Database.Command(conn,"SELECT day,milestone,slot,options FROM daily_packs WHERE name=$n",("$n",weekUser)))
     using (var rows = command.ExecuteReader())
         while (rows.Read())
         {
-            var options=Database.Decode<RewardItem[]>(rows.GetString(1));
-            int expectedAmount=rows.GetString(0)=="win7"?3:1;
-            Check(options.Length==3 && options.All(x=>x.Amount==expectedAmount && x.Kind is "hint" or "candidates"), "All hidden options have guaranteed quantity");
+            var cards=Database.Decode<RewardItem[]>(rows.GetString(3));
+            int baseAmount=rows.GetString(1)=="win7"?3:1;
+            int[] expected=baseAmount==3?[3,3,3]:[1,1,2];
+            Check(cards.Select(x=>x.Amount).Order().SequenceEqual(expected) && cards.Select(x=>x.Kind).Distinct().Count()==2, "Daily card distribution");
+            Check(cards.Any(x=>x.Kind=="hint" && x.Amount==baseAmount) && cards.Any(x=>x.Kind=="candidates" && x.Amount==baseAmount), "Both daily base resources");
+            bestCards[(rows.GetString(0),rows.GetString(1),rows.GetInt32(2))]=Array.FindIndex(cards,x=>x.Amount==cards.Max(y=>y.Amount));
         }
     foreach(var p in earned)
-        units+=server.Choose(weekUser,new DailyChoice(p.Day,p.Milestone,p.Slot,0))!.Item.Amount;
+        units+=server.Choose(weekUser,new DailyChoice(p.Day,p.Milestone,p.Slot,bestCards[(p.Day,p.Milestone,p.Slot)]))!.Item.Amount;
     var wallet = server.Daily(weekUser);
-    Check(units==35 && wallet.Hints+wallet.Candidates==35 && wallet.Packs.Count==0 &&
-        units+weeklyReward.Item.Amount==38, "Weekly maximum is 38 resources");
-    Console.WriteLine("PASS daily milestones 1/3/7, guaranteed card amounts, wallet, weekly settlement and 38-resource cap");
+    Check(units==49 && wallet.Hints+wallet.Candidates==49 && wallet.Packs.Count==0 &&
+        units+weeklyReward.Item.Amount==52, "Weekly maximum is 52 resources");
+    Console.WriteLine("PASS daily milestones 1/3/7, mixed shuffled cards, both resource types, weekly prize tiers and 52-resource cap");
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dailyDir)) Directory.Delete(dailyDir, true); }

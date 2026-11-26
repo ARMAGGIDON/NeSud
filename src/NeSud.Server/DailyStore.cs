@@ -13,16 +13,22 @@ public sealed partial class ServerStore
     {
         var cmd = Database.Command(c, sql, args); cmd.Transaction = tx; return cmd;
     }
-    private static RewardItem[] Options(int amount)
+    private static RewardItem[] Options(int amount, int thirdAmount)
     {
-        string[] kinds = ["hint", "candidates"];
-        // Only the resource type is random. All three cards have the guaranteed milestone amount.
-        return Enumerable.Range(0, 3).Select(_ => new RewardItem(kinds[RandomNumberGenerator.GetInt32(kinds.Length)], amount)).ToArray();
+        // Both resource types are represented; the third type and all positions are random.
+        RewardItem[] cards = [new("hint", amount), new("candidates", amount),
+            new(RandomNumberGenerator.GetInt32(2) == 0 ? "hint" : "candidates", thirdAmount)];
+        for (int i = cards.Length - 1; i > 0; i--)
+        {
+            int j = RandomNumberGenerator.GetInt32(i + 1);
+            (cards[i], cards[j]) = (cards[j], cards[i]);
+        }
+        return cards;
     }
-    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot, int amount)
+    private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone, int slot, int amount, int thirdAmount)
     {
         using var cmd = Tx(c, tx, "INSERT OR IGNORE INTO daily_packs(name,day,milestone,slot,options) VALUES($n,$d,$m,$s,$o)",
-            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options(amount))));
+            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options(amount, thirdAmount))));
         cmd.ExecuteNonQuery();
     }
     private static int EnsureWinPacks(SqliteConnection c, SqliteTransaction tx, string name, string day)
@@ -46,7 +52,7 @@ public sealed partial class ServerStore
         // towards the new milestones, so an upgrade cannot issue duplicate rewards.
         (int Wins, string Key, int Amount)[] milestones = [(1, "win1", 1), (3, "win3", 1), (7, "win7", 3)];
         for (int i = existing; i < milestones.Length && wins >= milestones[i].Wins; i++)
-            AddPack(c, tx, name, day, milestones[i].Key, 0, milestones[i].Amount);
+            AddPack(c, tx, name, day, milestones[i].Key, 0, milestones[i].Amount, milestones[i].Amount == 3 ? 3 : 2);
         return wins;
     }
     private DailyStatus EnsureDaily(SqliteConnection c, SqliteTransaction tx, string name)
