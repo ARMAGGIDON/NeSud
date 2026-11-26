@@ -7,7 +7,7 @@ namespace NeSud.Server;
 
 public sealed record RewardTicket(string Kind, DateTimeOffset ReadyAt, DateTimeOffset ExpiresAt);
 public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null);
-public sealed class ServerStore
+public sealed partial class ServerStore
 {
     private readonly Database db;
     public object Gate { get; } = new();
@@ -65,6 +65,9 @@ public sealed class ServerStore
               name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, source TEXT NOT NULL,
               score INTEGER NOT NULL, outcome TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             CREATE TABLE IF NOT EXISTS web_sessions (name TEXT PRIMARY KEY REFERENCES accounts(name), payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS daily_packs (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL, milestone TEXT NOT NULL, slot INTEGER NOT NULL, options TEXT NOT NULL, chosen INTEGER, PRIMARY KEY(name,day,milestone,slot));
+            CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
+            CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
@@ -180,10 +183,11 @@ public sealed class ServerStore
         using var c = db.Open(); using var cmd = Database.Command(c, "SELECT payload FROM web_sessions WHERE name=$n", ("$n", name));
         return cmd.ExecuteScalar() is string s ? Database.Decode<WebGame>(s) : null;
     }
-    public void SaveSession(string name, WebGame session, GameRecord? terminal = null)
+    public void SaveSession(string name, WebGame session, GameRecord? terminal = null, string? walletKind = null)
     {
         if (IsGuest(name)) { lock (Gate) { if (guests.ContainsKey(name)) guests[name] = (DateTimeOffset.UtcNow.AddHours(2), session); } return; }
         using var c = db.Open(); using var tx = c.BeginTransaction();
+        if (walletKind is not null && !Debit(c, tx, name, walletKind)) throw new InvalidOperationException("Недостатньо ресурсів.");
         if (terminal is not null) Insert(c, tx, name, terminal);
         using var cmd = Database.Command(c, """
             INSERT INTO web_sessions VALUES($n,$p) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload

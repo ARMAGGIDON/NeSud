@@ -42,6 +42,18 @@ app.MapPost("/api/register", (Credentials c, ServerStore s) => Auth(c, s, true))
 app.MapPost("/api/login", (Credentials c, ServerStore s) => Auth(c, s, false)).RequireRateLimiting("auth");
 app.MapPost("/api/guest", (ServerStore s) => s.Guest() is { } guest
     ? Results.Ok(guest) : Results.Problem("Демонстраційні сеанси зайняті. Спробуйте пізніше.", statusCode: 503)).RequireRateLimiting("auth");
+app.MapGet("/api/daily", (HttpContext c, ServerStore s) =>
+    User(c, s) is { } name ? Results.Ok(s.Daily(name)) : Results.Unauthorized());
+app.MapPost("/api/daily/choose", (HttpContext c, ServerStore s, DailyChoice choice) =>
+{
+    if (User(c, s) is not { } name) return Results.Unauthorized();
+    return s.Choose(name, choice) is { } result ? Results.Ok(result) : Results.Conflict(new { error = "Цю картку вже вибрано або винагорода недоступна." });
+});
+app.MapPost("/api/daily/spend", (HttpContext c, ServerStore s, WalletRequest request) =>
+{
+    if (User(c, s) is not { } name) return Results.Unauthorized();
+    return s.SpendDesktop(name, request) is { } result ? Results.Ok(result) : Results.Conflict(new { error = "Недостатньо ресурсів або операція недоступна." });
+});
 app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
 app.MapPost("/api/logout", (HttpContext c, ServerStore s) => { s.Logout(Token(c)); return Results.Ok(); });
 app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
@@ -92,7 +104,8 @@ static object View(WebGame session) => new
     session.Game.Seconds, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
     session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
     session.Game.HintCredits, session.Game.CandidateCredits, session.Game.CandidateUses, session.Game.LifeRestores,
-    session.Game.CurrentScore, session.Game.NextQuest, session.Game.AdsWatched,
+    session.Game.CurrentScore, session.Game.CandidateChanges, session.Game.EffectiveCandidatePenalty,
+    candidateDelta = session.Game.CandidateDelta(), session.Game.AdsWatched,
     reward = session.Reward is { } t ? new { t.Kind, remaining = Math.Max(0, (int)Math.Ceiling((t.ReadyAt - DateTimeOffset.UtcNow).TotalSeconds)) } : null,
     canUndo = session.Game.UndoStack.Count > 0,
     canRedo = session.Game.RedoStack.Count > 0
@@ -144,11 +157,17 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         var game = session.Game;
         bool changed = paused != game.Paused;
         bool wasComplete = game.Completed;
+        string? walletKind = null;
         if (session.Reward is not null && request.Action is not ("heartbeat" or "pause" or "reward-start" or "reward-claim" or "reward-cancel"))
             return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте винагороду." });
         switch (request.Action)
         {
             case "heartbeat": break;
+            case "wallet":
+                if (ServerStore.IsGuest(name) || !game.CanReward(request.Reward ?? "") || !s.HasWallet(name, request.Reward!))
+                    return Results.Conflict(new { error = "Ресурс недоступний." });
+                if (game.GrantReward(request.Reward!, advertisement: false)) { walletKind = request.Reward; changed = true; }
+                break;
             case "reward-start":
                 if (!game.CanReward(request.Reward ?? "")) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
                 if (session.Reward is not null && session.Reward.Kind != request.Reward)
@@ -191,7 +210,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         GameRecord? completed = !wasComplete && game.Completed
             ? new(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "completed", game) : null;
         if (completed is not null) { completed.Game.UndoStack.Clear(); completed.Game.RedoStack.Clear(); }
-        s.SaveSession(name, session, completed);
+        s.SaveSession(name, session, completed, walletKind);
         return Results.Ok(View(session));
     }
 });

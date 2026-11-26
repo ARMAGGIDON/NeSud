@@ -17,6 +17,7 @@ public sealed class AppState
     public string? GameScope { get; set; }
     public string? AccountScope { get; set; }
     public string? ProtectedSession { get; set; }
+    public PendingReward? PendingReward { get; set; }
     public Difficulty? NextDifficulty { get; set; }
     public bool Dark { get; set; } = true;
     public bool ShowMistakes { get; set; } = true;
