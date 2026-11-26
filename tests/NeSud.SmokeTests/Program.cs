@@ -178,23 +178,14 @@ try
     var server = new ServerStore(Path.Combine(dailyDir, "server.db"));
     var user = server.Login(new Credentials("daily-user", "test-password-123", "test-password-123"), true)!.User;
     var other = server.Login(new Credentials("daily-other", "test-password-123", "test-password-123"), true)!.User;
-    var first = server.Daily(user);
-    Check(first.Packs.Count == 1 && first.Packs[0].Milestone == "login", "Daily login pack");
-    Check(server.Daily(user).Packs.Count == 1, "Login idempotency");
-    var pack = first.Packs[0]; var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
-    var result = server.Choose(user, choice)!; var again = server.Choose(user, choice)!;
-    Check(result.Item == again.Item && result.Status.Packs.Count == 0 && again.Status.Packs.Count == 0 &&
-        result.Status.Lives + result.Status.Hints + result.Status.Candidates == result.Item.Amount &&
-        again.Status.Lives + again.Status.Hints + again.Status.Candidates == result.Item.Amount, "Idempotent card claim");
-    Check(server.Choose(user, choice with { Card = 0 }) is null, "Cannot open another card");
-    Check(server.Daily(other).Packs.Count == 1 && server.Daily(other).Lives + server.Daily(other).Hints + server.Daily(other).Candidates == 0, "Wallet isolation");
-    var spend = new WalletRequest(Guid.NewGuid(), Guid.NewGuid(), result.Item.Kind);
-    Check(server.SpendDesktop(user, spend) is not null && server.SpendDesktop(user, spend) is not null, "Idempotent spend");
-    var balance = server.Daily(user);
-    Check(balance.Lives + balance.Hints + balance.Candidates == result.Item.Amount - 1, "Debit once");
+    Check(server.Daily(user).Packs.Count == 0 && server.Daily(user).Packs.Count == 0, "No login reward");
+    Check(server.Daily(other).Packs.Count == 0, "Account isolation");
+    var ads = Game.Start(puzzles[0]);
+    Check(!ads.CanAdReward("hint") && !ads.GrantReward("hint") && !ads.CanAdReward("candidates"), "No ad with available resource");
+    Check(ads.FillNotes() && ads.CanAdReward("candidates") && ads.GrantReward("candidates") && !ads.GrantReward("candidates"), "Ads replenish only empty resource");
     var distinct = puzzles.DistinctBy(p => string.Concat(p.Givens)).ToList();
-    while (distinct.Count < 7) distinct.Add(Sudoku.Generate(Difficulty.Easy, random: random));
-    for (int n = 1; n <= 7; n++)
+    while (distinct.Count < 8) distinct.Add(Sudoku.Generate(Difficulty.Easy, random: random));
+    for (int n = 1; n <= 8; n++)
     {
         var solved = Game.Start(distinct[n - 1]);
         for (int j = 0; j < 81; j++) if (solved.Puzzle.Givens[j] == 0) solved.Enter(j, solved.Puzzle.Solution[j]);
@@ -202,17 +193,48 @@ try
         var entry = new GameRecord(Guid.NewGuid(), now, now, "desktop", "completed", solved);
         server.Upload(user, [entry]); server.Upload(user, [entry]);
         var daily = server.Daily(user);
-        int count = n >= 7 ? 5 : n >= 3 ? 2 : 1;
+        int count = Math.Min(7,n);
         Check(daily.Wins == n && daily.Packs.Count == count, "Daily win milestones " + n);
     }
+    var first = server.Daily(user);
+    var pack = first.Packs[0]; var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
+    var result = server.Choose(user, choice)!; var again = server.Choose(user, choice)!;
+    Check(result.Item == again.Item && result.Status.Packs.Count == 6 && again.Status.Packs.Count == 6 &&
+        again.Status.Lives + again.Status.Hints + again.Status.Candidates == result.Item.Amount, "Idempotent card claim");
+    Check(server.Choose(user, choice with { Card = 0 }) is null, "Cannot open another card");
+    Check(server.Daily(other).Packs.Count == 0 && server.Daily(other).Lives + server.Daily(other).Hints + server.Daily(other).Candidates == 0, "Wallet isolation");
+    var spend = new WalletRequest(Guid.NewGuid(), Guid.NewGuid(), result.Item.Kind);
+    Check(server.SpendDesktop(user, spend) is not null && server.SpendDesktop(user, spend) is not null, "Idempotent spend");
+    var balance = server.Daily(user);
+    Check(balance.Lives + balance.Hints + balance.Candidates == result.Item.Amount - 1, "Debit once");
+    var changes = server.HistorySince(user, 0);
+    Check(changes.Records.Count == 8 && server.HistorySince(user,changes.Cursor).Records.Count == 0, "Incremental history");
+    var aggregate = server.Accumulated("perfect",true).Single(r=>r.User==user);
+    Check(aggregate.Wins==8 && aggregate.PerfectWins==8 && aggregate.CurrentStreak==8 && aggregate.BestStreak==8, "Accumulated perfect wins and streak");
+    Check(ServerStore.WeeklyPrize(1)==3 && ServerStore.WeeklyPrize(3)==3 && ServerStore.WeeklyPrize(4)==2 &&
+        ServerStore.WeeklyPrize(10)==2 && ServerStore.WeeklyPrize(11)==1 && ServerStore.WeeklyPrize(30)==1 &&
+        ServerStore.WeeklyPrize(31)==0, "Weekly prize tiers");
     var previousDay = DateTimeOffset.UtcNow.AddDays(-1);
     var oldGame = Game.Start(distinct[0]);
     for (int j = 0; j < 81; j++) if (oldGame.Puzzle.Givens[j] == 0) oldGame.Enter(j, oldGame.Puzzle.Solution[j]);
     var late = new GameRecord(Guid.NewGuid(), previousDay, previousDay, "desktop", "completed", oldGame);
     server.Upload(other, [late]); server.Upload(other, [late]);
     var lateStatus = server.Daily(other);
-    Check(lateStatus.Wins == 0 && lateStatus.Packs.Count == 2 &&
-        lateStatus.Packs.Any(p => p.Milestone == "win1" && p.Day != lateStatus.Day), "Late offline completion credits original day");
-    Console.WriteLine("PASS daily login, card choice, wallet isolation, idempotent spend, 1/3/7 milestones, late sync");
+    Check(lateStatus.Wins == 0 && lateStatus.Packs.Count == 1 &&
+        lateStatus.Packs.Any(p => p.Milestone == "win" && p.Day != lateStatus.Day), "Late offline completion credits original day");
+    var week = server.Weekly();
+    var previousWeek = DateOnly.ParseExact(week.Week,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture).AddDays(-7);
+    string prior = previousWeek.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+    var priorTime = new DateTimeOffset(previousWeek.ToDateTime(new TimeOnly(12,0)),TimeSpan.Zero);
+    var webRecord = new GameRecord(Guid.NewGuid(),priorTime,priorTime,"web","completed",oldGame);
+    server.SaveSession(other,new WebGame(webRecord.Id,priorTime,oldGame,priorTime,1),webRecord);
+    using (var conn = new Database(Path.Combine(dailyDir,"server.db")).Open())
+    using (var command = Database.Command(conn,"UPDATE tournament_state SET next_week=$w WHERE id=1",("$w",prior)))
+        command.ExecuteNonQuery();
+    var closed = server.Weekly();
+    Check(closed.PreviousLeaders.Count==1 && closed.PreviousLeaders[0].User==other, "Weekly settlement");
+    Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==3, "Top three awards");
+    server.Weekly(); Check(server.Daily(other).Packs.Count(p=>p.Milestone=="weekly")==3, "Weekly award idempotency");
+    Console.WriteLine("PASS daily seven wins, wallet, incremental history, cumulative stats and weekly settlement");
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dailyDir)) Directory.Delete(dailyDir, true); }

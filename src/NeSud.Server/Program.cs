@@ -105,7 +105,7 @@ static object View(WebGame session) => new
 {
     session.Id, session.Revision, session.Started, difficulty = session.Game.Puzzle.Difficulty,
     givens = session.Game.Puzzle.Givens, session.Game.Values, session.Game.Notes,
-    session.Game.Seconds, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
+    session.Game.Seconds, clockFraction = session.Fraction, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
     session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
     session.Game.HintCredits, session.Game.CandidateCredits, session.Game.CandidateUses, session.Game.LifeRestores,
     session.Game.CurrentScore, session.Game.RulesVersion, session.Game.BaseScore, session.Game.SpeedBonus, session.Game.AutoFinish, session.Game.AutoFilled, session.Game.AutoFillPenalty,
@@ -229,6 +229,8 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         if (completed is not null) { completed.Game.UndoStack.Clear(); completed.Game.RedoStack.Clear(); }
         var terminal = completed ?? (game.FinalDefeat(DateTimeOffset.UtcNow) ? new GameRecord(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "defeated", game) : null);
         s.SaveSession(name, session, terminal, walletKind);
+        if (request.Action == "heartbeat" && !changed && terminal is null && !game.OutOfLives && session.Reward is null)
+            return Results.Ok(new { pulseOnly = true, session.Id, session.Revision, game.Seconds, clockFraction = session.Fraction, game.CurrentScore });
         return Results.Ok(View(session));
     }
 });

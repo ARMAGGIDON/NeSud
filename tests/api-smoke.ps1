@@ -47,13 +47,17 @@ Assert ($demo.lives -eq 3 -and $demo.hintCredits -eq 1 -and $demo.candidateCredi
 Assert ($demo.remaining.Count -eq 9 -and $demo.wrong.Count -eq 81) 'Board metadata'
 $noLife = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body (@{id=$demo.id;revision=$demo.revision;action='reward-start';reward='life'} | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$noLife.StatusCode -eq 400) 'No proactive life restoration'
+$blockedAd = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body (@{id=$demo.id;revision=$demo.revision;action='reward-start';reward='hint'} | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$blockedAd.StatusCode -eq 400) 'No ad while hint available'
+$demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='hint'} $hg
+Assert ($demo.hintCredits -eq 0) 'Hint depleted'
 $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='reward-start';reward='hint'} $hg
 $claim = @{id=$demo.id;revision=$demo.revision;action='reward-claim';reward='hint'}
 $early = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$early.StatusCode -eq 400) 'Early ad claim rejected'
 Start-Sleep -Seconds 9
 $demo = Post 'web/action' $claim $hg
-Assert ($demo.hintCredits -eq 2 -and $demo.adsWatched -eq 1) 'Reward granted'
+Assert ($demo.hintCredits -eq 1 -and $demo.adsWatched -eq 1) 'Reward granted'
 $claim.revision = $demo.revision
 $again = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$again.StatusCode -eq 400) 'Reward cannot be replayed'
@@ -88,13 +92,12 @@ Assert $demo2.empty 'Independent guest sessions'
 Post 'logout' @{} $hg2 | Out-Null
 Post 'logout' @{} $hg | Out-Null
 $daily = Invoke-RestMethod -Uri "$BaseUrl/api/daily" -Headers $ha
-Assert ($daily.packs.Count -eq 1 -and $daily.packs[0].milestone -eq 'login') 'Daily login pack'
-$pick = @{day=$daily.packs[0].day;milestone='login';slot=0;card=1}
-$chosen = Post 'daily/choose' $pick $ha
-$retry = Post 'daily/choose' $pick $ha
-Assert ($chosen.item.kind -eq $retry.item.kind -and $chosen.item.amount -eq $retry.item.amount) 'Replay returns same card'
-Assert (($retry.status.lives+$retry.status.hints+$retry.status.candidates) -eq $chosen.item.amount) 'Wallet credited once'
-$pick.card = 2
-$second = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/daily/choose" -Headers $ha -ContentType 'application/json' -Body ($pick | ConvertTo-Json) -SkipHttpErrorCheck
-Assert ([int]$second.StatusCode -eq 409) 'Other card denied'
+Assert ($daily.packs.Count -eq 0) 'No login pack'
+$changes = Invoke-RestMethod -Uri "$BaseUrl/api/history/changes?after=0" -Headers $ha
+Assert ($changes.records.Count -eq 1) 'Incremental history'
+$empty = Invoke-RestMethod -Uri "$BaseUrl/api/history/changes?after=$($changes.cursor)" -Headers $ha
+Assert ($empty.records.Count -eq 0) 'No duplicate changes'
+$weekly = Invoke-RestMethod -Uri "$BaseUrl/api/weekly"
+Assert ($weekly.week -match '^\d{4}-\d{2}-\d{2}$') 'Weekly API'
+$stats = Invoke-RestMethod -Uri "$BaseUrl/api/accumulated?metric=perfect"
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

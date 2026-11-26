@@ -52,6 +52,7 @@ public sealed class MainWindow : Window
     private bool closing, watchingReward, spending;
     private DailyStatus? daily;
     private readonly Dictionary<string,long> historyCursors = new();
+    private readonly Dictionary<string,string> draftFingerprints = new();
     private Button resultDaily = null!;
     private bool weeklyRewards;
     private TextBlock lives = null!, score = null!, quest = null!;
@@ -326,8 +327,8 @@ public sealed class MainWindow : Window
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition());
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        status = Text("Оберіть клітинку або використовуйте стрілки.", 12, "Muted");
-        saveStatus = Text("Локальне збереження", 12, "Muted");
+        status = Text("", 12, "Muted");
+        saveStatus = Text("", 12, "Muted");
         saveStatus.Margin = new Thickness(12, 0, 0, 0);
         At(footer, status, 0, 0); At(footer, saveStatus, 0, 1); At(root, footer, 2, 0, 3);
         Content = root;
@@ -555,7 +556,7 @@ public sealed class MainWindow : Window
             store.Save(state, previous ?? (G is { Completed: true } ? Terminal("completed") : G?.FinalDefeat(DateTimeOffset.UtcNow) == true ? Terminal("defeated") : null), previousScope ?? state.GameScope ?? ""); lastSavedSecond = G?.Seconds ?? 0;
             if (previous is not null || G is { Completed: true } && !syncing && nextSync > DateTimeOffset.UtcNow.AddSeconds(10))
                 nextSync = DateTimeOffset.UtcNow.AddSeconds(10);
-            saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = LocalStore.DefaultPath;
+            saveStatus.Text = ""; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = LocalStore.DefaultPath;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         { saveStatus.Text = "Не збережено"; saveStatus.Foreground = B("Wrong"); saveStatus.ToolTip = ex.Message; }
@@ -894,7 +895,15 @@ public sealed class MainWindow : Window
                 if (closing) return;
                 store.Merge(scope, records);
             }
-            if (draft is not null) await Request<SyncAck>("desktop/draft", draft, endpoint, session.Token);
+            if (draft is not null)
+            {
+                string fingerprint = draft.Id + ":" + Database.Encode(draft.Game);
+                if (draftFingerprints.GetValueOrDefault(scope) != fingerprint)
+                {
+                    await Request<SyncAck>("desktop/draft", draft, endpoint, session.Token);
+                    draftFingerprints[scope] = fingerprint;
+                }
+            }
             long cursor = historyCursors.GetValueOrDefault(scope);
             while (true)
             {
@@ -1145,11 +1154,12 @@ public sealed class MainWindow : Window
         var panel = Stack(); panel.Children.Add(Text("Рейтинг", 24, "Text", true));
         panel.Children.Add(Text("Серверні результати та загальні бали з офлайн-іграми.", 13, "Muted"));
         var indicator = Text("Завантаження…", 13, "Muted"); panel.Children.Add(indicator); Gap(panel);
+        var metric = new ComboBox { ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0,0,0,8) }; panel.Children.Add(metric);
         var rows = Stack();
         panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Gap(panel); var window = Modal("Рейтинг", panel, 560);
         var close = Action("Закрити", () => window.Close(), primary: true); close.IsCancel = true; panel.Children.Add(close);
-        var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         bool loading = false;
         async Task Reload()
         {
@@ -1157,8 +1167,9 @@ public sealed class MainWindow : Window
             loading = true;
             try
             {
-                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=score", token: "");
-                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric=score&all=true", token: "");
+                string key = new[] { "score", "wins", "perfect", "current", "streak" }[Math.Max(0,metric.SelectedIndex)];
+                var ranks = await Request<List<AccumulatedRank>>("accumulated?metric="+key, token: "");
+                var allRanks = await Request<List<AccumulatedRank>>("accumulated?metric="+key+"&all=true", token: "");
                 if (!window.IsVisible) return;
                 rows.Children.Clear();
                 void Table(string title, List<AccumulatedRank> data)
@@ -1177,6 +1188,7 @@ public sealed class MainWindow : Window
             catch { if (window.IsVisible) indicator.Text = "○ Офлайн • очікуємо відновлення зв’язку. Показані дані можуть бути застарілими."; }
             finally { loading = false; }
         }
+        metric.SelectionChanged += async (_, _) => await Reload();
         refresh.Tick += async (_, _) => await Reload();
         window.Loaded += async (_, _) => { refresh.Start(); await Reload(); };
         window.Closed += (_, _) => refresh.Stop();
@@ -1214,12 +1226,14 @@ public sealed class MainWindow : Window
 
     private void ShowHelp()
     {
-        Dialog("Клавіатурне керування", "Стрілки: вибір клітинки\n" +
+        Dialog("Довідка", "Стрілки: вибір клітинки\n" +
             "1–9 / NumPad: цифра; Shift+цифра: нотатка\n" +
             "N / Space: режим нотаток\nDelete / Backspace / 0: стерти\n" +
             "Ctrl+Z / Ctrl+Y: скасувати / повторити\nH: підказка; A: усі кандидати\n" +
             "P / Esc: пауза; Ctrl+N: нова гра; F1: довідка\n" +
-            "Tab: переміщення між елементами; Enter: активувати кнопку.", false);
+            "Tab: переміщення між елементами; Enter: активувати кнопку.\n\n" +
+            "Три життя. Після поразки один шанс за рекламу протягом 10 с. Реклама: 8 с. Підказки та кандидати поповнюються рекламою лише за відсутності ресурсу. Автозавершення: −20 балів за клітинку.\n\n" +
+            "За перші сім різних перемог на день: по одній нагороді. Турнір: сума серверних балів за тиждень, місця 1–3: 3 набори, 4–10: 2, 11–30: 1. Ідеальна перемога: без помилок, допомоги та відновлення.", false);
     }
 
     private void OnKey(object sender, KeyEventArgs e)
