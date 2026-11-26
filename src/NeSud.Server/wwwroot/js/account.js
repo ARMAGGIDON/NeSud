@@ -15,9 +15,9 @@ function resetSession() {
     adPending = false;
     if ($("ad").open) $("ad").close();
     $("account").hidden = false;
+    $("account").textContent = "Увійти";
     $("logout").hidden = true;
     $("history-tab").hidden = true;
-    $("my-profile").hidden = true;
     $("guest-notice").hidden = false;
     render()
 }
@@ -33,7 +33,7 @@ async function showAuth() {
     authError("");
     if (!$("auth").open) $("auth").showModal()
 }
-$("account").onclick = showAuth;
+$("account").onclick = () => guestMode ? showAuth() : openProfile();
 $("auth-close").onclick = () => {
     $("auth").close();
     $("password").value = $("confirmation").value = ""
@@ -129,11 +129,11 @@ $("logout").onclick = async() => {
 };
 async function start() {
     $("app").hidden = false;
-    $("account").hidden = !guestMode;
+    $("account").hidden = false;
+    $("account").textContent = guestMode ? "Увійти" : "Мій профіль";
     $("logout").hidden = guestMode;
     $("guest-notice").hidden = !guestMode;
     $("history-tab").hidden = guestMode;
-    $("my-profile").hidden = guestMode;
     await navigate("menu");
     await reconnect();
     if (!guestMode) refreshDaily()

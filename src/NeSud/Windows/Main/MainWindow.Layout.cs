@@ -124,7 +124,9 @@ public sealed partial class MainWindow : Window
         theme.VerticalAlignment = VerticalAlignment.Center;
         theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var b in new[] { Action("Головне меню", OpenMenu), Action("Акаунт", ShowAccount), theme })
+        menuNavigation = Action("Головне меню", OpenMenu);
+        accountNavigation = Action("Увійти", () => { if (account is null) ShowAccount(); else _ = ShowProfile(null); });
+        foreach (var b in new[] { menuNavigation, accountNavigation, theme })
         { b.Margin = new Thickness(5, 0, 0, 0);
         headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1);
@@ -344,10 +346,7 @@ public sealed partial class MainWindow : Window
         menu.Children.Add(menuActions);
         foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Тижневий турнір", () => _ = ShowWeekly()),
             Action("Рейтинг", () => _ = ShowRanking()), Action("Історія та статистика", ShowHistory),
-            Action("Друзі та пошук", () => _ = ShowFriends()), Action("Мій профіль", () => {
-                if (account is null)ShowAccount();
-                else _ = ShowProfile(null);
-            }),
+            Action("Друзі та пошук", () => _ = ShowFriends()),
             Action("Довідка", ShowHelp), Action("Вийти", Close) })
         { b.Margin = new Thickness(3);
         menuActions.Children.Add(b); }

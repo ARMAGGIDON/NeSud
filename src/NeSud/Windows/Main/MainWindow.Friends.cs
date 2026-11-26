@@ -40,6 +40,7 @@ public sealed partial class MainWindow
         var panel = Stack();
         panel.Children.Add(Text("Друзі та пошук гравців", 24, "Text", true));
         var search = new TextBox { MinWidth = 250, Padding = new Thickness(6), Margin = new Thickness(0, 6, 0, 6) };
+        panel.Children.Add(Text("Нікнейм гравця", 13, "Muted"));
         panel.Children.Add(search);
         var body = Stack();
         panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 440, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
@@ -63,10 +64,13 @@ public sealed partial class MainWindow
                         }
                     }
                 }
+                if (account is null) body.Children.Add(Text("Увійдіть, щоб надсилати запити в друзі.", 13, "Muted"));
                 if (search.Text.Trim().Length >= 2)
                 {
                     body.Children.Add(Text("Результати пошуку", 17, "Text", true));
-                    foreach (var name in await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()), token: ""))body.Children.Add(Action(name, () => _ = ShowProfile(name)));
+                    var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()), token: "");
+                    foreach (var name in matches) body.Children.Add(Action(name, () => _ = ShowProfile(name)));
+                    if (matches.Count == 0) body.Children.Add(Text("Гравців не знайдено.", 13, "Muted"));
                 }
             }
             catch (Exception ex)
@@ -74,7 +78,9 @@ public sealed partial class MainWindow
                 body.Children.Add(Text(ex.Message, 14, "Wrong"));
             }
         }
-        panel.Children.Insert(2, Action("Знайти / оновити", () => _ = Load()));
+        var find = Action("Знайти / оновити", () => _ = Load());
+        find.IsDefault = true;
+        panel.Children.Insert(3, find);
         panel.Children.Add(Action("Закрити", () => window.Close()));
         window.Loaded += async (_, _) => await Load();
         window.ShowDialog();

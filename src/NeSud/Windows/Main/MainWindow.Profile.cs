@@ -43,6 +43,8 @@ public sealed partial class MainWindow
             page++;
             await Load();
         };
+        if (user is null && account is not null)
+            panel.Children.Add(Action("Налаштування акаунта", () => { window.Close(); ShowAccount(); }));
         nav.Children.Add(prev);
         nav.Children.Add(next);
         nav.Children.Add(Action("Закрити", () => window.Close()));

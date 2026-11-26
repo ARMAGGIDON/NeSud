@@ -61,14 +61,8 @@
             </dialog>
             <div id="app">
                 <nav>
-                    <button data-tab="menu">Головне меню</button>
+                    <button id="back-menu" data-tab="menu" hidden>‹ Головне меню</button>
                     <span id="guest-notice">Гостьовий режим</span>
-                    <button data-tab="play">Гра</button>
-                    <button data-tab="challenge">Щоденні ігри</button>
-                    <button id="my-profile" hidden>Профіль</button>
-                    <button id="history-tab" data-tab="history">Історія та статистика</button>
-                    <button data-tab="ranking">Рейтинг</button>
-                    <button data-tab="weekly">Турнір</button>
                 </nav>
                 <section id="menu" class="panel">
                     <h2>Головне меню</h2>
@@ -79,7 +73,7 @@
                         <button data-tab="challenge">Щоденні ігри</button>
                         <button data-tab="weekly">Тижневий турнір</button>
                         <button data-tab="ranking">Рейтинг</button>
-                        <button id="menu-profile">Мій профіль</button>
+                        <button id="history-tab" data-tab="history" hidden>Історія та статистика</button>
                         <button data-tab="friends">Друзі та пошук</button>
                     </div>
                 </section>
@@ -182,6 +176,7 @@
                     </div>
                     <p id="calendar-progress"></p>
                     <button id="calendar-login" hidden>Увійти</button>
+                    <div id="calendar-content">
                     <div class="calendar-grid calendar-labels">
                         <span>Пн</span>
                         <span>Вт</span>
@@ -195,6 +190,7 @@
                     <button id="challenge-rewards" class="primary" hidden>Отримати нагороду</button>
                     <h2>Місячні кубки</h2>
                     <div id="calendar-cups" class="cups"></div>
+                    </div>
                 </section>
                 <section id="profile" class="panel" hidden>
                     <h2 id="profile-name">Профіль</h2>

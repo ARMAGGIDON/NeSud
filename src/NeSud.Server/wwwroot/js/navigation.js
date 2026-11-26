@@ -13,6 +13,7 @@ function row(parent, values) {
 async function navigate(t) {
     if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
     tab = t;
+    $("back-menu").hidden = t === "menu";
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => $(n).hidden = n !== t);
     try {
         if (t === "friends") {

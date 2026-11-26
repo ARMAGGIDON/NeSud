@@ -45,7 +45,7 @@ public sealed partial class MainWindow : Window
     private Grid board = null!, cover = null!;
     private Border resultCard = null!, playCard = null!, sideCard = null!, menuCard = null!;
     private bool inMenu = true;
-    private Button continueMenu = null!;
+    private Button continueMenu = null!, menuNavigation = null!, accountNavigation = null!;
     private TextBlock resultTitle = null!, resultSummary = null!, resultBreakdown = null!, resultComparison = null!;
     private Guid shownResult;
     private bool defeatSaved;

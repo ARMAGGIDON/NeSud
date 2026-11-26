@@ -2,6 +2,8 @@
 
 async function loadCalendar() {
     $("calendar-login").hidden = !guestMode;
+    $("calendar-content").hidden = guestMode;
+    $("calendar-prev").hidden = $("calendar-next").hidden = guestMode;
     if (guestMode) {
         $("calendar-days").replaceChildren();
         $("calendar-cups").replaceChildren();
@@ -74,7 +76,6 @@ $("profile-level").onchange = () => {
     profilePage = 0;
     loadProfile().catch (e => message(e.message))
 };
-$("my-profile").onclick = () => openProfile();
 $("profile-prev").onclick = () => {
     profilePage = Math.max(0, profilePage - 1);
     navigate("profile")

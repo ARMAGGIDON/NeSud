@@ -77,10 +77,7 @@ public sealed partial class MainWindow : Window
         if (account is not null)
         {
             panel.Children.Add(Text(account.User, 18, "Text", true));
-            panel.Children.Add(Action("Мій профіль", () => {
-                window.Close();
-                _ = ShowProfile(null);
-            }));
+            
             panel.Children.Add(Text(reachable ? "● Онлайн • автоматична синхронізація" : "○ Офлайн • синхронізація після відновлення зв’язку", 13, "Muted"));
             Gap(panel, 18);
             panel.Children.Add(Action("Синхронізувати зараз", () => {

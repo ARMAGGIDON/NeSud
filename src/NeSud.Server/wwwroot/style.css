@@ -80,16 +80,16 @@ button {
     transition: filter .12s
 }
 
-button: hover {
+button:hover {
     filter: brightness(1.14)
 }
 
-button: focus-visible,input:focus-visible,select:focus-visible {
+button:focus-visible,input:focus-visible,select:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px
 }
 
-button: disabled {
+button:disabled {
     opacity: .43;
     cursor: default
 }
@@ -1070,3 +1070,7 @@ dialog[open] {
 #profile-level-stats .record {
     grid-template-columns: repeat(5,minmax(0,1fr))
 }
+
+nav { justify-content: space-between; }
+#menu .menu-grid > #menu-continue { grid-column: 1 / -1; }
+#calendar-content { margin-top: 12px; }

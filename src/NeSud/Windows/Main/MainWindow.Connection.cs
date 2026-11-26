@@ -160,6 +160,7 @@ public sealed partial class MainWindow : Window
     private void UpdateConnection()
     {
         if (stats is null) return;
+        accountNavigation.Content = account is null ? "Увійти" : "Мій профіль";
         stats.Text = account is not null ? (reachable ? "● Онлайн • " : "○ Офлайн • ") + account.User :
             Scope.Length > 0 ? "Потрібен повторний вхід • локальні дані збережено" :
             reachable ? "● Онлайн • гість" : "○ Офлайн • гість";
