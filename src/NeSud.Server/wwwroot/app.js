@@ -61,7 +61,7 @@ window.addEventListener("offline",()=>disconnect(Error("немає мережі"
 window.addEventListener("online",()=>token?reconnect():login(true));
 async function act(action,extra={}){
  if(!online||busy||!game)return false;const e=epoch;busy=true;
- try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;accept(data);if(action==="hint"){selected=game.selected;animate(buttons[selected],"hint-pulse")}if(game.completed&&!guestMode)refreshDaily();return true;}
+ try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;accept(data);if(action==="hint"){selected=game.selected;animate(buttons[selected],"hint-pulse")}if(game.completed&&!previousGame?.completed&&!guestMode)refreshDaily();return true;}
  catch(e){if(e.status===400)message(e.message);else disconnect(e);return false}finally{busy=false;render()}
 }
 setInterval(()=>{if(busy||authBusy||adBusy)return;if(!token){if(navigator.onLine&&!$("auth").open&&Date.now()>=nextGuest)login(true);return}if(!online)reconnect();else if(game)act("heartbeat")},3000);
@@ -133,8 +133,8 @@ $("result-rank").onclick=()=>navigate("ranking");
 $("result-daily").onclick=()=>$("daily-open").onclick();
 async function loadComparison(){
  if(!game?.completed||resultKey===game.id)return;const id=game.id,e=epoch;resultKey=id;
- try{const data=await api("comparison?difficulty="+levelsEnum[game.difficulty]+"&score="+game.currentScore+"&seconds="+game.seconds);if(e===epoch&&game?.id===id){comparison=data;render()}}
- catch{if(game?.id===id)resultKey=""}
+ try{const data=await api("comparison?difficulty="+levelsEnum[game.difficulty]+"&score="+game.currentScore+"&seconds="+game.seconds+"&rules="+game.rulesVersion);if(e===epoch&&game?.id===id){comparison=data;render()}}
+ catch{if(game?.id===id){resultKey="";$("comparison").textContent="Не вдалося завантажити порівняння."}}
 }
 const levelsEnum=["Easy","Medium","Hard","Expert"];
 function resultRow(parent,label,value){const r=document.createElement("div"),l=document.createElement("span"),v=document.createElement("strong");l.textContent=label;v.textContent=value;r.append(l,v);parent.append(r)}
@@ -147,7 +147,7 @@ function showResult(){
  const b=$("result-breakdown");b.replaceChildren();
  for(const [label,val] of [["База",game.baseScore],["Бонус за швидкість","+"+game.speedBonus],["Час","−"+Math.floor(game.seconds/3)],["Помилки","−"+75*game.mistakes],["Підказки","−"+150*game.hints],["Кандидати","−"+game.effectiveCandidatePenalty],["Автозавершення ("+game.autoFilled+" клітинок)","−"+game.autoFillPenalty],["Відновлення життя","−"+100*game.lifeRestores]])resultRow(b,label,val);
  const c=$("comparison");c.replaceChildren();
- if(!done||!comparison?.games){c.textContent=done?(comparison?"Поки недостатньо результатів.":"Завантаження статистики…"):"Порівняння доступне для завершених ігор.";return}
+ if(!done||!comparison?.games){c.textContent=done?(comparison?"Поки недостатньо результатів.":online?"Завантаження статистики…":"Порівняння недоступне офлайн."):"Порівняння доступне для завершених ігор.";return}
  for(const [label,val] of [["Ігор / гравців",comparison.games+" / "+comparison.players],["Середній час",fmt(Math.round(comparison.averageSeconds))],["Медіанний час",fmt(Math.round(comparison.medianSeconds))],["Найкращий час",fmt(comparison.bestSeconds)],["Середній бал",Math.round(comparison.averageScore)],["Середні помилки",comparison.averageMistakes.toFixed(1)],["Середні підказки",comparison.averageHints.toFixed(1)],["Середні зміни кандидатів",comparison.averageCandidates.toFixed(1)],["Ваш бал не нижче ніж у",comparison.scorePercentile+"% ігор"],["Ваш час не довше ніж у",comparison.timePercentile+"% ігор"]])resultRow(c,label,val)
 }
 function updateRevive(){if(!game?.outOfLives||game.finalDefeat||!online)return;const left=Math.max(0,Math.ceil((reviveEnd-performance.now())/1000));$("revive-progress").value=left;$("cover-detail").textContent=game.reward?"Останній шанс використано.":left>0?"Останній шанс: "+left+" с":"Час вичерпано.";$("resume").disabled=busy||adPending||left===0;if(!left&&!game.reward&&online&&!busy&&!adPending)act("heartbeat")}
@@ -159,8 +159,9 @@ function render(){
  $("newgame").disabled=!online||busy;$("level").textContent=game?levels[game.difficulty]:"–";$("time").textContent=fmt(game?.seconds||0);$("lives").textContent=Array.from({length:3},(_,i)=>i<(game?.lives||0)?"♥":"♡").join(" ");$("score").textContent=(game?.currentScore||0).toLocaleString("uk-UA");$("penalties").textContent=game?"Час −"+Math.floor(game.seconds/3)+" · Помилки −"+75*game.mistakes+" · Підказки −"+150*game.hints+" · Кандидати −"+game.effectiveCandidatePenalty+" · Життя −"+100*game.lifeRestores+" · Авто −"+game.autoFillPenalty:"";$("quest").textContent=guestMode?"Щоденні нагороди доступні в акаунті.":daily?"Сьогодні: "+daily.wins+"/7 · карток: "+daily.packs.length:"Щоденні нагороди · онлайн"; $("hint").textContent="Підказка ("+(game?.hintCredits||0)+")";$("candidates").textContent="Кандидати ("+(game?.candidateCredits||0)+")";$("candidates").title=game?"Зміни: "+game.candidateDelta+" · −"+(2*game.candidateDelta)+" балів":"";document.querySelectorAll("[data-reward]").forEach(b=>{const count=b.dataset.reward==="life"?game?.lives:b.dataset.reward==="hint"?game?.hintCredits:game?.candidateCredits;b.disabled=!online||!game||game.completed||busy||adPending||count>=3});
  $("progress").textContent=game?(game.completed?"✓ Судоку розв’язано! ":"")+game.values.filter(Boolean).length+"/81 · Підказки: "+game.hints:"";
  buttons.forEach((b,i)=>{const v=game?.values[i]||0,r=Math.floor(i/9),c=i%9,sr=Math.floor(selected/9),sc=selected%9;
+ const animation=["pop","shake","hint-pulse"].filter(k=>b.classList.contains(k)).join(" ");
  b.className="cell"+(c%3===2&&c!==8?" blockright":"")+(r%3===2&&r!==8?" blockbottom":"")+(game?.givens[i]?" given":"")+(i===selected?" selected":v&&v===game?.values[selected]?" same":r===sr||c===sc||Math.floor(r/3)===Math.floor(sr/3)&&Math.floor(c/3)===Math.floor(sc/3)?" peer":"");
- b.classList.toggle("wrong",!!game?.wrong?.[i]);b.replaceChildren();if(v)b.textContent=v;else if(game?.notes[i]){let n=document.createElement("span");n.className="mininotes";for(let d=1;d<=9;d++){let k=document.createElement("span");k.textContent=game.notes[i]&(1<<d)?d:"";n.append(k)}b.append(n)}
+ if(animation)b.classList.add(...animation.split(" "));b.classList.toggle("wrong",!!game?.wrong?.[i]);b.replaceChildren();if(v)b.textContent=v;else if(game?.notes[i]){let n=document.createElement("span");n.className="mininotes";for(let d=1;d<=9;d++){let k=document.createElement("span");k.textContent=game.notes[i]&(1<<d)?d:"";n.append(k)}b.append(n)}
  b.tabIndex=i===selected?0:-1;b.disabled=!online||!game||game.paused||game.outOfLives||adPending;b.setAttribute("aria-label","Рядок "+(r+1)+", стовпець "+(c+1)+": "+(v||"порожньо"));});
  document.querySelectorAll("#pad button,#tools button").forEach(b=>b.disabled=!active);Array.from($("pad").children).forEach((b,i)=>{const n=game?.remaining?.[i]??9;b.querySelector("small").textContent=n;b.classList.toggle("spent-digit",n===0);b.disabled=!active||(!note&&n===0);b.setAttribute("aria-label","Цифра "+(i+1)+", залишилось "+n)});$("auto-finish").checked=game?.autoFinish??autoFinish;$("auto-finish").disabled=!!game&&(busy||game.completed||game.outOfLives);
  document.querySelector('[data-action="undo"]').disabled=!active||!game?.canUndo;document.querySelector('[data-action="redo"]').disabled=!active||!game?.canRedo;$("notes").classList.toggle("active",note);showResult();updateRevive();

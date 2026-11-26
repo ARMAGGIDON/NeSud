@@ -58,8 +58,8 @@ app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
 app.MapPost("/api/logout", (HttpContext c, ServerStore s) => { s.Logout(Token(c)); return Results.Ok(); });
 app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
     User(c, s) is { } name ? Results.Ok(s.History(name)) : Results.Unauthorized());
-app.MapGet("/api/comparison", (ServerStore s, Difficulty difficulty, int score, int seconds) =>
-    Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 ? Results.Ok(s.Compare(difficulty, score, seconds)) : Results.BadRequest());
+app.MapGet("/api/comparison", (ServerStore s, Difficulty difficulty, int score, int seconds, int? rules) =>
+    Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 && (rules ?? 3) is >= 0 and <= 3 ? Results.Ok(s.Compare(difficulty, score, seconds, rules ?? 3)) : Results.BadRequest());
 app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
 app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
 {
@@ -84,7 +84,7 @@ static WebGame Tick(WebGame session)
     var now = DateTimeOffset.UtcNow;
     var elapsed = (now - session.LastSeen).TotalSeconds;
     session.Game.UpgradeRules();
-    if (session.Reward is { } ticket && ticket.ExpiresAt <= now) { if (ticket.Kind == "life") session.Game.CancelRevive(); session = session with { Reward = null }; }
+    if (session.Reward is { } ticket && ticket.ExpiresAt <= now) { if (ticket.Kind == "life") session.Game.CancelRevive(); session = session with { Reward = null, LastSeen = now }; elapsed = 0; }
     if (!session.Game.Paused && !session.Game.Completed && !session.Game.OutOfLives)
     {
         if (elapsed > 12) session.Game.Paused = true;
@@ -106,7 +106,7 @@ static object View(WebGame session) => new
     session.Game.Seconds, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
     session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
     session.Game.HintCredits, session.Game.CandidateCredits, session.Game.CandidateUses, session.Game.LifeRestores,
-    session.Game.CurrentScore, session.Game.BaseScore, session.Game.SpeedBonus, session.Game.AutoFinish, session.Game.AutoFilled, session.Game.AutoFillPenalty,
+    session.Game.CurrentScore, session.Game.RulesVersion, session.Game.BaseScore, session.Game.SpeedBonus, session.Game.AutoFinish, session.Game.AutoFilled, session.Game.AutoFillPenalty,
     reviveSeconds = session.Game.ReviveSeconds(DateTimeOffset.UtcNow),
     reviveRemainingMs = session.Game.CanStartRevive(DateTimeOffset.UtcNow) ? Math.Max(0, (session.Game.ReviveDeadline!.Value - DateTimeOffset.UtcNow).TotalMilliseconds) : 0,
     finalDefeat = session.Game.FinalDefeat(DateTimeOffset.UtcNow),

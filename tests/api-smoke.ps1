@@ -69,7 +69,7 @@ for ($j=0; $j -lt 81 -and $wrongCount -lt 3; $j++) {
     for ($k=$r*9; $k -lt ($r+1)*9; $k++) { if ($demo.givens[$k] -gt 0) { $conflictDigit=$demo.givens[$k]; break } }
     if ($conflictDigit -eq 0) { continue }
     $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='enter';cell=$j;digit=$conflictDigit;note=$false} $hg
-    Assert $demo.wrong[$j] 'Wrong digit metadata'
+    Assert ($demo.wrong[$j]) 'Wrong digit metadata'
     $wrongCount++
 }
 Assert ($demo.outOfLives -and $demo.reviveSeconds -gt 0 -and !$demo.finalDefeat) 'Defeat grace period'

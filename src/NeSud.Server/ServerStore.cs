@@ -196,13 +196,14 @@ public sealed partial class ServerStore
         while (rows.Read()) result.Add(new(PublicName(rows.GetString(0), (byte[])rows[3]), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
     }
-    public DifficultyComparison Compare(Difficulty level, int score, int seconds)
+    public DifficultyComparison Compare(Difficulty level, int score, int seconds, int rules = 3)
     {
         using var c = db.Open(); using var cmd = Database.Command(c, """
             SELECT h.name,h.payload FROM history h WHERE h.source='web' AND h.outcome='completed'
             AND json_extract(h.payload,'$.game.puzzle.difficulty')=$d
+            AND coalesce(json_extract(h.payload,'$.game.rulesVersion'),0)=$r
             AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=h.name AND a.id=h.id AND a.flagged=1)
-            """, ("$d", (int)level));
+            """, ("$d", (int)level), ("$r", rules));
         using var rows = cmd.ExecuteReader();
         var records = new List<GameRecord>(); var users = new HashSet<string>();
         while (rows.Read()) { users.Add(rows.GetString(0)); records.Add(Database.Decode<GameRecord>(rows.GetString(1))); }

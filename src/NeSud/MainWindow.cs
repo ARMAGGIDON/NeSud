@@ -486,7 +486,7 @@ public sealed class MainWindow : Window
         var id = state.GameId;
         try
         {
-            var c = await Request<DifficultyComparison>($"comparison?difficulty={g.Puzzle.Difficulty}&score={g.CurrentScore}&seconds={g.Seconds}", token: "");
+            var c = await Request<DifficultyComparison>($"comparison?difficulty={g.Puzzle.Difficulty}&score={g.CurrentScore}&seconds={g.Seconds}&rules={g.RulesVersion}", token: "");
             if (closing || id != state.GameId) return;
             resultComparison.Text = c.Games == 0 ? "Поки недостатньо результатів." :
                 $"Ігор: {c.Games} • гравців: {c.Players}\n" +
@@ -1111,7 +1111,7 @@ public sealed class MainWindow : Window
             panel.Children.Add(Text($"{Level(d)}: {done.Count}/{games.Count} перемог • найкращий час: {best}", 13, "Muted"));
         }
         Gap(panel, 12);
-        if (G is { Completed: false } && (state.GameScope ?? "") == Scope)
+        if (G is { Completed: false } && !G.FinalDefeat(DateTimeOffset.UtcNow) && (state.GameScope ?? "") == Scope)
             panel.Children.Add(Text($"Поточна гра: {Level(G.Puzzle.Difficulty)} • {FormatTime(G.Seconds)} • у процесі", 14, "Accent", true));
         var list = Stack();
         foreach (var r in records)
