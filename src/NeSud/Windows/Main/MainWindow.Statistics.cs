@@ -73,10 +73,7 @@ public sealed partial class MainWindow : Window
         if (records.Count == 0) list.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
         panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Gap(panel);
-        var window = Modal("Історія", panel, 680, 720);
-        var close = Action("Закрити", () => window.Close(), primary: true);
-        close.IsCancel = true;
-        panel.Children.Add(close);
+        var window = Page("Історія", panel, 680, 720);
         window.ShowDialog();
     }
 
@@ -95,10 +92,7 @@ public sealed partial class MainWindow : Window
         var rows = Stack();
         panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Gap(panel);
-        var window = Modal("Рейтинг", panel, 560);
-        var close = Action("Закрити", () => window.Close(), primary: true);
-        close.IsCancel = true;
-        panel.Children.Add(close);
+        var window = Page("Рейтинг", panel, 560);
         var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         bool loading = false;
         async Task Reload()
@@ -157,7 +151,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(Text("Тижневий турнір", 24, "Text", true));
         var body = Stack();
         panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 460, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        var window = Modal("Турнір", panel, 600);
+        var window = Page("Турнір", panel, 600);
         var prizes = Action("Отримати приз", () => {
             window.Close();
             weeklyRewards = true;
@@ -166,9 +160,6 @@ public sealed partial class MainWindow : Window
         }, primary: true);
         prizes.Visibility = Visibility.Collapsed;
         panel.Children.Add(prizes);
-        var close = Action("Закрити", () => window.Close());
-        close.IsCancel = true;
-        panel.Children.Add(close);
         window.Loaded += async (_, _) =>
         {
             try

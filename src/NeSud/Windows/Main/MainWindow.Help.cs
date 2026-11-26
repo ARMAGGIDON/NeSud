@@ -13,7 +13,6 @@ public sealed partial class MainWindow
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         At(root, Text("Як грати в NeSud", 25, "Text", true), 0, 0);
 
         var tabs = new WrapPanel { Margin = new Thickness(0, 12, 0, 8) };
@@ -27,13 +26,7 @@ public sealed partial class MainWindow
             Padding = new Thickness(0, 0, 8, 0)
         };
         At(root, scroll, 2, 0);
-        var window = Modal("Довідка", root, 790, Math.Min(760, SystemParameters.WorkArea.Height - 40));
-        window.SizeToContent = SizeToContent.Manual;
-        window.Height = Math.Min(740, SystemParameters.WorkArea.Height - 40);
-        var close = Action("Закрити", () => window.Close(), primary: true);
-        close.Margin = new Thickness(0, 12, 0, 0);
-        close.IsCancel = true;
-        At(root, close, 3, 0);
+        var window = Page("Довідка", root, 790, Math.Min(760, SystemParameters.WorkArea.Height - 40));
 
         string[] titles = ["Поле", "Керування", "Ресурси й бали", "Нагороди", "Щоденні ігри"];
         var buttons = new List<Button>();
@@ -204,7 +197,6 @@ public sealed partial class MainWindow
         }
 
         Open(0);
-        OwnModal(window);
         window.ShowDialog();
     }
 }

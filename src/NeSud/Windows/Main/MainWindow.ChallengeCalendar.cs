@@ -43,16 +43,13 @@ public sealed partial class MainWindow
             panel.Children.Add(cups);
             var notice = Text("", 13, "Muted");
             panel.Children.Add(notice);
-            var window = Modal("Щоденні ігри", panel, 560, 760);
+            var window = Page("Щоденні ігри", panel, 560, 760);
             var reward = Action("Отримати нагороду", () => {
                 claim = true;
                 window.Close();
             }, primary: true);
             reward.Visibility = Visibility.Collapsed;
             panel.Children.Add(reward);
-            var close = Action("Закрити", () => window.Close());
-            close.IsCancel = true;
-            panel.Children.Add(close);
             bool loading = false;
             previous.Click += (_, _) => MoveMonth(- 1);
             next.Click += (_, _) => MoveMonth(1);

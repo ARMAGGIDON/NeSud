@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         var padCells = new Button[9];
         var tools = new UniformGrid { Columns = 4 };
         panel.Children.Add(tools);
-        var window = Modal("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
+        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
         int selected = 0;
@@ -73,8 +73,6 @@ public sealed partial class MainWindow
         }
         var mainAction = Action("Почати", primary: true);
         panel.Children.Add(mainAction);
-        var exit = Action("До календаря", () => window.Close());
-        panel.Children.Add(exit);
         for (int i = 0; i < boardCells.Length; i++)
         {
             int index = i;
@@ -266,14 +264,12 @@ public sealed partial class MainWindow
             var remaining = Text("", 24, "Accent", true);
             body.Children.Add(remaining);
             var ad = Modal("Винагорода", body, 360);
-            ad.Owner = window;
             var clock = Stopwatch.StartNew();
             int length = game.Reward.Remaining;
             var claim = Action("Отримати", () => ad.DialogResult = true, primary: true);
             claim.IsEnabled = false;
             body.Children.Add(claim);
             var cancel = Action("Скасувати", () => ad.DialogResult = false);
-            cancel.IsCancel = true;
             body.Children.Add(cancel);
             var tick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             tick.Tick += (_, _) => {

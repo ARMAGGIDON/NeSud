@@ -22,7 +22,13 @@ namespace NeSud;
 
 public sealed partial class MainWindow : Window
 {
-    private Window Modal(string title, UIElement content, double width = 480, double maxHeight = 660)
+    private InAppSurface Modal(string title, UIElement content, double width = 480, double maxHeight = 660) =>
+        OpenSurface(title, content, width, maxHeight, false);
+
+    private InAppSurface Page(string title, UIElement content, double width = 780, double maxHeight = 760) =>
+        OpenSurface(title, content, width, maxHeight, true);
+
+    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page)
     {
         if (Playing)
         {
@@ -32,13 +38,8 @@ public sealed partial class MainWindow : Window
             Render();
             Save();
         }
-        return new Window
-        {
-            Owner = this, Title = title, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, SizeToContent = SizeToContent.Height,
-            Width = width, MaxHeight = maxHeight, ShowInTaskbar = false, Background = B("Panel"),
-            Foreground = B("Text"), Content = Card(content, 20)
-        };
+
+        return new InAppSurface(this, title, content, width, maxHeight, page);
     }
 
     private bool Dialog(string title, string message, bool confirm)
@@ -50,12 +51,9 @@ public sealed partial class MainWindow : Window
         Gap(panel, 20);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var window = Modal(title, panel);
-        var owner = Application.Current.Windows.OfType<Window > ().FirstOrDefault(w => w.IsActive && w.IsVisible);
-        if (owner is not null && owner != window) window.Owner = owner;
         if (confirm)
         {
             var cancel = Action("Скасувати", () => window.DialogResult = false);
-            cancel.IsCancel = true;
             cancel.Margin = new Thickness(0, 0, 8, 0);
             actions.Children.Add(cancel);
         }

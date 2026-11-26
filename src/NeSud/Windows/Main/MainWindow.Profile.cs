@@ -12,12 +12,6 @@ namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private void OwnModal(Window window)
-    {
-        var owner = Application.Current.Windows.OfType<Window > ().FirstOrDefault(w => w != window && w.IsActive && w.IsVisible);
-        if (owner is not null) window.Owner = owner;
-    }
-
     private async Task ShowProfile(string? user)
     {
         var panel = Stack();
@@ -27,11 +21,10 @@ public sealed partial class MainWindow
         panel.Children.Add(filter);
         var body = Stack();
         panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 490, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        var window = Modal("Профіль", panel, 690, 750);
-        OwnModal(window);
+        var window = Page("Профіль", panel, 690, 750);
         int page = 0;
         bool loading = false;
-        var nav = new UniformGrid { Columns = 3 };
+        var nav = new UniformGrid { Columns = 2 };
         panel.Children.Add(nav);
         var prev = Action("Попередня");
         var next = Action("Наступна");
@@ -47,7 +40,6 @@ public sealed partial class MainWindow
             panel.Children.Add(Action("Налаштування акаунта", () => { window.Close(); ShowAccount(); }));
         nav.Children.Add(prev);
         nav.Children.Add(next);
-        nav.Children.Add(Action("Закрити", () => window.Close()));
         async Task Load()
         {
             if (loading)return;

@@ -218,9 +218,6 @@ public sealed partial class MainWindow : Window
                 window.Close();
             }));
         }
-        var close = Action("Закрити", () => window.Close());
-        close.IsCancel = true;
-        panel.Children.Add(close);
         window.ShowDialog();
     }
 

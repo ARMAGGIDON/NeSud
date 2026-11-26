@@ -361,7 +361,10 @@ public sealed partial class MainWindow : Window
         At(footer, status, 0, 0);
         At(footer, saveStatus, 0, 1);
         At(root, footer, 2, 0, 3);
-        Content = root;
+        mainContent = root;
+        surfaceHost = new Grid { ClipToBounds = true };
+        surfaceHost.Children.Add(mainContent);
+        Content = surfaceHost;
     }
 
     private StackPanel Metric(string label, TextBlock value)

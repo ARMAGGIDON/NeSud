@@ -44,8 +44,7 @@ public sealed partial class MainWindow
         panel.Children.Add(search);
         var body = Stack();
         panel.Children.Add(new ScrollViewer { Content = body, MaxHeight = 440, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        var window = Modal("Друзі", panel, 570);
-        OwnModal(window);
+        var window = Page("Друзі", panel, 570);
         async Task Load()
         {
             body.Children.Clear();
@@ -81,7 +80,6 @@ public sealed partial class MainWindow
         var find = Action("Знайти / оновити", () => _ = Load());
         find.IsDefault = true;
         panel.Children.Insert(3, find);
-        panel.Children.Add(Action("Закрити", () => window.Close()));
         window.Loaded += async (_, _) => await Load();
         window.ShowDialog();
         await Task.CompletedTask;

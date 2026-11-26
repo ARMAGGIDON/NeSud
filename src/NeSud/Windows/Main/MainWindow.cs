@@ -118,6 +118,7 @@ public sealed partial class MainWindow : Window
         Closing += (_, _) =>
         {
             closing = true;
+            CloseSurfaces();
             generation?.Cancel();
             ReadClock();
             clock.Stop();

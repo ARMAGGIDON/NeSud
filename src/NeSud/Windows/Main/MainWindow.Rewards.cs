@@ -221,9 +221,6 @@ public sealed partial class MainWindow : Window
                 notice.Text = "Щоденні нагороди доступні при підключенні до сервісу.";
             }
         };
-        var close = Action("Закрити", () => window.Close());
-        close.IsCancel = true;
-        panel.Children.Add(close);
         window.ShowDialog();
         Render();
         await Task.CompletedTask;
@@ -271,7 +268,6 @@ public sealed partial class MainWindow : Window
         claim.IsEnabled = false;
         panel.Children.Add(claim);
         var cancel = Action("Скасувати", () => window.DialogResult = false);
-        cancel.IsCancel = true;
         panel.Children.Add(cancel);
         void Update()
         {

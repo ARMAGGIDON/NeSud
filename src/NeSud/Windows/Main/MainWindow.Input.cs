@@ -24,6 +24,15 @@ public sealed partial class MainWindow : Window
 {
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (surfaces.Count > 0)
+        {
+            if (e.Key == Key.Escape && Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true })
+            {
+                surfaces[^1].Close();
+                e.Handled = true;
+            }
+            return;
+        }
         Key k = e.Key;
         var mods = Keyboard.Modifiers;
         if (k == Key.F1)
