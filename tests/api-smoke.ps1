@@ -55,8 +55,9 @@ $claim.revision = $demo.revision
 $again = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$again.StatusCode -eq 400) 'Reward cannot be replayed'
 $scoreBefore = $demo.currentScore
+$delta = $demo.candidateDelta
 $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='candidates'} $hg
-Assert ($demo.candidateCredits -eq 0 -and $demo.candidateUses -eq 1 -and $demo.currentScore -le ($scoreBefore-100)) 'Candidate scoring'
+Assert ($demo.candidateCredits -eq 0 -and $demo.candidateUses -eq 1 -and $demo.candidateChanges -eq $delta -and $demo.effectiveCandidatePenalty -eq (2*$delta) -and $demo.currentScore -le [Math]::Max(0,($scoreBefore-2*$delta))) 'Candidate scoring'
 $deny = Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hg -SkipHttpErrorCheck
 Assert ([int]$deny.StatusCode -eq 401) 'Guest account isolation'
 $guest2 = Post 'guest' @{}
@@ -65,4 +66,14 @@ $demo2 = Invoke-RestMethod -Uri "$BaseUrl/api/web/session" -Headers $hg2
 Assert $demo2.empty 'Independent guest sessions'
 Post 'logout' @{} $hg2 | Out-Null
 Post 'logout' @{} $hg | Out-Null
+$daily = Invoke-RestMethod -Uri "$BaseUrl/api/daily" -Headers $ha
+Assert ($daily.packs.Count -eq 1 -and $daily.packs[0].milestone -eq 'login') 'Daily login pack'
+$pick = @{day=$daily.packs[0].day;milestone='login';slot=0;card=1}
+$chosen = Post 'daily/choose' $pick $ha
+$retry = Post 'daily/choose' $pick $ha
+Assert ($chosen.item.kind -eq $retry.item.kind -and $chosen.item.amount -eq $retry.item.amount) 'Replay returns same card'
+Assert (($retry.status.lives+$retry.status.hints+$retry.status.candidates) -eq $chosen.item.amount) 'Wallet credited once'
+$pick.card = 2
+$second = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/daily/choose" -Headers $ha -ContentType 'application/json' -Body ($pick | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$second.StatusCode -eq 409) 'Other card denied'
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

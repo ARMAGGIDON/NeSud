@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/NeSud.Storage/NeSud.Storage.csproj" />
+      <ProjectReference Include="../../src/NeSud.Server/NeSud.Server.csproj" />
   </ItemGroup>
 </Project>

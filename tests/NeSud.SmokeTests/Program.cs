@@ -1,5 +1,7 @@
 using NeSud.Core;
 using NeSud.Storage;
+using NeSud.Server;
+using System.Numerics;
 
 static void Check(bool result, string message)
 {
@@ -108,17 +110,63 @@ Check(lifeGame.GrantReward("life") && lifeGame.Lives == 1 && !lifeGame.OutOfLive
     lifeGame.CurrentScore == initialScore - 325, "Life restoration and score penalty");
 Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
 var aid = Game.Start(puzzles[0]);
-Check(aid.FillNotes() && aid.CandidateCredits == 0 && aid.CandidateUses == 1 && aid.CurrentScore == initialScore - 100,
-    "Candidate credits and penalty");
-Check(aid.Undo() && aid.CandidateCredits == 0 && !aid.FillNotes(), "Undo never refunds aid");
+int blank = blanks[0], correctMask = Sudoku.Candidates(aid.Values, blank);
+int validDigit = BitOperations.TrailingZeroCount((uint)correctMask);
+int invalidDigit = BitOperations.TrailingZeroCount((uint)(Sudoku.All & ~correctMask));
+Check(aid.Enter(blank, validDigit, note: true) && aid.Enter(blank, invalidDigit, note: true), "Manual notes setup");
+int expected = Enumerable.Range(0, 81).Sum(j => aid.Values[j] == 0
+    ? BitOperations.PopCount((uint)(aid.Notes[j] ^ Sudoku.Candidates(aid.Values, j))) : 0);
+Check(aid.CandidateDelta() == expected && aid.FillNotes() && aid.CandidateCredits == 0 &&
+    aid.CandidateUses == 1 && aid.CandidateChanges == expected &&
+    aid.CurrentScore == Math.Max(0, initialScore - 2 * expected), "Candidate additions and corrections");
+Check(aid.CandidateDelta() == 0 && aid.GrantReward("candidates", advertisement: false), "Wallet credit");
+Check(!aid.FillNotes() && aid.CandidateCredits == 1, "No-op costs nothing");
+Check(aid.Undo() && aid.CandidateCredits == 1 && aid.CandidatePenalty == 2 * expected, "Undo never refunds aid");
 var hm = aid.GetHint()!.Value;
 Check(aid.Enter(hm.Cell, hm.Digit, hint: true) && aid.HintCredits == 0 && aid.GetHint() is null, "Hint exhaustion");
-foreach (int i in blanks.Where(i => i != hm.Cell).Take(15)) Check(aid.Enter(i, aid.Puzzle.Solution[i]), "Quest progress");
-Check(aid.HintCredits == 1 && aid.CandidateCredits == 1 && aid.ManualCorrect.Count == 15, "Milestone rewards");
-Check(aid.Undo(), "Quest undo");
-int last = blanks.Where(i => i != hm.Cell).Take(15).Last();
-Check(aid.Enter(last, aid.Puzzle.Solution[last]) && aid.HintCredits == 1 && aid.CandidateCredits == 1, "No quest replay");
+foreach (int j in blanks.Where(j => j != hm.Cell).Take(15)) Check(aid.Enter(j, aid.Puzzle.Solution[j]), "Manual progress");
+Check(aid.HintCredits == 0 && aid.CandidateCredits == 1, "Removed old milestone rewards");
 var copied = Database.Decode<Game>(Database.Encode(aid));
-Check(copied.Valid() && copied.CandidateUses == 1 && copied.ManualCorrect.Count == 15 &&
+Check(copied.Valid() && copied.CandidateUses == 1 && copied.CandidateChanges == expected &&
     copied.CurrentScore == aid.CurrentScore, "Resource persistence");
-Console.WriteLine("PASS lives, reward limits, aid, score, quest anti-replay, resource persistence");
+var legacy = Game.Start(puzzles[0]); legacy.RulesVersion = 1; legacy.CandidateUses = 2;
+int legacyScore = legacy.CurrentScore; legacy.UpgradeRules();
+Check(legacy.RulesVersion == 2 && legacy.CurrentScore == legacyScore, "Legacy migration");
+Console.WriteLine("PASS lives, aid, variable penalties, legacy migration, persistence");
+
+var dailyDir = Path.Combine(Path.GetTempPath(), "NeSud-daily-tests-" + Guid.NewGuid().ToString("N"));
+try
+{
+    var server = new ServerStore(Path.Combine(dailyDir, "server.db"));
+    var user = server.Login(new Credentials("daily-user", "test-password-123", "test-password-123"), true)!.User;
+    var other = server.Login(new Credentials("daily-other", "test-password-123", "test-password-123"), true)!.User;
+    var first = server.Daily(user);
+    Check(first.Packs.Count == 1 && first.Packs[0].Milestone == "login", "Daily login pack");
+    Check(server.Daily(user).Packs.Count == 1, "Login idempotency");
+    var pack = first.Packs[0]; var choice = new DailyChoice(pack.Day, pack.Milestone, pack.Slot, 1);
+    var result = server.Choose(user, choice)!; var again = server.Choose(user, choice)!;
+    Check(result.Item == again.Item && result.Status.Packs.Count == 0 && again.Status.Packs.Count == 0 &&
+        result.Status.Lives + result.Status.Hints + result.Status.Candidates == result.Item.Amount &&
+        again.Status.Lives + again.Status.Hints + again.Status.Candidates == result.Item.Amount, "Idempotent card claim");
+    Check(server.Choose(user, choice with { Card = 0 }) is null, "Cannot open another card");
+    Check(server.Daily(other).Packs.Count == 1 && server.Daily(other).Lives + server.Daily(other).Hints + server.Daily(other).Candidates == 0, "Wallet isolation");
+    var spend = new WalletRequest(Guid.NewGuid(), Guid.NewGuid(), result.Item.Kind);
+    Check(server.SpendDesktop(user, spend) is not null && server.SpendDesktop(user, spend) is not null, "Idempotent spend");
+    var balance = server.Daily(user);
+    Check(balance.Lives + balance.Hints + balance.Candidates == result.Item.Amount - 1, "Debit once");
+    var distinct = puzzles.DistinctBy(p => string.Concat(p.Givens)).ToList();
+    while (distinct.Count < 7) distinct.Add(Sudoku.Generate(Difficulty.Easy, random: random));
+    for (int n = 1; n <= 7; n++)
+    {
+        var solved = Game.Start(distinct[n - 1]);
+        for (int j = 0; j < 81; j++) if (solved.Puzzle.Givens[j] == 0) solved.Enter(j, solved.Puzzle.Solution[j]);
+        var now = DateTimeOffset.UtcNow;
+        var entry = new GameRecord(Guid.NewGuid(), now, now, "desktop", "completed", solved);
+        server.Upload(user, [entry]); server.Upload(user, [entry]);
+        var daily = server.Daily(user);
+        int count = n >= 7 ? 5 : n >= 3 ? 2 : 1;
+        Check(daily.Wins == n && daily.Packs.Count == count, "Daily win milestones " + n);
+    }
+    Console.WriteLine("PASS daily login, card choice, wallet isolation, idempotent spend, 1/3/7 milestones");
+}
+finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dailyDir)) Directory.Delete(dailyDir, true); }

@@ -1,6 +1,6 @@
 "use strict";
 const $=id=>document.getElementById(id), levels=["Легка","Середня","Складна","Експерт"];
-let daily=null, dailyBusy=false;
+let daily=null, dailyBusy=false, revealed=false;
 let adPending=false, adClock=null, adKind="", adRemaining=8, adBusy=false, nextGuest=0;
 let token=sessionStorage.getItem("token")||"", guestMode=sessionStorage.getItem("guest")==="1", registration=false, authBusy=false, game=null, selected=0, note=false, online=false, busy=false, tab="play", epoch=0;
 const message=s=>$("status").textContent=s;
@@ -14,7 +14,7 @@ async function api(path,body){
  return await r.json().catch(()=>null);
  }finally{clearTimeout(timeout)}
 }
-function resetSession(){daily=null;epoch++;game=null;online=false;guestMode=true;selected=0;note=false;adPending=false;if($("ad").open)$("ad").close();$("account").hidden=false;$("logout").hidden=true;$("history-tab").hidden=true;$("guest-notice").hidden=false;render()}
+function resetSession(){daily=null;revealed=false;if($("daily").open)$("daily").close();epoch++;game=null;online=false;guestMode=true;selected=0;note=false;adPending=false;if($("ad").open)$("ad").close();$("account").hidden=false;$("logout").hidden=true;$("history-tab").hidden=true;$("guest-notice").hidden=false;render()}
 function showAuth(){mode(false);authError("");if(!$("auth").open)$("auth").showModal()}
 $("account").onclick=showAuth;$("auth-close").onclick=()=>{$("auth").close();$("password").value=$("confirmation").value=""};
 $("auth").addEventListener("close",()=>{$("password").value=$("confirmation").value=""});
@@ -70,7 +70,7 @@ const resourceNames={life:"Життя",hint:"Підказки",candidates:"Ка�
 const balance=k=>daily?.[k==="life"?"lives":k==="hint"?"hints":"candidates"]||0;
 async function refreshDaily(){
  if(guestMode||!token||dailyBusy||!online)return;
- const e=epoch;try{const d=await api("daily");if(e!==epoch)return;daily=d;render();if($("daily").open)drawDaily()}catch{}
+ const e=epoch;try{const d=await api("daily");if(e!==epoch)return;daily=d;render();if($("daily").open&&!revealed)drawDaily()}catch{}
 }
 async function chooseResource(kind){
  if(!guestMode){await refreshDaily();if(balance(kind)>0){await spend(kind);return}}
@@ -91,11 +91,11 @@ function drawDaily(){
 }
 async function chooseCard(pack,card){
  if(dailyBusy)return;dailyBusy=true;drawDaily();
- try{const r=await api("daily/choose",{...pack,card});daily=r.status;$("daily-result").textContent="Отримано: "+resourceNames[r.item.kind]+" ×"+r.item.amount;}
+ try{const r=await api("daily/choose",{...pack,card});daily=r.status;revealed=true;const cards=$("daily-cards");Array.from(cards.children).forEach((b,i)=>{b.textContent=i===card?resourceNames[r.item.kind]+" ×"+r.item.amount:"?";b.classList.toggle("revealed",i===card);b.disabled=true});$("daily-result").textContent="Отримано: "+resourceNames[r.item.kind]+" ×"+r.item.amount;const next=document.createElement("button");next.className="primary next-card";next.textContent="Далі";next.onclick=()=>{revealed=false;drawDaily()};cards.append(next);}
  catch(e){$("daily-result").textContent=e.message}
- finally{dailyBusy=false;drawDaily();render()}
+ finally{dailyBusy=false;if(!revealed)drawDaily();render()}
 }
-$("daily-open").onclick=async()=>{if(guestMode){showAuth();return}$("daily-result").textContent="";$("daily").showModal();drawDaily();await refreshDaily()};
+$("daily-open").onclick=async()=>{if(guestMode){showAuth();return}revealed=false;$("daily-result").textContent="";$("daily").showModal();drawDaily();await refreshDaily()};
 $("daily-close").onclick=()=>$("daily").close();
 setInterval(refreshDaily,15000);
 function adRender(){$("ad-time").textContent=adRemaining>0?adRemaining+" с":"Готово!";$("ad-progress").value=Math.max(0,8-adRemaining);$("ad-claim").disabled=adRemaining>0||adBusy||busy||!online}

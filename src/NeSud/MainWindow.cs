@@ -621,8 +621,11 @@ public sealed class MainWindow : Window
                 {
                     var result = await Request<DailyResult>("daily/choose", new DailyChoice(pack.Day, pack.Milestone, pack.Slot, index));
                     if (!window.IsVisible) return;
-                    daily = result.Status; Draw();
+                    daily = result.Status;
+                    for (int j = 0; j < cards.Children.Count; j++)
+                        if (cards.Children[j] is Button cardButton) cardButton.Content = j == index ? $"{ResourceName(result.Item.Kind)}\n×{result.Item.Amount}" : "Закрито";
                     notice.Text = $"Отримано: {ResourceName(result.Item.Kind)} ×{result.Item.Amount}";
+                    body.Children.Add(Action("Далі", () => Draw(), primary: true));
                     notice.Foreground = B("Accent");
                 }
                 catch { notice.Text = "Не вдалося отримати картку. Повторіть спробу."; cards.IsEnabled = true; }
@@ -793,7 +796,7 @@ public sealed class MainWindow : Window
             var remote = await Request<List<GameRecord>>("history", endpoint: endpoint, token: session.Token);
             if (closing) return;
             store.Merge(scope, remote);
-            if (ReferenceEquals(account, session)) { reachable = true; await ResumeSpend(); daily = await Request<DailyStatus>("daily", token: session.Token); Render(); }
+            if (ReferenceEquals(account, session)) { reachable = true; await ResumeSpend(); var updated = await Request<DailyStatus>("daily", token: session.Token); if (ReferenceEquals(account, session) && !closing) { daily = updated; Render(); } }
         }
         catch (Exception ex)
         {
@@ -940,6 +943,7 @@ public sealed class MainWindow : Window
             {
                 if (working) return;
                 string secret = password.Value(), confirmation = confirm.Value();
+                if (state.PendingReward is not null && !string.Equals(Scope.Split('|')[^1], name.Text.Trim(), StringComparison.OrdinalIgnoreCase)) { notice.Text = "Увійдіть до попереднього акаунта для відновлення винагороди."; return; }
                 if (name.Text.Trim().Length < 3) { notice.Text = "Введіть логін або email."; name.Focus(); return; }
                 if (secret.Length is < 10 or > 128) { notice.Text = "Пароль має містити від 10 до 128 символів."; return; }
                 if (register && secret != confirmation) { notice.Text = "Паролі не збігаються."; return; }
@@ -962,7 +966,7 @@ public sealed class MainWindow : Window
             }
             submit = Action("Увійти", () => _ = Login(), primary: true); submit.IsDefault = true;
             panel.Children.Add(submit); Mode(false);
-            if (Scope.Length > 0) panel.Children.Add(Action("Перейти в гостьовий режим", () =>
+            if (Scope.Length > 0 && state.PendingReward is null) panel.Children.Add(Action("Перейти в гостьовий режим", () =>
             {
                 state.ProtectedSession = null; state.AccountScope = ""; daily = null; SwitchProfileGame(); Save(); window.Close();
             }));
@@ -973,6 +977,7 @@ public sealed class MainWindow : Window
 
     private void SwitchProfileGame()
     {
+        if (state.PendingReward is not null) return;
         if (G is null || (state.GameScope ?? "") == Scope) return;
         ReadClock();
         var previous = Terminal(G.Completed ? "completed" : "abandoned");
