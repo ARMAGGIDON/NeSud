@@ -25,22 +25,34 @@ public sealed partial class ServerStore
             ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(Options())));
         cmd.ExecuteNonQuery();
     }
-    private DailyStatus EnsureDaily(SqliteConnection c, SqliteTransaction tx, string name)
+    private static int EnsureWinPacks(SqliteConnection c, SqliteTransaction tx, string name, string day)
     {
-        string day = Day(DateTimeOffset.UtcNow);
+        var date = DateOnly.ParseExact(day, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var start = TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue), DailyZone);
+        var end = TimeZoneInfo.ConvertTimeToUtc(date.AddDays(1).ToDateTime(TimeOnly.MinValue), DailyZone);
         var puzzles = new HashSet<string>();
-        using (var cmd = Tx(c, tx, "SELECT payload FROM history WHERE name=$n AND outcome='completed'", ("$n", name)))
+        using (var cmd = Tx(c, tx, """
+            SELECT payload FROM history WHERE name=$n AND outcome='completed'
+            AND julianday(json_extract(payload,'$.ended')) >= julianday($start)
+            AND julianday(json_extract(payload,'$.ended')) < julianday($end)
+            """, ("$n", name), ("$start", start.ToString("O")), ("$end", end.ToString("O"))))
         using (var rows = cmd.ExecuteReader())
             while (rows.Read())
             {
                 var record = Database.Decode<GameRecord>(rows.GetString(0));
-                if (Day(record.Ended) == day) puzzles.Add(string.Concat(record.Game.Puzzle.Givens));
+                puzzles.Add(string.Concat(record.Game.Puzzle.Givens));
             }
         int wins = puzzles.Count;
-        AddPack(c, tx, name, day, "login", 0);
         if (wins >= 1) AddPack(c, tx, name, day, "win1", 0);
         if (wins >= 3) AddPack(c, tx, name, day, "win3", 0);
         if (wins >= 7) for (int i = 0; i < 3; i++) AddPack(c, tx, name, day, "win7", i);
+        return wins;
+    }
+    private DailyStatus EnsureDaily(SqliteConnection c, SqliteTransaction tx, string name)
+    {
+        string day = Day(DateTimeOffset.UtcNow);
+        AddPack(c, tx, name, day, "login", 0);
+        int wins = EnsureWinPacks(c, tx, name, day);
         var packs = new List<DailyPack>();
         using (var cmd = Tx(c, tx, "SELECT day,milestone,slot FROM daily_packs WHERE name=$n AND chosen IS NULL ORDER BY day,rowid", ("$n", name)))
         using (var rows = cmd.ExecuteReader())

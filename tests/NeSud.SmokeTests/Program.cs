@@ -167,6 +167,14 @@ try
         int count = n >= 7 ? 5 : n >= 3 ? 2 : 1;
         Check(daily.Wins == n && daily.Packs.Count == count, "Daily win milestones " + n);
     }
-    Console.WriteLine("PASS daily login, card choice, wallet isolation, idempotent spend, 1/3/7 milestones");
+    var previousDay = DateTimeOffset.UtcNow.AddDays(-1);
+    var oldGame = Game.Start(distinct[0]);
+    for (int j = 0; j < 81; j++) if (oldGame.Puzzle.Givens[j] == 0) oldGame.Enter(j, oldGame.Puzzle.Solution[j]);
+    var late = new GameRecord(Guid.NewGuid(), previousDay, previousDay, "desktop", "completed", oldGame);
+    server.Upload(other, [late]); server.Upload(other, [late]);
+    var lateStatus = server.Daily(other);
+    Check(lateStatus.Wins == 0 && lateStatus.Packs.Count == 2 &&
+        lateStatus.Packs.Any(p => p.Milestone == "win1" && p.Day != lateStatus.Day), "Late offline completion credits original day");
+    Console.WriteLine("PASS daily login, card choice, wallet isolation, idempotent spend, 1/3/7 milestones, late sync");
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dailyDir)) Directory.Delete(dailyDir, true); }

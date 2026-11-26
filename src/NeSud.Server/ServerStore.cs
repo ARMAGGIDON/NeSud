@@ -127,23 +127,25 @@ public sealed partial class ServerStore
         while (rows.Read()) result.Add(Database.Decode<GameRecord>(rows.GetString(0)));
         return result.OrderByDescending(r => r.Ended).ToList();
     }
-    private static void Insert(Microsoft.Data.Sqlite.SqliteConnection c, Microsoft.Data.Sqlite.SqliteTransaction tx,
+    private static bool Insert(Microsoft.Data.Sqlite.SqliteConnection c, Microsoft.Data.Sqlite.SqliteTransaction tx,
         string name, GameRecord record)
     {
         using var cmd = Database.Command(c, "INSERT OR IGNORE INTO history VALUES($n,$id,$src,$score,$o,$p)",
             ("$n", name), ("$id", record.Id.ToString()), ("$src", record.Source),
             ("$score", record.Score), ("$o", record.Outcome), ("$p", Database.Encode(record)));
-        cmd.Transaction = tx; cmd.ExecuteNonQuery();
+        cmd.Transaction = tx; return cmd.ExecuteNonQuery() == 1;
     }
     public void Upload(string name, List<GameRecord> records)
     {
         using var c = db.Open(); using var tx = c.BeginTransaction();
+        var days = new HashSet<string>();
         foreach (var r in records)
         {
-            Insert(c, tx, name, r);
+            if (Insert(c, tx, name, r) && r.Outcome == "completed") days.Add(Day(r.Ended));
             using var del = Database.Command(c, "DELETE FROM desktop_drafts WHERE name=$n AND id=$id", ("$n", name), ("$id", r.Id.ToString()));
             del.Transaction = tx; del.ExecuteNonQuery();
         }
+        foreach (var day in days) EnsureWinPacks(c, tx, name, day);
         tx.Commit();
     }
     public bool SaveDraft(string name, DesktopDraft draft)
@@ -188,7 +190,8 @@ public sealed partial class ServerStore
         if (IsGuest(name)) { lock (Gate) { if (guests.ContainsKey(name)) guests[name] = (DateTimeOffset.UtcNow.AddHours(2), session); } return; }
         using var c = db.Open(); using var tx = c.BeginTransaction();
         if (walletKind is not null && !Debit(c, tx, name, walletKind)) throw new InvalidOperationException("Недостатньо ресурсів.");
-        if (terminal is not null) Insert(c, tx, name, terminal);
+        if (terminal is not null && Insert(c, tx, name, terminal) && terminal.Outcome == "completed")
+            EnsureWinPacks(c, tx, name, Day(terminal.Ended));
         using var cmd = Database.Command(c, """
             INSERT INTO web_sessions VALUES($n,$p) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload
             """, ("$n", name), ("$p", Database.Encode(session)));
