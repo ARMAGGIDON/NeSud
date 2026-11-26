@@ -46,8 +46,13 @@ public sealed partial class ServerStore
             using var add=Tx(c,tx,"INSERT OR IGNORE INTO challenge_attempts VALUES($n,$id,$d,$o,$e,$p)",
                 ("$n",name),("$id",terminal.Id.ToString()),("$d",day),("$o",terminal.Outcome),
                 ("$e",terminal.Ended.ToUniversalTime().ToString("O")),("$p",Database.Encode(terminal)));
-            if(add.ExecuteNonQuery()==1 && terminal.Outcome=="completed" && ! (session.Audit ?? new MoveAudit()).Flag(terminal.Game))
+            if(add.ExecuteNonQuery()==1 && terminal.Outcome=="completed")
             {
+                var audit=session.Audit??new MoveAudit(); bool flagged=audit.Flag(terminal.Game);
+                using(var log=Tx(c,tx,"INSERT OR IGNORE INTO speed_audit VALUES($n,$id,$m,$f,$flag)",("$n",name),("$id",terminal.Id.ToString()),("$m",audit.Moves),("$f",audit.FastIntervals),("$flag",flagged?1:0))) log.ExecuteNonQuery();
+                string endedDay=Day(terminal.Ended);
+                if(!flagged && endedDay[..7]==day[..7] && string.CompareOrdinal(endedDay,day)>=0)
+                {
                 using var win=Tx(c,tx,"INSERT OR IGNORE INTO challenge_wins VALUES($n,$d)",("$n",name),("$d",day));
                 if(win.ExecuteNonQuery()==1)
                 {
@@ -59,6 +64,7 @@ public sealed partial class ServerStore
                         """,("$n",name),("$m",month),("$start",month+"-01"),
                         ("$end",DateKey(new DateOnly(date.Year,date.Month,1).AddMonths(1))),("$days",DateTime.DaysInMonth(date.Year,date.Month)));
                     cup.ExecuteNonQuery();
+                }
                 }
             }
         }

@@ -57,7 +57,7 @@ function accept(data){
 async function reconnect(){
  if(busy||!token)return;const e=epoch;busy=true;
  try{const data=await api("web/session?pause=true"+(challengeDay?"&challengeDay="+encodeURIComponent(challengeDay):""));if(e!==epoch)return;accept(data);if(game?.reward&&!$("ad").open){const cleared=await api("web/action",{id:game.id,revision:game.revision,challengeDay,action:"reward-cancel"});if(e!==epoch)return;accept(cleared);}if(game&&!game.paused&&!game.completed&&!game.outOfLives){const paused=await api("web/action",{id:game.id,revision:game.revision,challengeDay,action:"pause"});if(e!==epoch)return;accept(paused);}message("");}
- catch(e){if(token)disconnect(e);else authError(e.message)}finally{busy=false;render()}
+ catch(e){if(challengeDay&&e.status===400){challengeDay=null;game=null;online=true;busy=false;await navigate("challenge");message(e.message)}else if(token)disconnect(e);else authError(e.message)}finally{busy=false;render()}
 }
 function disconnect(e){online=false;message("Гру призупинено: "+e.message+". Очікуємо з’єднання.");render()}
 window.addEventListener("offline",()=>disconnect(Error("немає мережі")));
@@ -99,7 +99,7 @@ async function spend(kind){
 }
 function matchesPack(p){return dailyMode==="weekly"?p.milestone==="weekly":dailyMode==="challenge"?p.milestone==="challenge":!["weekly","challenge"].includes(p.milestone)}
 function drawDaily(){
- $("daily-summary").textContent=daily?"Сьогодні: "+daily.wins+"/7 перемог · доступно наборів: "+daily.packs.filter(matchesPack).length:"Підключення…";
+ $("daily-heading").textContent=dailyMode==="weekly"?"Призи турніру":dailyMode==="challenge"?"Нагороди щоденних ігор":"Щоденні нагороди";$("daily-summary").textContent=daily?(dailyMode==="win"?"Сьогодні: "+Math.min(7,daily.wins)+"/7 перемог · ":"")+"Доступно наборів: "+daily.packs.filter(matchesPack).length:"Підключення…";
  const wallet=$("wallet"),cards=$("daily-cards");wallet.replaceChildren();cards.replaceChildren();
  if(!daily)return;
  for(const kind of ["hint","candidates"]){const b=document.createElement("button");b.textContent=resourceNames[kind]+": "+balance(kind)+" · використати";const count=kind==="life"?game?.lives:kind==="hint"?game?.hintCredits:game?.candidateCredits;b.disabled=!game||game.completed||count>=3||!balance(kind)||dailyBusy;b.onclick=async()=>{b.disabled=true;await spend(kind);drawDaily()};wallet.append(b)}
@@ -204,14 +204,14 @@ async function loadProfile(){const user=profileUser,page=profilePage,e=epoch;
 function drawCups(target,cups){target.replaceChildren();if(!cups.length){target.textContent="Кубків ще немає.";return}for(const month of cups){const el=document.createElement("div");el.className="month-cup";const cup=document.createElement("span");cup.textContent="🏆";const title=document.createElement("span");title.textContent=month;el.append(cup,title);target.append(el)}}
 async function loadCalendar(){$("calendar-login").hidden=!guestMode;if(guestMode){$("calendar-days").replaceChildren();$("calendar-cups").replaceChildren();$("calendar-progress").textContent="";$("calendar-prev").disabled=$("calendar-next").disabled=true;$("calendar-title").textContent="Щоденні ігри доступні в акаунті";return}
  const e=epoch,c=await api("challenge/calendar"+(calendarMonth?"?month="+encodeURIComponent(calendarMonth):""));if(tab!=="challenge"||epoch!==e)return;
- calendarMonth=c.month;$("calendar-prev").disabled=false;$("calendar-title").textContent=new Date(c.month+"-01T12:00:00").toLocaleDateString("uk-UA",{month:"long",year:"numeric"});
+ calendarMonth=c.month;$("calendar-prev").disabled=c.month==="2000-01";$("calendar-title").textContent=new Date(c.month+"-01T12:00:00").toLocaleDateString("uk-UA",{month:"long",year:"numeric"});
  $("calendar-next").disabled=c.month===c.today.slice(0,7);$("calendar-progress").textContent=c.days.filter(d=>d.status==="won").length+" / "+c.days.length;
  const grid=$("calendar-days");grid.replaceChildren();for(let i=0;i<(new Date(c.month+"-01T12:00:00").getDay()+6)%7;i++)grid.append(document.createElement("span"));
  for(const d of c.days){const b=document.createElement("button");b.className="calendar-day "+d.status;b.textContent=Number(d.day.slice(-2))+(d.status==="won"?" ✓":"");b.title=d.day+" · "+({won:"Перемога",future:"Майбутній день",missed:"Пропущено",available:"Почати",started:"Продовжити",retry:"Повторити"})[d.status];b.disabled=["future","missed","won"].includes(d.status);b.onclick=()=>openChallenge(d.day);grid.append(b)}
  drawCups($("calendar-cups"),c.cups);await refreshDaily();
 }
 function changeMonth(delta){if(!calendarMonth)return;const [y,m]=calendarMonth.split("-").map(Number);const d=new Date(Date.UTC(y,m-1+delta,1));calendarMonth=d.toISOString().slice(0,7);navigate("challenge")}
-async function openChallenge(day){if(!await pauseForNavigation())return;epoch++;challengeDay=day;game=null;selected=0;note=false;comparison=null;await navigate("play");await reconnect();if(online&&!game)await $("newgame").onclick()}
+async function openChallenge(day){if(!await pauseForNavigation())return;epoch++;challengeDay=day;game=null;selected=0;note=false;comparison=null;await navigate("play");await reconnect();if(online&&!game&&challengeDay===day)await $("newgame").onclick()}
 async function openRegular(){if(challengeDay){if(!await pauseForNavigation())return;epoch++;challengeDay=null;game=null;selected=0;note=false;comparison=null;await navigate("play");await reconnect()}else await navigate("play")}
 $("calendar-prev").onclick=()=>changeMonth(-1);$("calendar-next").onclick=()=>changeMonth(1);
 $("challenge-rewards").onclick=()=>{dailyMode="challenge";$("daily-open").onclick()};

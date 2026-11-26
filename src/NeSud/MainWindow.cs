@@ -194,12 +194,12 @@ public sealed partial class MainWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var brand = Stack();
         brand.Children.Add(Text("NeSud", 30, "Text", true));
-        brand.Children.Add(Text("Логіка. Спокій. Концентрація.", 13, "Muted"));
+        
         At(header, brand, 0, 0);
         theme = Action("Тема", () => { state.Dark = !state.Dark; ApplyTheme(); Render(); Save(); }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center; theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
+        foreach (var b in new[] { Action("Історія", ShowHistory), Action("Щоденні", () => _ = ShowChallenges()), Action("Рейтинг", () => _ = ShowRanking()), Action("Турнір", () => _ = ShowWeekly()), Action("Акаунт", ShowAccount), theme })
         { b.Margin = new Thickness(5, 0, 0, 0); headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1); At(root, header, 0, 0, 3);
 
@@ -689,7 +689,7 @@ public sealed partial class MainWindow : Window
         {
             body.Children.Clear();
             if (daily is not { } d) return;
-            body.Children.Add(Text($"Сьогодні: {d.Wins}/7 перемог • доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"))}", 15, "Accent", true));
+            body.Children.Add(Text((weeklyRewards || challengeRewards ? "" : $"Сьогодні: {Math.Min(7,d.Wins)}/7 перемог • ") + $"доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"))}", 15, "Accent", true));
             body.Children.Add(Text($"Сховище: підказки {d.Hints} • кандидати {d.Candidates}", 14));
             Gap(body);
             foreach (var kind in new[] { "hint", "candidates" })

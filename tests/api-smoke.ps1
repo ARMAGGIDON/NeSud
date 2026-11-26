@@ -100,4 +100,18 @@ Assert ($empty.records.Count -eq 0) 'No duplicate changes'
 $weekly = Invoke-RestMethod -Uri "$BaseUrl/api/weekly"
 Assert ($weekly.week -match '^\d{4}-\d{2}-\d{2}$') 'Weekly API'
 $stats = Invoke-RestMethod -Uri "$BaseUrl/api/accumulated?metric=perfect"
+$calendar = Invoke-RestMethod -Uri "$BaseUrl/api/challenge/calendar" -Headers $ha
+$day = $calendar.today
+$ca = Post 'web/new' @{difficulty=1;id=$null;revision=0;challengeDay=$day} $ha
+$cb = Post 'web/new' @{difficulty=1;id=$null;revision=0;challengeDay=$day} $hb
+Assert (($ca.givens -join '') -eq ($cb.givens -join '') -and $ca.id -ne $cb.id) 'Shared challenge puzzle, isolated sessions'
+Assert ($null -eq $ca.solution -and $ca.challengeDay -eq $day) 'Challenge view redaction'
+$regular = Invoke-RestMethod -Uri "$BaseUrl/api/web/session?pause=true" -Headers $ha
+Assert ($regular.id -eq $new.id) 'Regular session preserved'
+$future = Invoke-WebRequest -Uri "$BaseUrl/api/web/session?challengeDay=9999-12-31" -Headers $ha -SkipHttpErrorCheck
+Assert ([int]$future.StatusCode -eq 400) 'Future challenge denied'
+$profile = Invoke-RestMethod -Uri "$BaseUrl/api/profile?user=$($a.user)"
+Assert ($profile.user -eq $a.user -and $profile.games -eq 1 -and $null -eq $profile.history[0].game) 'Public profile metadata only'
+$hiddenEmail = Invoke-WebRequest -Uri "$BaseUrl/api/profile?user=$([Uri]::EscapeDataString($email.user))" -SkipHttpErrorCheck
+Assert ([int]$hiddenEmail.StatusCode -eq 404) 'Email is not a public profile identifier'
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

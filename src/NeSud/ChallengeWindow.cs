@@ -129,7 +129,7 @@ public sealed partial class MainWindow
         var boardCells=new Button[81];panel.Children.Add(grid);
         var pad=new UniformGrid { Columns=9 };panel.Children.Add(pad);var padCells=new Button[9];
         var tools=new UniformGrid { Columns=4 };panel.Children.Add(tools);
-        var window=Modal("Щоденна гра",panel,560,850);
+        var window=Modal("Щоденна гра",new ScrollViewer { Content=panel, VerticalScrollBarVisibility=ScrollBarVisibility.Auto },560,Math.Min(850,SystemParameters.WorkArea.Height-30));
         OnlineGameView? game=null;bool working=false, note=false, allowClose=false, connected=true;
         int selected=0;var anchor=Stopwatch.StartNew();double reviveDeadline=0;
         var timer=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(200) };
@@ -190,10 +190,10 @@ public sealed partial class MainWindow
             if(connected)notice.Text=game is null?"":game.Completed?"Головоломку розв’язано!":game.FinalDefeat?"Поразка":game.Paused?"Гра на паузі":"";
             Clock();
         }
-        async Task Load()
+        async Task Load(bool pauseSession=false)
         {
-            if(working)return;working=true;
-            try{Accept(await Request<OnlineGameView>("web/session?challengeDay="+day));}
+            if(working)return;working=true;int oldSelected=selected;bool existing=game is not null;
+            try{Accept(await Request<OnlineGameView>("web/session?challengeDay="+day+(pauseSession?"&pause=true":"")));if(existing)selected=oldSelected;}
             catch(Exception ex){connected=false;notice.Text=ex.Message;}
             finally{working=false;if(window.IsVisible)Draw();}
         }
@@ -243,12 +243,12 @@ public sealed partial class MainWindow
         }
         async Task Primary()
         {
-            if(!connected){await Load();return;}if(game is null||game.FinalDefeat){await Start();return;}
+            if(!connected){await Load(true);return;}if(game is null||game.FinalDefeat){await Start();return;}
             if(game.Completed){window.Close();return;}if(game.OutOfLives){await Ad("life");return;}if(game.Paused)await Move("resume");
         }
         timer.Tick+=(_,_)=>Clock();
         heartbeat.Tick+=async (_,_)=>{if(game is {Paused:false,Completed:false,OutOfLives:false,Reward:null}&&!working&&connected)await Load();};
-        window.Loaded+=async (_,_)=>{await Load();if(game?.Reward is not null)await Move("reward-cancel",reward:game.Reward.Kind);if(game is null&&connected)await Start();timer.Start();heartbeat.Start();};
+        window.Loaded+=async (_,_)=>{await Load(true);if(game?.Reward is not null)await Move("reward-cancel",reward:game.Reward.Kind);if(game is null&&connected)await Start();timer.Start();heartbeat.Start();};
         window.Closing+=async (_,e)=>{if(allowClose)return;if(working){e.Cancel=true;return;}if(game is {Paused:false,Completed:false,OutOfLives:false}&&connected){e.Cancel=true;await Move("pause");allowClose=true;window.Close();}};
         window.Closed+=(_,_)=>{timer.Stop();heartbeat.Stop();};
         window.PreviewKeyDown+=(_,e)=>
