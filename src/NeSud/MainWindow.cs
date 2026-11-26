@@ -443,6 +443,7 @@ public sealed class MainWindow : Window
         time.Text = FormatTime(G?.Seconds ?? 0);
         lives.Text = G is null ? "♡ ♡ ♡" : string.Join(" ", Enumerable.Range(0, Game.MaxLives).Select(i => i < G.Lives ? "♥" : "♡"));
         score.Text = G is null ? "0" : G.CurrentScore.ToString("N0");
+        lives.ToolTip = G is null ? null : $"Життя: {G.Lives}/{Game.MaxLives} • Помилки: {G.Mistakes} • Відновлено: {G.LifeRestores}";
         score.ToolTip = G is null ? null : $"Час: −{G.Seconds / 3} • Помилки: −{75L * G.Mistakes} • Підказки: −{150L * G.Hints} • Кандидати: −{100L * G.CandidateUses} • Відновлення: −{100L * G.LifeRestores}";
     }
     private void SyncClock()
@@ -552,7 +553,7 @@ public sealed class MainWindow : Window
     }
     private void Restart()
     {
-        if (G is null || Busy) return;
+        if (G is null || Busy || watchingReward) return;
         if (!Confirm("Очистити всі ходи, нотатки та час цієї гри?")) return;
         ReadClock(); var previous = Terminal(G.Completed ? "completed" : "abandoned"); var scope = state.GameScope ?? "";
         clock.Reset(); state.Game = Game.Start(G.Puzzle); BeginAttempt(); lastSavedSecond = 0;
@@ -562,7 +563,7 @@ public sealed class MainWindow : Window
     private bool Confirm(string message) => Dialog("Підтвердження", message, true);
     private async Task Generate(bool confirm)
     {
-        if (Busy || closing) return;
+        if (Busy || closing || watchingReward) return;
         if (confirm && G is { Completed: false } g && (g.UndoStack.Count > 0 || g.Seconds > 0) &&
             !Confirm("Поточну незавершену гру буде замінено. Створити нову?")) return;
         ReadClock(); clock.Reset();

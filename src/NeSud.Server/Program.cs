@@ -74,6 +74,7 @@ static WebGame Tick(WebGame session)
     if (!session.Game.Paused && !session.Game.Completed && !session.Game.OutOfLives)
     {
         if (elapsed > 12) session.Game.Paused = true;
+        else if (session.Reward is not null) return session with { LastSeen = now };
         else if (elapsed >= 1)
         {
             var seconds = (int)elapsed;
@@ -143,6 +144,8 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
         var game = session.Game;
         bool changed = paused != game.Paused;
         bool wasComplete = game.Completed;
+        if (session.Reward is not null && request.Action is not ("heartbeat" or "pause" or "reward-start" or "reward-claim" or "reward-cancel"))
+            return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте винагороду." });
         switch (request.Action)
         {
             case "heartbeat": break;
@@ -162,9 +165,9 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
                     reward.ReadyAt > DateTimeOffset.UtcNow || reward.ExpiresAt <= DateTimeOffset.UtcNow)
                     return Results.BadRequest(new { error = "Винагорода ще не готова або термін її дії минув." });
                 if (!game.GrantReward(reward.Kind)) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
-                session = session with { Reward = null }; changed = true; break;
+                session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; break;
             case "reward-cancel":
-                if (session.Reward is not null) { session = session with { Reward = null }; changed = true; }
+                if (session.Reward is not null) { session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; }
                 break;
             case "pause": if (!game.Paused && !game.Completed) { game.Paused = true; changed = true; } break;
             case "resume": if (game.Paused && !game.Completed && !game.OutOfLives) { game.Paused = false; changed = true; } break;

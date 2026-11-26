@@ -43,6 +43,20 @@ $guest = Post 'guest' @{}
 $hg = @{Authorization="Bearer $($guest.token)"}
 $demo = Post 'web/new' @{difficulty=0;id=$null;revision=0} $hg
 Assert ($demo.values.Count -eq 81) 'Guest board'
+Assert ($demo.lives -eq 3 -and $demo.hintCredits -eq 1 -and $demo.candidateCredits -eq 1) 'Initial resources'
+$demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='reward-start';reward='hint'} $hg
+$claim = @{id=$demo.id;revision=$demo.revision;action='reward-claim';reward='hint'}
+$early = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$early.StatusCode -eq 400) 'Early ad claim rejected'
+Start-Sleep -Seconds 9
+$demo = Post 'web/action' $claim $hg
+Assert ($demo.hintCredits -eq 2 -and $demo.adsWatched -eq 1) 'Reward granted'
+$claim.revision = $demo.revision
+$again = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$again.StatusCode -eq 400) 'Reward cannot be replayed'
+$scoreBefore = $demo.currentScore
+$demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='candidates'} $hg
+Assert ($demo.candidateCredits -eq 0 -and $demo.candidateUses -eq 1 -and $demo.currentScore -le ($scoreBefore-100)) 'Candidate scoring'
 $deny = Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hg -SkipHttpErrorCheck
 Assert ([int]$deny.StatusCode -eq 401) 'Guest account isolation'
 $guest2 = Post 'guest' @{}

@@ -95,3 +95,30 @@ try
     Console.WriteLine("PASS local SQLite, account isolation, history and synchronization");
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dbDir)) Directory.Delete(dbDir, true); }
+
+var lifeGame = Game.Start(puzzles[0]);
+var blanks = Enumerable.Range(0, 81).Where(i => lifeGame.Puzzle.Givens[i] == 0).ToArray();
+int initialScore = lifeGame.CurrentScore;
+for (int i = 0; i < 3; i++) Check(lifeGame.Enter(blanks[i], lifeGame.Puzzle.Solution[blanks[i]] % 9 + 1), "Wrong move");
+Check(lifeGame.Lives == 0 && lifeGame.OutOfLives && lifeGame.Mistakes == 3, "Life exhaustion");
+Check(!lifeGame.Undo() && !lifeGame.Redo() && !lifeGame.Enter(blanks[3], lifeGame.Puzzle.Solution[blanks[3]])
+    && !lifeGame.FillNotes() && lifeGame.GetHint() is null, "Exhaustion blocks actions");
+Check(lifeGame.CurrentScore == initialScore - 225, "Mistake score penalty");
+Check(lifeGame.GrantReward("life") && lifeGame.Lives == 1 && !lifeGame.OutOfLives &&
+    lifeGame.CurrentScore == initialScore - 325, "Life restoration and score penalty");
+Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
+var aid = Game.Start(puzzles[0]);
+Check(aid.FillNotes() && aid.CandidateCredits == 0 && aid.CandidateUses == 1 && aid.CurrentScore == initialScore - 100,
+    "Candidate credits and penalty");
+Check(aid.Undo() && aid.CandidateCredits == 0 && !aid.FillNotes(), "Undo never refunds aid");
+var hm = aid.GetHint()!.Value;
+Check(aid.Enter(hm.Cell, hm.Digit, hint: true) && aid.HintCredits == 0 && aid.GetHint() is null, "Hint exhaustion");
+foreach (int i in blanks.Where(i => i != hm.Cell).Take(15)) Check(aid.Enter(i, aid.Puzzle.Solution[i]), "Quest progress");
+Check(aid.HintCredits == 1 && aid.CandidateCredits == 1 && aid.ManualCorrect.Count == 15, "Milestone rewards");
+Check(aid.Undo(), "Quest undo");
+int last = blanks.Where(i => i != hm.Cell).Take(15).Last();
+Check(aid.Enter(last, aid.Puzzle.Solution[last]) && aid.HintCredits == 1 && aid.CandidateCredits == 1, "No quest replay");
+var copied = Database.Decode<Game>(Database.Encode(aid));
+Check(copied.Valid() && copied.CandidateUses == 1 && copied.ManualCorrect.Count == 15 &&
+    copied.CurrentScore == aid.CurrentScore, "Resource persistence");
+Console.WriteLine("PASS lives, reward limits, aid, score, quest anti-replay, resource persistence");
