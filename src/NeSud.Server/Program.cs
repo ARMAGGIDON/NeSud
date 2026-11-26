@@ -5,6 +5,7 @@ using NeSud.Core;
 using NeSud.Server;
 
 var builder = WebApplication.CreateBuilder(args);
+SmtpEnv.AddTo(builder.Configuration, builder.Environment.ContentRootPath);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 8 * 1024 * 1024);
 builder.Services.AddSingleton(new ServerStore(builder.Configuration["Database"] ??
     Path.Combine(builder.Environment.ContentRootPath, "data", "server.db")));

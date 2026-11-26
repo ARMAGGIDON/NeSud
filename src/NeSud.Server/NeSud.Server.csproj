@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Content Remove=".env;.env.*"/>
+    <None Update=".env;.env.*" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never"/>
     <ProjectReference Include="../NeSud.Storage/NeSud.Storage.csproj"/>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.14"/>
   </ItemGroup>

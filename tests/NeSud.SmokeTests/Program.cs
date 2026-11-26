@@ -20,6 +20,7 @@ internal static partial class SmokeTests
         TestChallenges(puzzles);
         TestSocial(puzzles);
         TestIdentity();
+        TestSmtpEnv();
     }
 
     static void Check(bool result, string message)

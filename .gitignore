@@ -13,3 +13,8 @@ TestResults/
 
 **/node_modules/
 /src/NeSud.Server/wwwroot/vendor/
+
+# Local secrets
+.env
+.env.*
+!.env.example
