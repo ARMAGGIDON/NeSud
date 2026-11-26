@@ -50,7 +50,7 @@ internal static partial class Endpoints
                 await client.ConnectAsync(config["Smtp:Host"]!, port, security, timeout.Token);
                 if (!string.IsNullOrEmpty(config["Smtp:User"]))
                     await client.AuthenticateAsync(config["Smtp:User"]!, config["Smtp:Password"] ?? "", timeout.Token);
-                await client.SendAsync(mail, timeout.Token);
+                await client.SendAsync(new MailKit.SendRequest(mail), timeout.Token);
                 // Delivery succeeded; failure to send QUIT must not report it as unsent.
                 try { await client.DisconnectAsync(true, timeout.Token); } catch { }
                 return Results.Ok(new SyncAck(true));
