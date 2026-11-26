@@ -46,7 +46,7 @@ public sealed partial class ServerStore
             """, ("$n", name), ("$start", start.ToString("O")), ("$end", end.ToString("O"))))
             wins = Convert.ToInt32(cmd.ExecuteScalar());
         int existing;
-        using (var count = Tx(c, tx, "SELECT COUNT(*) FROM daily_packs WHERE name=$n AND day=$d AND milestone<>'weekly'", ("$n", name), ("$d", day)))
+        using (var count = Tx(c, tx, "SELECT COUNT(*) FROM daily_packs WHERE name=$n AND day=$d AND milestone NOT IN ('weekly','challenge')", ("$n", name), ("$d", day)))
             existing = Convert.ToInt32(count.ExecuteScalar());
         // Grandfather previously issued packs (including claimed ones) and count them
         // towards the new milestones, so an upgrade cannot issue duplicate rewards.

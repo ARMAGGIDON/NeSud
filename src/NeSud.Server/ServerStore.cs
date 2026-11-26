@@ -13,7 +13,7 @@ public sealed record MoveAudit(int Moves = 0, int FastIntervals = 0, DateTimeOff
     public bool Flag(Game game) => Moves >= 16 && (FastIntervals >= 12 && FastIntervals * 5 >= (Moves - 1) * 4 ||
         game.Seconds * 1000L < Moves * 90L);
 }
-public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null, MoveAudit? Audit = null, double Fraction = 0);
+public sealed record WebGame(Guid Id, DateTimeOffset Started, Game Game, DateTimeOffset LastSeen, long Revision, RewardTicket? Reward = null, MoveAudit? Audit = null, double Fraction = 0, string? ChallengeDay = null);
 public sealed partial class ServerStore
 {
     private readonly Database db;
@@ -84,6 +84,12 @@ public sealed partial class ServerStore
             CREATE INDEX IF NOT EXISTS ix_tokens_expiry ON tokens(expires);
             CREATE TABLE IF NOT EXISTS tournament_state (id INTEGER PRIMARY KEY CHECK(id=1), next_week TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS tournament_results (week TEXT NOT NULL, rank INTEGER NOT NULL, name TEXT NOT NULL REFERENCES accounts(name), wins INTEGER NOT NULL, score INTEGER NOT NULL, PRIMARY KEY(week,rank), UNIQUE(week,name));
+            CREATE TABLE IF NOT EXISTS challenge_puzzles (day TEXT PRIMARY KEY, payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS challenge_sessions (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), payload TEXT NOT NULL, PRIMARY KEY(name,day));
+            CREATE TABLE IF NOT EXISTS challenge_attempts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, day TEXT NOT NULL REFERENCES challenge_puzzles(day), outcome TEXT NOT NULL, ended TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
+            CREATE INDEX IF NOT EXISTS ix_challenge_attempts_history ON challenge_attempts(name,ended DESC);
+            CREATE TABLE IF NOT EXISTS challenge_wins (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), PRIMARY KEY(name,day));
+            CREATE TABLE IF NOT EXISTS monthly_cups (name TEXT NOT NULL REFERENCES accounts(name), month TEXT NOT NULL, PRIMARY KEY(name,month));
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
@@ -238,14 +244,16 @@ public sealed partial class ServerStore
             (int)Math.Round(100.0 * records.Count(r => r.Score <= score)/n),
             (int)Math.Round(100.0 * times.Count(t => t >= seconds)/n));
     }
-    public WebGame? Session(string name)
+    public WebGame? Session(string name, string? challengeDay = null)
     {
+        if (challengeDay is not null) return ChallengeSession(name, challengeDay);
         if (IsGuest(name)) { lock (Gate) return guests.TryGetValue(name, out var entry) ? entry.Game : null; }
         using var c = db.Open(); using var cmd = Database.Command(c, "SELECT payload FROM web_sessions WHERE name=$n", ("$n", name));
         return cmd.ExecuteScalar() is string s ? Database.Decode<WebGame>(s) : null;
     }
     public void SaveSession(string name, WebGame session, GameRecord? terminal = null, string? walletKind = null)
     {
+        if (session.ChallengeDay is not null) { SaveChallengeSession(name, session, terminal, walletKind); return; }
         if (IsGuest(name)) { lock (Gate) { if (guests.ContainsKey(name)) guests[name] = (DateTimeOffset.UtcNow.AddHours(2), session); } return; }
         using var c = db.Open(); using var tx = c.BeginTransaction();
         if (walletKind is not null && !Debit(c, tx, name, walletKind)) throw new InvalidOperationException("Недостатньо ресурсів.");

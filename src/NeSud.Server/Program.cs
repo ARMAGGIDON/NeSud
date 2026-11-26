@@ -61,6 +61,12 @@ app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
 app.MapGet("/api/comparison", (ServerStore s, Difficulty difficulty, int score, int seconds, int? rules) =>
     Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 && (rules ?? 3) is >= 0 and <= 3 ? Results.Ok(s.Compare(difficulty, score, seconds, rules ?? 3)) : Results.BadRequest());
 app.MapGet("/api/history/changes", (HttpContext c, ServerStore s, long? after) => User(c,s) is { } name ? Results.Ok(s.HistorySince(name,Math.Max(0,after ?? 0))) : Results.Unauthorized());
+app.MapGet("/api/challenge/calendar", (HttpContext c, ServerStore s, string? month) => User(c,s) is { } name ? (s.Calendar(name,month) is { } calendar ? Results.Ok(calendar) : Results.BadRequest()) : Results.Unauthorized());
+app.MapGet("/api/profile", (HttpContext c, ServerStore s, string? user, int? page) =>
+{
+    string? name = user is null ? User(c,s) : s.ResolvePublicName(user);
+    return name is null ? Results.NotFound() : Results.Ok(s.Profile(name,Math.Clamp(page ?? 0,0,10000)));
+});
 app.MapGet("/api/weekly", (ServerStore s) => s.Weekly());
 app.MapGet("/api/accumulated", (ServerStore s,string? metric,bool? all) => s.Accumulated(metric ?? "score",all ?? false));
 app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
@@ -103,7 +109,7 @@ static WebGame Tick(WebGame session)
 }
 static object View(WebGame session) => new
 {
-    session.Id, session.Revision, session.Started, difficulty = session.Game.Puzzle.Difficulty,
+    session.Id, session.Revision, session.Started, session.ChallengeDay, difficulty = session.Game.Puzzle.Difficulty,
     givens = session.Game.Puzzle.Givens, session.Game.Values, session.Game.Notes,
     session.Game.Seconds, clockFraction = session.Fraction, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
     session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
@@ -120,12 +126,13 @@ static object View(WebGame session) => new
     canUndo = session.Game.UndoStack.Count > 0,
     canRedo = session.Game.RedoStack.Count > 0
 };
-app.MapGet("/api/web/session", (HttpContext c, ServerStore s, bool? pause) =>
+app.MapGet("/api/web/session", (HttpContext c, ServerStore s, bool? pause, string? challengeDay) =>
 {
     if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
+    if (challengeDay is not null && (ServerStore.IsGuest(name) || !s.ChallengeAllowed(challengeDay))) return Results.BadRequest(new { error = "Дата щоденної гри недоступна." });
     lock (s.Gate)
     {
-        if (s.Session(name) is not { } session) return Results.Ok(new { empty = true });
+        if (s.Session(name, challengeDay) is not { } session) return Results.Ok(new { empty = true });
         bool paused = session.Game.Paused;
         session = Tick(session);
         if (pause == true && !session.Game.Completed && !session.Game.OutOfLives) session.Game.Paused = true;
@@ -138,21 +145,23 @@ app.MapPost("/api/web/new", async (HttpContext c, ServerStore s, NewGameRequest 
 {
     if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
     if (!Enum.IsDefined(request.Difficulty)) return Results.BadRequest();
+    if (request.ChallengeDay is { } day && (ServerStore.IsGuest(name) || !s.ChallengeAllowed(day))) return Results.BadRequest(new { error = "Дата щоденної гри недоступна." });
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(c.RequestAborted);
     timeout.CancelAfter(TimeSpan.FromSeconds(25));
     Puzzle puzzle;
-    try { puzzle = await Task.Run(() => Sudoku.Generate(request.Difficulty, timeout.Token), timeout.Token); }
+    try { puzzle = await Task.Run(() => request.ChallengeDay is { } date ? s.ChallengePuzzle(date, timeout.Token) : Sudoku.Generate(request.Difficulty, timeout.Token), timeout.Token); }
     catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
     { return Results.Problem("Генерацію не завершено.", statusCode: 503); }
     lock (s.Gate)
     {
-        var previous = s.Session(name);
+        if (request.ChallengeDay is { } date && (!s.ChallengeAllowed(date) || s.ChallengeWon(name,date))) return Results.Conflict(new { error = "Щоденне завдання вже завершене або недоступне." });
+        var previous = s.Session(name, request.ChallengeDay);
         if ((previous?.Revision ?? 0) != request.Revision || previous?.Id != request.Id)
             return Results.Conflict();
         GameRecord? abandoned = previous is not null && !previous.Game.Completed
             ? new(previous.Id, previous.Started, DateTimeOffset.UtcNow, "web", previous.Game.OutOfLives ? "defeated" : "abandoned", Tick(previous).Game) : null;
         var now = DateTimeOffset.UtcNow;
-        var next = new WebGame(Guid.NewGuid(), now, Game.Start(puzzle), now, 1);
+        var next = new WebGame(Guid.NewGuid(), now, Game.Start(puzzle), now, 1, ChallengeDay: request.ChallengeDay);
         next.Game.AutoFinish = request.AutoFinish;
         s.SaveSession(name, next, abandoned); return Results.Ok(View(next));
     }
@@ -160,9 +169,10 @@ app.MapPost("/api/web/new", async (HttpContext c, ServerStore s, NewGameRequest 
 app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest request) =>
 {
     if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
+    if (request.ChallengeDay is { } day && (ServerStore.IsGuest(name) || !s.ChallengeAllowed(day))) return Results.BadRequest(new { error = "Дата щоденної гри недоступна." });
     lock (s.Gate)
     {
-        if (s.Session(name) is not { } session || session.Id != request.Id ||
+        if (s.Session(name, request.ChallengeDay) is not { } session || session.Id != request.Id ||
             session.Revision != request.Revision) return Results.Conflict();
         bool paused = session.Game.Paused;
         session = Tick(session);
@@ -237,5 +247,5 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
 });
 app.Run();
 
-public sealed record NewGameRequest(Difficulty Difficulty, Guid? Id, long Revision, bool AutoFinish = false);
-public sealed record MoveRequest(Guid Id, long Revision, string Action, int Cell = 0, int Digit = 0, bool Note = false, string? Reward = null);
+public sealed record NewGameRequest(Difficulty Difficulty, Guid? Id, long Revision, bool AutoFinish = false, string? ChallengeDay = null);
+public sealed record MoveRequest(Guid Id, long Revision, string Action, int Cell = 0, int Digit = 0, bool Note = false, string? Reward = null, string? ChallengeDay = null);
