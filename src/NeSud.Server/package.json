@@ -4,7 +4,8 @@
     "version": "1.0.0",
     "scripts": {
         "prepare-web": "node prepare-web.mjs",
-        "test:realtime": "node --test realtime.test.mjs"
+        "test:realtime": "node --test realtime.test.mjs",
+        "test:realtime:live": "node realtime.integration.mjs"
     },
     "dependencies": {
         "@microsoft/signalr": "10.0.11",

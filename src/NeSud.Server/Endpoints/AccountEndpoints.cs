@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using NeSud.Core;
 
 namespace NeSud.Server;
@@ -12,10 +13,17 @@ internal static partial class Endpoints
             ? Results.Ok(guest) : Results.Problem("Демонстраційні сеанси зайняті. Спробуйте пізніше.", statusCode: 503)).RequireRateLimiting("auth");
         app.MapGet("/api/account/settings", (HttpContext c, ServerStore s) =>
             User(c, s) is { } name ? Results.Ok(s.Settings(name)) : Results.Unauthorized());
-        app.MapPost("/api/account/settings", (HttpContext c, ServerStore s, ProfileEdit edit) =>
-            User(c, s) is not { } name ? Results.Unauthorized() :
-            !s.IsVerified(name) && !string.Equals(edit.Username?.Trim(), s.Settings(name).Username, StringComparison.Ordinal) ? VerificationRequired() :
-            s.EditProfile(name, edit) ? Results.Ok(s.Settings(name)) : Results.BadRequest(new { error = "Некоректний або зайнятий нікнейм/email. Підтверджений email змінити не можна." }));
+        app.MapPost("/api/account/settings", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, ProfileEdit edit) =>
+        {
+            if (User(c, s) is not { } name) return Results.Unauthorized();
+            if (!s.IsVerified(name) && !string.Equals(edit.Username?.Trim(), s.Settings(name).Username, StringComparison.Ordinal))
+                return VerificationRequired();
+            if (!s.EditProfile(name, edit))
+                return Results.BadRequest(new { error = "Некоректний або зайнятий нікнейм/email. Підтверджений email змінити не можна." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            await GameHub.NotifyRankings(hub.Clients.Group(GameHub.RankingsGroup));
+            return Results.Ok(s.Settings(name));
+        });
         app.MapPost("/api/account/verification/send", async (HttpContext c, ServerStore s, IConfiguration config) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
@@ -36,14 +44,23 @@ internal static partial class Endpoints
             }
             catch (Exception) { return Results.Problem("Не вдалося надіслати лист.", statusCode: 503); }
         }).RequireRateLimiting("auth");
-        app.MapPost("/api/account/verification", (HttpContext c, ServerStore s, VerificationRequest request) =>
-            User(c, s) is not { } name ? Results.Unauthorized() :
-            s.VerifyEmail(name, request.Code) ? Results.Ok(s.Settings(name)) :
-            Results.BadRequest(new { error = "Код недійсний або прострочений." })).RequireRateLimiting("auth");
-        app.MapPost("/api/account/avatar", (HttpContext c, ServerStore s, AvatarEdit edit) =>
-            User(c, s) is not { } name ? Results.Unauthorized() :
-            !s.IsVerified(name) ? VerificationRequired() :
-            s.SetAvatar(name, edit.Png) ? Results.Ok(new SyncAck(true)) : Results.BadRequest(new { error = "Некоректне квадратне PNG-зображення." }));
+        app.MapPost("/api/account/verification", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, VerificationRequest request) =>
+        {
+            if (User(c, s) is not { } name) return Results.Unauthorized();
+            if (!s.VerifyEmail(name, request.Code)) return Results.BadRequest(new { error = "Код недійсний або прострочений." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            if (s.RewardedInviter(name) is { } inviter)
+                await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(inviter)));
+            return Results.Ok(s.Settings(name));
+        }).RequireRateLimiting("auth");
+        app.MapPost("/api/account/avatar", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, AvatarEdit edit) =>
+        {
+            if (User(c, s) is not { } name) return Results.Unauthorized();
+            if (!s.IsVerified(name)) return VerificationRequired();
+            if (!s.SetAvatar(name, edit.Png)) return Results.BadRequest(new { error = "Некоректне квадратне PNG-зображення." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            return Results.Ok(new SyncAck(true));
+        });
         app.MapGet("/api/avatar", (ServerStore s, string user) =>
             s.GetAvatar(user) is { } png ? Results.File(png, "image/png") : Results.NotFound());
         app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using NeSud.Core;
 
 namespace NeSud.Server;
@@ -8,15 +9,21 @@ internal static partial class Endpoints
     {
         app.MapGet("/api/daily", (HttpContext c, ServerStore s) =>
             User(c, s) is { } name ? Results.Ok(s.Daily(name)) : Results.Unauthorized());
-        app.MapPost("/api/daily/choose", (HttpContext c, ServerStore s, DailyChoice choice) =>
+        app.MapPost("/api/daily/choose", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, DailyChoice choice) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
-            return s.Choose(name, choice) is { } result ? Results.Ok(result) : Results.Conflict(new { error = "Цю картку вже вибрано або винагорода недоступна." });
+            if (s.Choose(name, choice) is not { } result)
+                return Results.Conflict(new { error = "Цю картку вже вибрано або винагорода недоступна." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            return Results.Ok(result);
         });
-        app.MapPost("/api/daily/spend", (HttpContext c, ServerStore s, WalletRequest request) =>
+        app.MapPost("/api/daily/spend", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, WalletRequest request) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
-            return s.SpendDesktop(name, request) is { } result ? Results.Ok(result) : Results.Conflict(new { error = "Недостатньо ресурсів або операція недоступна." });
+            if (s.SpendDesktop(name, request) is not { } result)
+                return Results.Conflict(new { error = "Недостатньо ресурсів або операція недоступна." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            return Results.Ok(result);
         });
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using NeSud.Core;
 
 namespace NeSud.Server;
@@ -24,19 +25,30 @@ internal static partial class Endpoints
         app.MapGet("/api/friends", (HttpContext c, ServerStore s) =>
             User(c, s) is not { } name ? Results.Unauthorized() :
             !s.IsVerified(name) ? VerificationRequired() : Results.Ok(s.Friends(name)));
-        app.MapPost("/api/friends", (HttpContext c, ServerStore s, FriendRequest request) =>
-            User(c, s) is not { } name ? Results.Unauthorized() :
-            !s.IsVerified(name) ? VerificationRequired() :
-            s.ChangeFriend(name, request) ? Results.Ok(new SyncAck(true)) : Results.Conflict(new { error = "Дія недоступна." }));
+        app.MapPost("/api/friends", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, FriendRequest request) =>
+        {
+            if (User(c, s) is not { } name) return Results.Unauthorized();
+            if (!s.IsVerified(name)) return VerificationRequired();
+            if (!s.ChangeFriend(name, request)) return Results.Conflict(new { error = "Дія недоступна." });
+            await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            if (s.ResolvePublicName(request.User) is { } other)
+                await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(other)));
+            return Results.Ok(new SyncAck(true));
+        });
         app.MapGet("/api/weekly", (ServerStore s) => s.Weekly());
         app.MapGet("/api/accumulated", (ServerStore s, string? metric, bool? all, Difficulty? difficulty) => difficulty is { } level && !Enum.IsDefined(level) ? Results.BadRequest() : Results.Ok(s.Accumulated(metric ?? "score", all ?? false, difficulty)));
         app.MapGet("/api/ranking", (ServerStore s, string? mode) => s.Rankings(mode == "all"));
-        app.MapPost("/api/sync", (HttpContext c, ServerStore s, List<GameRecord> records) =>
+        app.MapPost("/api/sync", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, List<GameRecord> records) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
             if (records.Count > 20 || records.Any(r => r is null || r.Source != "desktop" || r.ChallengeDay is not null || !r.Valid()))
                 return Results.BadRequest(new { error = "Некоректний запис історії." });
             s.Upload(name, records);
+            if (records.Count > 0)
+            {
+                await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+                await GameHub.NotifyRankings(hub.Clients.Group(GameHub.RankingsGroup));
+            }
             return Results.Ok(s.Acknowledge(name, records));
         });
 

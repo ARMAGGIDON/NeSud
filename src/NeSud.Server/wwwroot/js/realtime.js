@@ -179,6 +179,7 @@ function queueAccountRefresh() {
         try {
             if (tab === "friends") await loadFriends();
             if (tab === "challenge") await loadCalendar();
+            if (tab === "history") await navigate("history");
             await refreshVerification();
             render();
         } catch {}

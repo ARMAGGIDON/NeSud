@@ -6,11 +6,11 @@ function updateRevive() {
     $("revive-progress").value = left;
     $("cover-detail").textContent = game.reward ? "Останній шанс використано.": left > 0 ? "Останній шанс: " + left + " с": "Час вичерпано.";
     $("resume").disabled = busy || adPending || left === 0;
-    if (!left && !game.reward && online && !busy && !adPending) act("heartbeat")
+    if (tab === "play" && !left && !game.reward && online && !busy && !adPending) act("heartbeat")
 }
 setInterval(updateRevive, 200);
 function updateClock() {
-    const running = online && game && !game.paused && !game.completed && !game.outOfLives && !game.reward && !adPending;
+    const running = tab === "play" && online && game && !game.paused && !game.completed && !game.outOfLives && !game.reward && !adPending;
     const seconds = (game?.seconds || 0) + (running ? Math.min(12, Math.floor((game.clockFraction || 0) + (performance.now() - clockAnchor) / 1000)): 0);
     $("time").textContent = fmt(seconds);
     $("score").textContent = Math.max(0, (game?.currentScore || 0) - Math.floor(seconds / 3) + Math.floor((game?.seconds || 0) / 3)).toLocaleString("uk-UA");

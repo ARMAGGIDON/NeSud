@@ -63,7 +63,7 @@ function disconnect(e) {
 }
 window.addEventListener("offline", () => disconnect(Error("немає мережі")));
 document.addEventListener("visibilitychange", () => {
-    if (document.hidden && game && !game.paused && !game.completed && !game.outOfLives && !adPending) pauseForNavigation()
+    if (tab === "play" && document.hidden && game && !game.paused && !game.completed && !game.outOfLives && !adPending) pauseForNavigation()
 });
 window.addEventListener("online", () => token ? reconnect(): login(true));
 async function act(action, extra = { }) {

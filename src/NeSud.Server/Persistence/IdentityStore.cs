@@ -164,6 +164,13 @@ public sealed partial class ServerStore
         }
     }
 
+    public string? RewardedInviter(string invited)
+    {
+        using var c = db.Open();
+        using var cmd = Database.Command(c, "SELECT inviter FROM referral_rewards WHERE invited=$n", ("$n", invited));
+        return cmd.ExecuteScalar() as string;
+    }
+
     public bool SetAvatar(string name, byte[]? png)
     {
         if (!IsVerified(name)) return false;

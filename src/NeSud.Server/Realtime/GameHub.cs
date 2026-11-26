@@ -77,7 +77,7 @@ public sealed class GameHub(ServerStore store, ILogger<GameHub> logger) : Hub
         {
             if (action != "heartbeat" || data.TryGetValue("revision", out var next) && Convert.ToInt64(next) != revision)
                 await Publish(name, day, result);
-            if (!ServerStore.IsGuest(name) && action != "heartbeat" &&
+            if (!ServerStore.IsGuest(name) &&
                 (data.GetValueOrDefault("completed") is true || data.GetValueOrDefault("finalDefeat") is true))
             {
                 await NotifyRankings(Clients.Group(RankingsGroup));

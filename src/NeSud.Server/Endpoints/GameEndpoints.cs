@@ -19,14 +19,28 @@ internal static partial class Endpoints
             if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
             var result = await NewGame(s, name, request, c.RequestAborted);
             await GameHub.Notify(hub.Clients.Group(GameHub.Group(name)), request.ChallengeDay, result);
+            if (!ServerStore.IsGuest(name) && result is IStatusCodeHttpResult { StatusCode: 200 })
+                await GameHub.NotifyRankings(hub.Clients.Group(GameHub.RankingsGroup));
             return result;
         });
         app.MapPost("/api/web/action", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, MoveRequest request) =>
         {
             if (s.WebUser(Token(c)) is not { } name) return Results.Unauthorized();
             var result = MoveGame(s, name, request);
-            if (request.Action != "heartbeat")
-                await GameHub.Notify(hub.Clients.Group(GameHub.Group(name)), request.ChallengeDay, result);
+            if (result is IStatusCodeHttpResult { StatusCode: 200 } && result is IValueHttpResult { Value: not null } value)
+            {
+                var data = Wire.Map(value.Value);
+                if (request.Action != "heartbeat" ||
+                    data.TryGetValue("revision", out var revision) && Convert.ToInt64(revision) != request.Revision)
+                    await GameHub.Notify(hub.Clients.Group(GameHub.Group(name)), request.ChallengeDay, result);
+                if (!ServerStore.IsGuest(name) && (data.GetValueOrDefault("completed") is true ||
+                    data.GetValueOrDefault("finalDefeat") is true || request.Action == "wallet"))
+                {
+                    await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+                    if (request.Action != "wallet")
+                        await GameHub.NotifyRankings(hub.Clients.Group(GameHub.RankingsGroup));
+                }
+            }
             return result;
         });
     }
