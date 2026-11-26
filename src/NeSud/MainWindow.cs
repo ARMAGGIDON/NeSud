@@ -43,14 +43,17 @@ public sealed class MainWindow : Window
     private Difficulty nextDifficulty;
     private CancellationTokenSource? generation;
     private int lastSavedSecond, accountedSeconds;
-    private bool closing;
+    private bool closing, watchingReward;
+    private TextBlock lives = null!, score = null!, quest = null!;
+    private Button rewardLife = null!, rewardHint = null!, rewardCandidates = null!;
     private Game? G => state.Game;
     private bool Busy => generation is not null;
-    private bool Playing => G is { Paused: false, Completed: false } && !Busy;
+    private bool Playing => G is { Paused: false, Completed: false, OutOfLives: false } && !Busy && !watchingReward;
 
     public MainWindow()
     {
         state = store.Load();
+        state.Game?.UpgradeRules();
         account = RestoreSession();
         if (state.Game is not null && state.GameId == Guid.Empty) { state.GameId = Guid.NewGuid(); state.Started = DateTimeOffset.UtcNow; }
         nextDifficulty = state.NextDifficulty ?? G?.Puzzle.Difficulty ?? Difficulty.Medium;
@@ -189,13 +192,15 @@ public sealed class MainWindow : Window
         play.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var info = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        for (int i = 0; i < 3; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
+        for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
         heading = Text("", 19, "Text", true);
         time = Text("00:00", 19, "Text", true);
         errors = Text("0", 19, "Text", true);
         At(info, Metric("СКЛАДНІСТЬ", heading), 0, 0);
         At(info, Metric("ЧАС", time), 0, 1);
-        At(info, Metric("ПОМИЛКИ", errors), 0, 2);
+        lives = Text("♥ ♥ ♥", 19, "Wrong", true); score = Text("0", 19, "Accent", true);
+        At(info, Metric("ЖИТТЯ", lives), 0, 2); At(info, Metric("БАЛИ", score), 0, 3);
+        errors.Visibility = Visibility.Collapsed;
         At(play, info, 0, 0);
 
         var boardArea = new Grid();
@@ -212,6 +217,7 @@ public sealed class MainWindow : Window
         {
             if (Busy) generation?.Cancel();
             else if (G is { Completed: true }) _ = Generate(true);
+            else if (G is { OutOfLives: true }) Reward("life");
             else if (G is { Paused: true }) TogglePause();
             else _ = Generate(false);
         }, primary: true);
@@ -257,12 +263,19 @@ public sealed class MainWindow : Window
         erase = Action("Стерти", () => Enter(0), "Delete / Backspace / 0");
         notes = Action("Нотатки", ToggleNotes, "N або Space; Shift+цифра для разової нотатки");
         hint = Action("Підказка", Hint, "H");
-        fill = Action("Кандидати", () => Change(g => g.FillNotes()), "A: заповнити всі можливі нотатки");
+        fill = Action("Кандидати", Candidates, "A: заповнити всі можливі нотатки");
         pause = Action("Пауза", TogglePause, "P або Esc");
         restart = Action("Заново", Restart, "Почати цю головоломку спочатку");
         foreach (var b in new[] { undo, redo, erase, notes, hint, fill, pause, restart })
         { b.Margin = new Thickness(2); actions.Children.Add(b); }
-        side.Children.Add(actions); Gap(side, 12);
+        side.Children.Add(actions); Gap(side, 10);
+        side.Children.Add(Text("Винагороди", 16, "Text", true));
+        quest = Text("", 12, "Muted"); side.Children.Add(quest); Gap(side, 5);
+        rewardLife = Action("+1 життя · 8 с", () => Reward("life"));
+        rewardHint = Action("+1 підказка · 8 с", () => Reward("hint"));
+        rewardCandidates = Action("+1 кандидати · 8 с", () => Reward("candidates"));
+        foreach (var b in new[] { rewardLife, rewardHint, rewardCandidates }) side.Children.Add(b);
+        Gap(side, 10);
         side.Children.Add(Text("Налаштування", 16, "Text", true));
         side.Children.Add(Option("Підсвічувати помилки", state.ShowMistakes, v => state.ShowMistakes = v));
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
@@ -333,7 +346,7 @@ public sealed class MainWindow : Window
     private void Render()
     {
         var g = G;
-        bool active = Playing, visible = g is not null && !g.Paused && !Busy;
+        bool active = Playing, visible = g is not null && !g.Paused && !g.OutOfLives && !Busy;
         heading.Text = g is null ? "Підготовка" : g.Completed ? "Розв’язано" : Level(g.Puzzle.Difficulty);
         errors.Text = !state.ShowMistakes ? "Приховано" : (g?.Mistakes ?? 0).ToString(CultureInfo.CurrentCulture);
         ReadClock();
@@ -383,20 +396,26 @@ public sealed class MainWindow : Window
         progressBar.Value = filled;
         undo.IsEnabled = active && g!.UndoStack.Count > 0; redo.IsEnabled = active && g!.RedoStack.Count > 0;
         erase.IsEnabled = active && g!.Editable(g.Selected); hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
+        hint.Content = $"Підказка ({g?.HintCredits ?? 0})"; fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
+        quest.Text = g?.NextQuest ?? "Завдання доступні під час гри.";
+        rewardLife.IsEnabled = !Busy && !watchingReward && g?.CanReward("life") == true;
+        rewardHint.IsEnabled = !Busy && !watchingReward && g?.CanReward("hint") == true;
+        rewardCandidates.IsEnabled = !Busy && !watchingReward && g?.CanReward("candidates") == true;
         notes.Content = g?.NotesMode == true ? "Нотатки: увімк." : "Нотатки";
         notes.Background = B(g?.NotesMode == true ? "Same" : "Control");
-        pause.IsEnabled = g is not null && !Busy && !g.Completed;
+        pause.IsEnabled = g is not null && !Busy && !g.Completed && !g.OutOfLives;
         pause.Content = g?.Paused == true ? "Продовжити" : "Пауза";
         restart.IsEnabled = g is not null && !Busy; newGame.IsEnabled = !Busy;
         theme.Content = state.Dark ? "☀  Світла тема" : "☾  Темна тема";
         board.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
         cover.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
         coverTitle.Text = Busy ? "Генеруємо поле…" : g?.Completed == true ? "Судоку розв’язано!" :
-            g?.Paused == true ? "Гра на паузі" : "Почнімо гру";
+            g?.OutOfLives == true ? "Життя закінчилися" : g?.Paused == true ? "Гра на паузі" : "Почнімо гру";
         coverDetail.Text = Busy ? "Перевіряємо єдиність розв’язку." : g?.Completed == true ?
             $"Час: {FormatTime(g.Seconds)} • Помилки: {g.Mistakes} • Підказки: {g.Hints}" :
+            g?.OutOfLives == true ? "Відновіть одне життя за 8-секундну рекламу або почніть нову гру." :
             g?.Paused == true ? "Поле приховано, таймер зупинено." : "Оберіть складність і створіть головоломку.";
-        coverButton.Content = Busy ? "Скасувати" : g?.Paused == true ? "Продовжити" : "Нова гра";
+        coverButton.Content = Busy ? "Скасувати" : g?.OutOfLives == true ? "+1 життя · 8 с" : g?.Paused == true ? "Продовжити" : "Нова гра";
         UpdateConnection();
     }
 
@@ -422,6 +441,9 @@ public sealed class MainWindow : Window
             if (delta > 0) { g.Seconds += delta; accountedSeconds = elapsed; }
         }
         time.Text = FormatTime(G?.Seconds ?? 0);
+        lives.Text = G is null ? "♡ ♡ ♡" : string.Join(" ", Enumerable.Range(0, Game.MaxLives).Select(i => i < G.Lives ? "♥" : "♡"));
+        score.Text = G is null ? "0" : G.CurrentScore.ToString("N0");
+        score.ToolTip = G is null ? null : $"Час: −{G.Seconds / 3} • Помилки: −{75L * G.Mistakes} • Підказки: −{150L * G.Hints} • Кандидати: −{100L * G.CandidateUses} • Відновлення: −{100L * G.LifeRestores}";
     }
     private void SyncClock()
     {
@@ -450,7 +472,8 @@ public sealed class MainWindow : Window
     private void Change(Func<Game, bool> action, string? message = null)
     {
         if (!Playing || !action(G!)) return;
-        if (G!.Completed)
+        if (G!.OutOfLives) { SyncClock(); status.Text = "Життя закінчилися. Відновіть життя або створіть нову гру."; }
+        else if (G.Completed)
         {
             SyncClock();
             if (!G.Awarded)
@@ -458,11 +481,11 @@ public sealed class MainWindow : Window
                 if (!state.Stats.TryGetValue(G.Puzzle.Difficulty, out var s))
                     state.Stats[G.Puzzle.Difficulty] = s = new Statistics();
                 s.Wins++;
-                if (G.Hints == 0 && G.Mistakes == 0)
+                if (G.Hints == 0 && G.Mistakes == 0 && G.CandidateUses == 0 && G.LifeRestores == 0)
                     s.BestSeconds = Math.Min(s.BestSeconds ?? int.MaxValue, G.Seconds);
                 G.Awarded = true;
             }
-            status.Text = "Головоломку завершено. Чисті перемоги враховуються в рекорді часу.";
+            status.Text = $"Головоломку завершено! {G.CurrentScore:N0} балів.";
         }
         else status.Text = message ?? "Хід збережено.";
         Render(); Save(); FocusCell();
@@ -477,14 +500,54 @@ public sealed class MainWindow : Window
     }
     private void Hint()
     {
-        if (!Playing || G!.GetHint() is not { } m) return;
+        if (!Playing) return;
+        if (G!.HintCredits == 0) { Reward("hint"); return; }
+        if (G.GetHint() is not { } m) return;
         G.Selected = m.Cell;
         Change(g => g.Enter(m.Cell, m.Digit, false, state.AutoClean, true),
             $"{m.Reason}: рядок {m.Cell / 9 + 1}, стовпець {m.Cell % 9 + 1} = {m.Digit}.");
     }
+    private void Candidates()
+    {
+        if (!Playing) return;
+        if (G!.CandidateCredits == 0) { Reward("candidates"); return; }
+        Change(g => g.FillNotes(), "Кандидати використано • −100 балів.");
+    }
+
+    private void Reward(string kind)
+    {
+        if (Busy || watchingReward || G is not { } game || !game.CanReward(kind)) return;
+        watchingReward = true; SyncClock(); Render();
+        var panel = Stack(); panel.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
+        Gap(panel); panel.Children.Add(Text("Після завершення таймера можна отримати винагороду. Це заглушка, а не справжня реклама.", 14, "Muted"));
+        Gap(panel); var countdown = Text("", 30, "Accent", true); panel.Children.Add(countdown);
+        var bar = new ProgressBar { Minimum = 0, Maximum = Game.RewardSeconds, Height = 7, Margin = new Thickness(0, 8, 0, 18) };
+        bar.SetResourceReference(Control.ForegroundProperty, "AccentBrush"); panel.Children.Add(bar);
+        var window = Modal("Винагорода", panel, 440);
+        var elapsed = Stopwatch.StartNew();
+        var watch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        var claim = Action("Отримати винагороду", () =>
+        {
+            if (elapsed.Elapsed.TotalSeconds >= Game.RewardSeconds && game == G && game.GrantReward(kind))
+                window.DialogResult = true;
+        }, primary: true);
+        claim.IsEnabled = false; panel.Children.Add(claim);
+        var cancel = Action("Скасувати", () => window.DialogResult = false); cancel.IsCancel = true; panel.Children.Add(cancel);
+        void Update()
+        {
+            double passed = elapsed.Elapsed.TotalSeconds; bar.Value = Math.Min(Game.RewardSeconds, passed);
+            countdown.Text = passed >= Game.RewardSeconds ? "Готово!" : $"{Math.Ceiling(Game.RewardSeconds - passed)} с";
+            claim.IsEnabled = passed >= Game.RewardSeconds;
+        }
+        watch.Tick += (_, _) => Update(); window.Closed += (_, _) => watch.Stop();
+        Update(); watch.Start();
+        try { if (window.ShowDialog() == true) { status.Text = "Винагороду отримано."; Save(); } }
+        finally { watchingReward = false; SyncClock(); Render(); FocusCell(); }
+    }
+
     private void TogglePause()
     {
-        if (G is null || G.Completed || Busy) return;
+        if (G is null || G.Completed || G.OutOfLives || Busy) return;
         ReadClock(); G.Paused = !G.Paused; SyncClock(); Render(); Save(); FocusCell();
     }
     private void Restart()
@@ -533,7 +596,9 @@ public sealed class MainWindow : Window
     private GameRecord Terminal(string outcome) => new(state.GameId, state.Started, DateTimeOffset.UtcNow,
         "desktop", outcome, new Game { Puzzle = G!.Puzzle, Values = (int[])G.Values.Clone(), Notes = (int[])G.Notes.Clone(),
             Seconds = G.Seconds, Mistakes = G.Mistakes, Hints = G.Hints, Selected = G.Selected,
-            NotesMode = G.NotesMode, Paused = G.Paused, Awarded = G.Awarded });
+            NotesMode = G.NotesMode, Paused = G.Paused, Awarded = G.Awarded, RulesVersion = G.RulesVersion,
+            Lives = G.Lives, HintCredits = G.HintCredits, CandidateCredits = G.CandidateCredits, CandidateUses = G.CandidateUses,
+            LifeRestores = G.LifeRestores, AdsWatched = G.AdsWatched, ManualCorrect = new HashSet<int>(G.ManualCorrect) });
 
 
     private Window Modal(string title, UIElement content, double width = 480, double maxHeight = 660)
@@ -824,7 +889,7 @@ public sealed class MainWindow : Window
         {
             var item = Stack();
             item.Children.Add(Text($"{Level(r.Game.Puzzle.Difficulty)} • {(r.Outcome == "completed" ? "Перемога" : "Перервано")} • {r.Score} балів", 15, "Text", true));
-            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {r.Source} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints}", 12, "Muted"));
+            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {r.Source} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints} • кандидати: {r.Game.CandidateUses} • відновлення життів: {r.Game.LifeRestores}", 12, "Muted"));
             var card = Card(item, 10); card.Margin = new Thickness(0, 0, 0, 6); list.Children.Add(card);
         }
         if (records.Count == 0) list.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
@@ -912,7 +977,7 @@ public sealed class MainWindow : Window
         else if (k is Key.Delete or Key.Back) Enter(0);
         else if (k == Key.N || k == Key.Space && Keyboard.FocusedElement is Button b && cells.Contains(b)) ToggleNotes();
         else if (k == Key.H) Hint();
-        else if (k == Key.A) Change(g => g.FillNotes());
+        else if (k == Key.A) Candidates();
         else if (k is Key.Left or Key.Right or Key.Up or Key.Down)
         {
             int i = G!.Selected, r = i / 9, c = i % 9;
