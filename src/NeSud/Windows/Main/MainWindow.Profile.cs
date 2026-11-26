@@ -72,6 +72,12 @@ public sealed partial class MainWindow
                     (user is null ? "" : "&user=" + Uri.EscapeDataString(user)) +
                     (filter.SelectedIndex > 0 ? "&difficulty=" + (Difficulty)(filter.SelectedIndex - 1) : ""));
                 if (!window.IsVisible || sessionToken != account?.Token) return;
+                if (own && account is not null && account.Username != p.User)
+                {
+                    account = account with { Username = p.User };
+                    RememberSession(account);
+                    UpdateConnection();
+                }
                 name.Text = p.User;
                 verified.Visibility = p.Verified ? Visibility.Visible : Visibility.Collapsed;
                 avatarHost.Children.Clear();
@@ -167,5 +173,6 @@ public sealed partial class MainWindow
         filter.SelectionChanged += async (_, _) => { page = 0; await Load(); };
         window.Loaded += async (_, _) => await Load();
         window.ShowDialog();
+        await Task.CompletedTask;
     }
 }

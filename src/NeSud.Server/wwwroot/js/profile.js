@@ -68,6 +68,7 @@ async function loadProfile() {
     setPlayerAvatar($("profile-avatar"), p.user, !!p.avatar);
     const own = !guestMode && !user;
     $("profile-settings").hidden = !own;
+    $("profile-settings-open").textContent = p.verified ? "Налаштування профілю" : "Підтвердити пошту";
     $("avatar-edit").hidden = !own || !p.verified;
     $("invite-open").hidden = !own || !p.verified;
     if (own) verifiedAccount = p.verified;

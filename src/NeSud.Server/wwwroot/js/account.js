@@ -14,6 +14,7 @@ function resetSession() {
     online = false;
     guestMode = true;
     verifiedAccount = false;
+    avatarVersion = 0;
     selected = 0;
     note = false;
     adPending = false;

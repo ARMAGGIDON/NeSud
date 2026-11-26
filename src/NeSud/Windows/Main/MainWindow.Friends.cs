@@ -87,7 +87,8 @@ public sealed partial class MainWindow
                 {
                     body.Children.Add(Text("Результати пошуку", 17, "Text", true));
                     var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()));
-                    foreach (var name in matches) body.Children.Add(PlayerButton(name));
+                    foreach (var name in matches.Where(name => !string.Equals(name, account?.Username ?? account?.User, StringComparison.OrdinalIgnoreCase)))
+                        body.Children.Add(PlayerButton(name));
                     if (matches.Count == 0) body.Children.Add(Text("Гравців не знайдено.", 13, "Muted"));
                 }
             }
