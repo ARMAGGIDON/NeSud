@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../NeSud.Storage/NeSud.Storage.csproj"/>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.14"/>
   </ItemGroup>
 </Project>

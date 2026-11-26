@@ -1,0 +1,13 @@
+{
+    "name": "nesud-web",
+    "private": true,
+    "version": "1.0.0",
+    "scripts": {
+        "prepare-web": "node prepare-web.mjs",
+        "test:realtime": "node --test realtime.test.mjs"
+    },
+    "dependencies": {
+        "@microsoft/signalr": "10.0.11",
+        "@microsoft/signalr-protocol-msgpack": "10.0.11"
+    }
+}
