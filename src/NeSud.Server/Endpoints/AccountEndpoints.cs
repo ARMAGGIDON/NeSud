@@ -18,13 +18,13 @@ internal static partial class Endpoints
         });
     }
 
-    static string Token(HttpContext context)
+    private static string Token(HttpContext context)
     {
         var value = context.Request.Headers.Authorization.ToString();
         return value.StartsWith("Bearer ", StringComparison.Ordinal) ? value[7..] : "";
     }
-    static string? User(HttpContext context, ServerStore store) => store.Authenticate(Token(context));
-    static IResult Auth(Credentials c, ServerStore store, bool register)
+    private static string? User(HttpContext context, ServerStore store) => store.Authenticate(Token(context));
+    private static IResult Auth(Credentials c, ServerStore store, bool register)
     {
         if (ServerStore.ValidateCredentials(c, register) is { } error) return Results.BadRequest(new { error });
         var session = store.Login(c, register);

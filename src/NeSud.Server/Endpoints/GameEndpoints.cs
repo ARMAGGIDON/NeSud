@@ -166,7 +166,7 @@ internal static partial class Endpoints
         });
     }
 
-    static WebGame Tick(WebGame session)
+    private static WebGame Tick(WebGame session)
     {
         var now = DateTimeOffset.UtcNow;
         var elapsed = (now - session.LastSeen).TotalSeconds;
@@ -190,7 +190,7 @@ internal static partial class Endpoints
         }
         return session with { LastSeen = now };
     }
-    static object View(WebGame session) => new
+    private static object View(WebGame session) => new
     {
         session.Id, session.Revision, session.Started, session.ChallengeDay, difficulty = session.Game.Puzzle.Difficulty,
         givens = session.Game.Puzzle.Givens, session.Game.Values, session.Game.Notes,
