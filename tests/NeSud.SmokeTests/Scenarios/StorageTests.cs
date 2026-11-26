@@ -16,7 +16,7 @@ internal static partial class SmokeTests
             using (var connection = new Database(Path.Combine(dbDir, "client.db")).Open())
             using (var versionQuery = Database.Command(connection, "SELECT sqlite_version()"))
             {
-                var version = Version.Parse((string)versionQuery.ExecuteScalar()!);
+                var version = Version.Parse((string) versionQuery.ExecuteScalar()!);
                 Check(version >= new Version(3, 50, 2), "Native SQLite must include the CVE-2025-6965 fix");
                 Console.WriteLine($"PASS native SQLite {version}");
             }
@@ -32,6 +32,10 @@ internal static partial class SmokeTests
             Check(local.Load().GameId == appState.GameId, "SQLite current game");
             Console.WriteLine("PASS local SQLite, account isolation, history and synchronization");
         }
-        finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(dbDir)) Directory.Delete(dbDir, true); }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(dbDir)) Directory.Delete(dbDir, true);
+        }
     }
 }

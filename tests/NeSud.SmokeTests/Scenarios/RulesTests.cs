@@ -25,7 +25,7 @@ internal static partial class SmokeTests
         Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
         var aid = Game.Start(puzzles[0]);
         int blank = blanks[0], correctMask = Sudoku.Candidates(aid.Values, blank);
-        int validDigit = BitOperations.TrailingZeroCount((uint)correctMask);
+        int validDigit = BitOperations.TrailingZeroCount((uint) correctMask);
         int invalidDigit = BitOperations.TrailingZeroCount((uint)(Sudoku.All & ~correctMask));
         Check(aid.Enter(blank, validDigit, note: true) && aid.Enter(blank, invalidDigit, note: true), "Manual notes setup");
         int expected = Enumerable.Range(0, 81).Sum(j => aid.Values[j] == 0
@@ -40,11 +40,14 @@ internal static partial class SmokeTests
         Check(aid.Enter(hm.Cell, hm.Digit, hint: true) && aid.HintCredits == 0 && aid.GetHint() is null, "Hint exhaustion");
         foreach (int j in blanks.Where(j => j != hm.Cell).Take(15)) Check(aid.Enter(j, aid.Puzzle.Solution[j]), "Manual progress");
         Check(aid.HintCredits == 0 && aid.CandidateCredits == 1, "Removed old milestone rewards");
-        var copied = Database.Decode<Game>(Database.Encode(aid));
+        var copied = Database.Decode<Game > (Database.Encode(aid));
         Check(copied.Valid() && copied.CandidateUses == 1 && copied.CandidateChanges == expected &&
             copied.CurrentScore == aid.CurrentScore, "Resource persistence");
-        var legacy = Game.Start(puzzles[0]); legacy.RulesVersion = 1; legacy.CandidateUses = 2;
-        int legacyScore = legacy.CurrentScore; legacy.UpgradeRules();
+        var legacy = Game.Start(puzzles[0]);
+        legacy.RulesVersion = 1;
+        legacy.CandidateUses = 2;
+        int legacyScore = legacy.CurrentScore;
+        legacy.UpgradeRules();
         Check(legacy.RulesVersion == 3 && legacy.CurrentScore == legacyScore, "Legacy migration");
         Console.WriteLine("PASS lives, aid, variable penalties, legacy migration, persistence");
 
@@ -57,22 +60,22 @@ internal static partial class SmokeTests
         Check(cancelledRevive.FinalDefeat(startedRevive.AddSeconds(1)) &&
             !cancelledRevive.BeginRevive(startedRevive.AddSeconds(1)) && !cancelledRevive.FinishRevive(startedRevive.AddSeconds(8)), "Cancel consumes chance");
         var auto = Game.Start(puzzles[0]);
-        foreach (int j in blanks.Take(blanks.Length-10)) auto.Enter(j, auto.Puzzle.Solution[j]);
+        foreach (int j in blanks.Take(blanks.Length - 10)) auto.Enter(j, auto.Puzzle.Solution[j]);
         auto.AutoFinish = true;
         Check(!auto.TryAutoFinish(), "Auto finish not at ten blanks");
-        int tenth = blanks[blanks.Length-10];
+        int tenth = blanks[blanks.Length - 10];
         Check(auto.Enter(tenth, auto.Puzzle.Solution[tenth]) && auto.Completed && auto.AutoFilled == 9 &&
             auto.AutoFillPenalty == 180 && auto.Seconds == 0, "Auto finish applies points not time");
         Check(auto.Remaining(1) == 0 && auto.Remaining(9) == 0, "Digit counts on completion");
         var manual = Game.Start(puzzles[0]);
         foreach (int j in blanks) manual.Enter(j, manual.Puzzle.Solution[j]);
-        manual.Seconds = manual.TargetSeconds/2;
-        Check(manual.SpeedBonus == (int)Math.Round(manual.BaseScore*0.6*0.25), "Quadratic midpoint");
+        manual.Seconds = manual.TargetSeconds / 2;
+        Check(manual.SpeedBonus == (int) Math.Round(manual.BaseScore * 0.6 * 0.25), "Quadratic midpoint");
         manual.Seconds = manual.TargetSeconds;
         Check(manual.SpeedBonus == 0, "Target speed bonus zero");
         var rapid = new MoveAudit();
         var nowAudit = DateTimeOffset.UtcNow;
-        for (int j = 0; j < 20; j++) rapid = rapid.Record(nowAudit.AddMilliseconds(j*30));
+        for (int j = 0; j < 20; j++) rapid = rapid.Record(nowAudit.AddMilliseconds(j * 30));
         Check(rapid.Flag(manual), "Private rapid move audit");
         Console.WriteLine("PASS timed single revival, cancellation, auto finish, counts, quadratic bonus and audit");
     }

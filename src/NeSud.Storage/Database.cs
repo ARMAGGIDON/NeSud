@@ -19,20 +19,23 @@ public sealed class Database
 
     public SqliteConnection Open()
     {
-        var db = new SqliteConnection(connectionString); db.Open();
+        var db = new SqliteConnection(connectionString);
+        db.Open();
         using var cmd = db.CreateCommand();
         cmd.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=10000;";
-        cmd.ExecuteNonQuery(); return db;
+        cmd.ExecuteNonQuery();
+        return db;
     }
 
     public static SqliteCommand Command(SqliteConnection db, string sql, params (string Name, object? Value)[] args)
     {
-        var cmd = db.CreateCommand(); cmd.CommandText = sql;
+        var cmd = db.CreateCommand();
+        cmd.CommandText = sql;
         foreach (var (name, value) in args) cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
         return cmd;
     }
 
-    public static string Encode<T>(T value) => JsonSerializer.Serialize(value, Json);
-    public static T Decode<T>(string value) => JsonSerializer.Deserialize<T>(value, Json)
+    public static string Encode<T > (T value) => JsonSerializer.Serialize(value, Json);
+    public static T Decode<T > (string value) => JsonSerializer.Deserialize<T > (value, Json)
         ?? throw new InvalidDataException("Порожній запис БД.");
 }

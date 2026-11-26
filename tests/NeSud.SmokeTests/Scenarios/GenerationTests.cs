@@ -9,8 +9,8 @@ internal static partial class SmokeTests
 {
     private static List<Puzzle> GeneratePuzzles(int repetitions, Random random)
     {
-    var puzzles = new List<Puzzle>();
-        foreach (var level in Enum.GetValues<Difficulty>())
+    var puzzles = new List<Puzzle > ();
+        foreach (var level in Enum.GetValues<Difficulty > ())
         {
             for (int i = 0; i < repetitions; i++)
             {
@@ -21,7 +21,7 @@ internal static partial class SmokeTests
                 Check(clues >= min && clues <= max, "Clue band");
                 Check(Sudoku.IsConsistent(puzzle.Solution) && !puzzle.Solution.Contains(0), "Complete valid solution");
                 Check(Sudoku.CountSolutions(puzzle.Givens, token: timeout.Token) == 1, "Unique puzzle");
-                Check(Sudoku.MatchesDifficulty(puzzle.Givens,level,timeout.Token), "Logical strategy certificate");
+                Check(Sudoku.MatchesDifficulty(puzzle.Givens, level, timeout.Token), "Logical strategy certificate");
                 Check(Game.Start(puzzle).Valid(), "Initial game validation");
                 if (level is Difficulty.Easy or Difficulty.Medium)
                     Check(Sudoku.SolvableBySingles(puzzle.Givens), "Solvable by singles");

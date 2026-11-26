@@ -46,14 +46,21 @@ internal static partial class SmokeTests
             File.WriteAllText(path, "broken");
             Check(store.Load().Game?.Seconds == 123, "Backup recovery");
         }
-        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+        }
         g.Restart();
         Check(g.Values.SequenceEqual(g.Puzzle.Givens) && g.Seconds == 0 && g.UndoStack.Count == 0, "Restart");
         for (int i = 0; i < 81; i++) if (g.Puzzle.Givens[i] == 0) g.Enter(i, g.Puzzle.Solution[i]);
         Check(g.Completed && !g.Enter(cell, 0), "Completion");
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
-        try { Sudoku.Generate(Difficulty.Easy, cancelled.Token); throw new Exception("Cancellation ignored"); }
+        try
+        {
+            Sudoku.Generate(Difficulty.Easy, cancelled.Token);
+            throw new Exception("Cancellation ignored");
+        }
         catch (OperationCanceledException) { }
         Console.WriteLine("PASS game, history, persistence, recovery, completion, cancellation");
     }

@@ -1,7 +1,4 @@
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 using NeSud.Core;
-using NeSud.Server;
 
 namespace NeSud.Server;
 
@@ -32,12 +29,15 @@ internal static partial class Endpoints
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(c.RequestAborted);
             timeout.CancelAfter(TimeSpan.FromSeconds(25));
             Puzzle puzzle;
-            try { puzzle = await Task.Run(() => request.ChallengeDay is { } date ? s.ChallengePuzzle(date, timeout.Token) : Sudoku.Generate(request.Difficulty, timeout.Token), timeout.Token); }
+            try
+            {
+                puzzle = await Task.Run(() => request.ChallengeDay is { } date ? s.ChallengePuzzle(date, timeout.Token) : Sudoku.Generate(request.Difficulty, timeout.Token), timeout.Token);
+            }
             catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
             { return Results.Problem("Генерацію не завершено.", statusCode: 503); }
             lock (s.Gate)
             {
-                if (request.ChallengeDay is { } date && (!s.ChallengeAllowed(date) || s.ChallengeWon(name,date))) return Results.Conflict(new { error = "Щоденне завдання вже завершене або недоступне." });
+                if (request.ChallengeDay is { } date && (!s.ChallengeAllowed(date) || s.ChallengeWon(name, date))) return Results.Conflict(new { error = "Щоденне завдання вже завершене або недоступне." });
                 var previous = s.Session(name, request.ChallengeDay);
                 if ((previous?.Revision ?? 0) != request.Revision || previous?.Id != request.Id)
                     return Results.Conflict();
@@ -46,7 +46,8 @@ internal static partial class Endpoints
                 var now = DateTimeOffset.UtcNow;
                 var next = new WebGame(Guid.NewGuid(), now, Game.Start(puzzle), now, 1, ChallengeDay: request.ChallengeDay);
                 next.Game.AutoFinish = request.AutoFinish;
-                s.SaveSession(name, next, abandoned); return Results.Ok(View(next));
+                s.SaveSession(name, next, abandoned);
+                return Results.Ok(View(next));
             }
         });
         app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest request) =>
@@ -71,10 +72,14 @@ internal static partial class Endpoints
                     case "wallet":
                         if (request.Reward == "life" || ServerStore.IsGuest(name) || !game.CanReward(request.Reward ?? "") || !s.HasWallet(name, request.Reward!))
                             return Results.Conflict(new { error = "Ресурс недоступний." });
-                        if (game.GrantReward(request.Reward!, advertisement: false)) { walletKind = request.Reward; changed = true; }
+                        if (game.GrantReward(request.Reward!, advertisement: false))
+                        {
+                            walletKind = request.Reward;
+                            changed = true;
+                        }
                         break;
                     case "reward-start":
-                        if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : game.OutOfLives || !game.CanAdReward(request.Reward ?? "") || !ServerStore.IsGuest(name) && s.HasWallet(name,request.Reward!)) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
+                        if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : game.OutOfLives || !game.CanAdReward(request.Reward ?? "") || !ServerStore.IsGuest(name) && s.HasWallet(name, request.Reward!)) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
                         if (session.Reward is not null && session.Reward.Kind != request.Reward)
                             return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте попередню винагороду." });
                         if (session.Reward is null)
@@ -89,15 +94,38 @@ internal static partial class Endpoints
                         if (session.Reward is not { } reward || reward.Kind != request.Reward ||
                             reward.ReadyAt > DateTimeOffset.UtcNow || reward.ExpiresAt <= DateTimeOffset.UtcNow)
                             return Results.BadRequest(new { error = "Винагорода ще не готова або термін її дії минув." });
-                        if (!(reward.Kind == "life" ? game.FinishRevive(DateTimeOffset.UtcNow) : (ServerStore.IsGuest(name) || !s.HasWallet(name,reward.Kind)) && game.GrantReward(reward.Kind))) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
-                        session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; break;
-                    case "reward-cancel":
-                        if (session.Reward is not null) { if (session.Reward.Kind == "life") game.CancelRevive(); session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; }
+                        if (!(reward.Kind == "life" ? game.FinishRevive(DateTimeOffset.UtcNow) : (ServerStore.IsGuest(name) || !s.HasWallet(name, reward.Kind)) && game.GrantReward(reward.Kind))) return Results.BadRequest(new { error = "Ресурс уже заповнено." });
+                        session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow };
+                        changed = true;
                         break;
-                    case "pause": if (!game.Paused && !game.Completed) { game.Paused = true; changed = true; } break;
-                    case "resume": if (game.Paused && !game.Completed && !game.OutOfLives) { game.Paused = false; game.TryAutoFinish(); changed = true; } break;
+                    case "reward-cancel":
+                        if (session.Reward is not null)
+                        {
+                            if (session.Reward.Kind == "life") game.CancelRevive();
+                            session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow };
+                            changed = true;
+                        }
+                        break;
+                    case "pause": if (!game.Paused && !game.Completed)
+                    {
+                        game.Paused = true;
+                        changed = true;
+                    }
+                    break;
+                    case "resume": if (game.Paused && !game.Completed && !game.OutOfLives)
+                    {
+                        game.Paused = false;
+                        game.TryAutoFinish();
+                        changed = true;
+                    }
+                    break;
                     case "auto-finish":
-                        if (!game.Completed && !game.OutOfLives) { game.AutoFinish = request.Note; game.TryAutoFinish(); changed = true; }
+                        if (!game.Completed && !game.OutOfLives)
+                        {
+                            game.AutoFinish = request.Note;
+                            game.TryAutoFinish();
+                            changed = true;
+                        }
                         break;
                     case "enter":
                         if (!game.Paused && !game.Completed && game.Editable(request.Cell))
@@ -108,19 +136,27 @@ internal static partial class Endpoints
                             changed |= entered;
                         }
                         break;
-                    case "undo": changed |= game.Undo(); break;
-                    case "redo": changed |= game.Redo(); break;
-                    case "candidates": changed |= game.FillNotes(); break;
+                    case "undo": changed |= game.Undo();
+                    break;
+                    case "redo": changed |= game.Redo();
+                    break;
+                    case "candidates": changed |= game.FillNotes();
+                    break;
                     case "hint":
                         if (game.GetHint() is { } hint)
-                        { game.Selected = hint.Cell; changed |= game.Enter(hint.Cell, hint.Digit, hint: true); }
+                        { game.Selected = hint.Cell;
+                        changed |= game.Enter(hint.Cell, hint.Digit, hint: true); }
                         break;
                     default: return Results.BadRequest();
                 }
                 if (changed) session = session with { Revision = session.Revision + 1 };
                 GameRecord? completed = !wasComplete && game.Completed
                     ? new(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "completed", game) : null;
-                if (completed is not null) { completed.Game.UndoStack.Clear(); completed.Game.RedoStack.Clear(); }
+                if (completed is not null)
+                {
+                    completed.Game.UndoStack.Clear();
+                    completed.Game.RedoStack.Clear();
+                }
                 var terminal = completed ?? (game.FinalDefeat(DateTimeOffset.UtcNow) ? new GameRecord(session.Id, session.Started, DateTimeOffset.UtcNow, "web", "defeated", game) : null);
                 s.SaveSession(name, session, terminal, walletKind);
                 if (request.Action == "heartbeat" && !changed && terminal is null && !game.OutOfLives && session.Reward is null)
@@ -135,16 +171,21 @@ internal static partial class Endpoints
         var now = DateTimeOffset.UtcNow;
         var elapsed = (now - session.LastSeen).TotalSeconds;
         session.Game.UpgradeRules();
-        if (session.Reward is { } ticket && ticket.ExpiresAt <= now) { if (ticket.Kind == "life") session.Game.CancelRevive(); session = session with { Reward = null, LastSeen = now }; elapsed = 0; }
+        if (session.Reward is { } ticket && ticket.ExpiresAt <= now)
+        {
+            if (ticket.Kind == "life") session.Game.CancelRevive();
+            session = session with { Reward = null, LastSeen = now };
+            elapsed = 0;
+        }
         if (!session.Game.Paused && !session.Game.Completed && !session.Game.OutOfLives)
         {
             if (elapsed > 12) session.Game.Paused = true;
             else if (session.Reward is null)
             {
                 double total = Math.Max(0, elapsed) + session.Fraction;
-                int seconds = (int)total;
+                int seconds = (int) total;
                 session.Game.Seconds += seconds;
-                return session with { LastSeen = now, Fraction = total-seconds };
+                return session with { LastSeen = now, Fraction = total - seconds };
             }
         }
         return session with { LastSeen = now };
@@ -160,11 +201,11 @@ internal static partial class Endpoints
         reviveSeconds = session.Game.ReviveSeconds(DateTimeOffset.UtcNow),
         reviveRemainingMs = session.Game.CanStartRevive(DateTimeOffset.UtcNow) ? Math.Max(0, (session.Game.ReviveDeadline!.Value - DateTimeOffset.UtcNow).TotalMilliseconds) : 0,
         finalDefeat = session.Game.FinalDefeat(DateTimeOffset.UtcNow),
-        wrong = Enumerable.Range(0,81).Select(i => session.Game.Values[i] != 0 && session.Game.Values[i] != session.Game.Puzzle.Solution[i]).ToArray(),
-        remaining = Enumerable.Range(1,9).Select(session.Game.Remaining).ToArray(),
+        wrong = Enumerable.Range(0, 81).Select(i => session.Game.Values[i] != 0 && session.Game.Values[i] != session.Game.Puzzle.Solution[i]).ToArray(),
+        remaining = Enumerable.Range(1, 9).Select(session.Game.Remaining).ToArray(),
         session.Game.CandidateChanges, session.Game.EffectiveCandidatePenalty,
         candidateDelta = session.Game.CandidateDelta(), session.Game.AdsWatched,
-        reward = session.Reward is { } t ? new { t.Kind, remaining = Math.Max(0, (int)Math.Ceiling((t.ReadyAt - DateTimeOffset.UtcNow).TotalSeconds)) } : null,
+        reward = session.Reward is { } t ? new { t.Kind, remaining = Math.Max(0, (int) Math.Ceiling((t.ReadyAt - DateTimeOffset.UtcNow).TotalSeconds)) } : null,
         canUndo = session.Game.UndoStack.Count > 0,
         canRedo = session.Game.RedoStack.Count > 0
     };

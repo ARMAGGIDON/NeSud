@@ -1,7 +1,4 @@
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 using NeSud.Core;
-using NeSud.Server;
 
 namespace NeSud.Server;
 
@@ -14,7 +11,11 @@ internal static partial class Endpoints
         app.MapPost("/api/guest", (ServerStore s) => s.Guest() is { } guest
             ? Results.Ok(guest) : Results.Problem("Демонстраційні сеанси зайняті. Спробуйте пізніше.", statusCode: 503)).RequireRateLimiting("auth");
         app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
-        app.MapPost("/api/logout", (HttpContext c, ServerStore s) => { s.Logout(Token(c)); return Results.Ok(); });
+        app.MapPost("/api/logout", (HttpContext c, ServerStore s) =>
+        {
+            s.Logout(Token(c));
+            return Results.Ok();
+        });
     }
 
     static string Token(HttpContext context)
