@@ -5,7 +5,7 @@ namespace NeSud.Core;
 public enum Difficulty { Easy, Medium, Hard, Expert }
 public sealed record Puzzle(int[] Givens, int[] Solution, Difficulty Difficulty);
 
-public static class Sudoku
+public static partial class Sudoku
 {
     public const int All = 0x3FE;
     public static readonly int[][] Units =
@@ -103,7 +103,7 @@ public static class Sudoku
     {
         var rng = random ?? Random.Shared;
         var (min, max) = ClueBand(difficulty);
-        for (int attempt = 0; attempt < 250; attempt++)
+        for (int attempt = 0; attempt < 1200; attempt++)
         {
             token.ThrowIfCancellationRequested();
             var solution = new int[81];
@@ -121,9 +121,7 @@ public static class Sudoku
                 else givens[i] = previous;
             }
             if (clues < min || clues > max) continue;
-            bool singles = SolvableBySingles(givens);
-            if (difficulty is Difficulty.Easy or Difficulty.Medium && !singles) continue;
-            if (difficulty == Difficulty.Expert && singles) continue;
+            if (!MatchesDifficulty(givens, difficulty, token)) continue;
             return new Puzzle(givens, solution, difficulty);
         }
         throw new InvalidOperationException("Не вдалося згенерувати поле. Спробуйте ще раз.");

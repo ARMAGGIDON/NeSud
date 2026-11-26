@@ -70,7 +70,7 @@ public sealed partial class ServerStore
         }
     }
 
-    public List<AccumulatedRank> Accumulated(string metric, bool all)
+    public List<AccumulatedRank> Accumulated(string metric, bool all, Difficulty? difficulty = null)
     {
         string order=metric switch {"perfect"=>"perfect", "streak"=>"best", "current"=>"current", "wins"=>"wins", _=>"score"};
         using var c=db.Open(); using var cmd=Database.Command(c, """
@@ -82,7 +82,7 @@ public sealed partial class ServerStore
                   THEN 1 ELSE 0 END perfect,
                 ROW_NUMBER() OVER(PARTITION BY h.name ORDER BY julianday(json_extract(h.payload,'$.ended')),h.id) seq,
                 SUM(CASE WHEN h.outcome<>'completed' THEN 1 ELSE 0 END) OVER(PARTITION BY h.name ORDER BY julianday(json_extract(h.payload,'$.ended')),h.id ROWS UNBOUNDED PRECEDING) grp
-              FROM history h WHERE ($all=1 OR h.source='web')
+              FROM history h WHERE ($all=1 OR h.source='web') AND ($d IS NULL OR json_extract(h.payload,'$.game.puzzle.difficulty')=$d)
                 AND NOT EXISTS(SELECT 1 FROM speed_audit v WHERE v.name=h.name AND v.id=h.id AND v.flagged=1)
             ), runs AS (
               SELECT name,grp,COUNT(*) wins,MAX(seq) last FROM ordered WHERE outcome='completed' GROUP BY name,grp
@@ -95,7 +95,7 @@ public sealed partial class ServerStore
             )
             SELECT s.name,s.wins,s.perfect,s.current,s.best,s.score,a.salt FROM stats s JOIN accounts a ON a.name=s.name
             ORDER BY
-            """+" "+order+" DESC,s.score DESC,s.name LIMIT 100",("$all",all?1:0));
+            """+" "+order+" DESC,s.score DESC,s.name LIMIT 100",("$all",all?1:0),("$d",difficulty is null?null:(int)difficulty.Value));
         using var rows=cmd.ExecuteReader(); var result=new List<AccumulatedRank>();
         while(rows.Read()) result.Add(new(PublicName(rows.GetString(0),(byte[])rows[6]),rows.GetInt64(1),rows.GetInt64(2),rows.GetInt64(3),rows.GetInt64(4),rows.GetInt64(5)));
         return result;

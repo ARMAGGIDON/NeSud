@@ -84,6 +84,9 @@ public sealed partial class ServerStore
             CREATE INDEX IF NOT EXISTS ix_tokens_expiry ON tokens(expires);
             CREATE TABLE IF NOT EXISTS tournament_state (id INTEGER PRIMARY KEY CHECK(id=1), next_week TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS tournament_results (week TEXT NOT NULL, rank INTEGER NOT NULL, name TEXT NOT NULL REFERENCES accounts(name), wins INTEGER NOT NULL, score INTEGER NOT NULL, PRIMARY KEY(week,rank), UNIQUE(week,name));
+            CREATE TABLE IF NOT EXISTS friendships (sender TEXT NOT NULL REFERENCES accounts(name), recipient TEXT NOT NULL REFERENCES accounts(name), accepted INTEGER NOT NULL DEFAULT 0 CHECK(accepted IN (0,1)), CHECK(sender<>recipient), PRIMARY KEY(sender,recipient));
+            CREATE INDEX IF NOT EXISTS ix_friend_recipient ON friendships(recipient,accepted);
+            CREATE INDEX IF NOT EXISTS ix_history_level ON history(name,json_extract(payload,'$.game.puzzle.difficulty'));
             CREATE TABLE IF NOT EXISTS challenge_puzzles (day TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS challenge_sessions (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), payload TEXT NOT NULL, PRIMARY KEY(name,day));
             CREATE TABLE IF NOT EXISTS challenge_attempts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, day TEXT NOT NULL REFERENCES challenge_puzzles(day), outcome TEXT NOT NULL, ended TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
@@ -102,7 +105,7 @@ public sealed partial class ServerStore
             """);
         convert.ExecuteNonQuery();
         using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
-        seed.ExecuteNonQuery(); tx.Commit();
+        seed.ExecuteNonQuery(); PruneChallengeSessions(migration,tx); tx.Commit();
     }
     private static byte[] Password(string password, byte[] salt) =>
         Rfc2898DeriveBytes.Pbkdf2(password, salt, 600_000, HashAlgorithmName.SHA256, 32);

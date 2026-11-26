@@ -18,9 +18,13 @@ public sealed record ChallengeCalendar(string Month, string Today, List<Challeng
 public sealed record PublicGame(DateTimeOffset Ended, string Mode, string Source, Difficulty Difficulty, string Outcome,
     int Seconds, int Score, int Mistakes, int Hints, int CandidateUses, int AutoFilled, int LifeRestores, string? ChallengeDay);
 public sealed record PublicProfile(string User, int Games, int Wins, int PerfectWins, int CurrentStreak, int BestStreak,
-    long Score, int DailyWins, List<string> Cups, List<PublicGame> History, bool HasMore);
+    long Score, int DailyWins, List<string> Cups, List<PublicGame> History, bool HasMore, List<LevelStats>? ByDifficulty = null);
 public sealed record OnlineGameView(Guid Id, long Revision, int[] Givens, int[] Values, int[] Notes, bool[] Wrong,
     int[] Remaining, int Seconds, int CurrentScore, int Lives, int HintCredits, int CandidateCredits, int Selected,
     bool Paused, bool Completed, bool OutOfLives, bool FinalDefeat, int ReviveSeconds, bool CanUndo, bool CanRedo,
     bool AutoFinish, string? ChallengeDay, bool Empty = false, OnlineRewardView? Reward = null, int Mistakes = 0, int Hints = 0, double ReviveRemainingMs = 0);
 public sealed record OnlineRewardView(string Kind, int Remaining);
+
+public sealed record LevelStats(Difficulty Difficulty, int Games, int Wins, int PerfectWins, int CurrentStreak, int BestStreak, long Score);
+public sealed record FriendEntry(string User, string Status);
+public sealed record FriendRequest(string User, string Action);
