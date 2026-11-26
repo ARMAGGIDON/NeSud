@@ -1,33 +1,137 @@
 <!DOCTYPE html>
-<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="js/state.js" defer></script>
-<script src="js/account.js" defer></script>
-<script src="js/session.js" defer></script>
-<script src="js/board.js" defer></script>
-<script src="js/rewards.js" defer></script>
-<script src="js/results.js" defer></script>
-<script src="js/render.js" defer></script>
-<script src="js/navigation.js" defer></script>
-<script src="js/profile.js" defer></script>
-<script src="js/calendar.js" defer></script>
-<script src="js/friends.js" defer></script>
-<script src="js/startup.js" defer></script></head>
-<body><header><div><h1>NeSud</h1></div><div class="header-actions"><button id="help-open">Довідка</button><button id="theme">Тема</button><button id="account" class="primary">Увійти</button><button id="logout" hidden>Вийти</button></div></header>
+<html lang="uk">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeSud · Судоку</title><link rel="stylesheet" href="style.css"><script src="js/state.js" defer>
+</script>
+<script src="js/account.js" defer>
+</script>
+<script src="js/session.js" defer>
+</script>
+<script src="js/board.js" defer>
+</script>
+<script src="js/rewards.js" defer>
+</script>
+<script src="js/results.js" defer>
+</script>
+<script src="js/render.js" defer>
+</script>
+<script src="js/navigation.js" defer>
+</script>
+<script src="js/profile.js" defer>
+</script>
+<script src="js/calendar.js" defer>
+</script>
+<script src="js/friends.js" defer>
+</script>
+<script src="js/startup.js" defer>
+</script>
+</head>
+<body>
+<header>
+<div>
+<h1>NeSud</h1>
+</div><div class="header-actions"><button id="help-open">Довідка</button><button id="theme">Тема</button><button id="account" class="primary">Увійти</button><button id="logout" hidden>Вийти</button>
+</div>
+</header>
 <main><dialog id="auth" class="panel"><button id="auth-close" type="button" aria-label="Закрити" class="dialog-close">×</button><h2 id="auth-title">Вхід до акаунта</h2>
-<div class="auth-tabs"><button id="login-tab" type="button" class="active">Вхід</button><button id="register-tab" type="button">Реєстрація</button></div>
+<div class="auth-tabs"><button id="login-tab" type="button" class="active">Вхід</button><button id="register-tab" type="button">Реєстрація</button>
+</div>
 <form id="login"><label>Логін або email<input id="user" required minlength="3" maxlength="254" autocomplete="username" placeholder="Логін або email"></label>
-<label for="password">Пароль</label><div class="secret"><input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password"><button type="button" data-secret="password" aria-label="Показати пароль" aria-pressed="false">Показати</button></div>
-<div id="confirmation-wrap" hidden><label for="confirmation">Підтвердження пароля</label><div class="secret"><input id="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password"><button type="button" data-secret="confirmation" aria-label="Показати підтвердження пароля" aria-pressed="false">Показати</button></div></div>
-<p id="auth-error" role="alert" hidden></p><button id="submit-auth" type="submit" class="primary wide">Увійти</button></form>
-<div class="guest-section"><button id="guest" type="button" class="wide">Продовжити як гість</button></div></dialog>
-<div id="app"><nav><button data-tab="menu">Головне меню</button><span id="guest-notice">Гостьовий режим</span><button data-tab="play">Гра</button><button data-tab="challenge">Щоденні ігри</button><button id="my-profile" hidden>Профіль</button><button id="history-tab" data-tab="history">Історія та статистика</button><button data-tab="ranking">Рейтинг</button><button data-tab="weekly">Турнір</button></nav>
-<section id="menu" class="panel"><h2>Головне меню</h2><div class="menu-grid"><button id="menu-continue" class="primary" hidden>Продовжити гру</button><label>Складність<select id="menu-level"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="menu-start" class="primary">Нова гра</button><button data-tab="challenge">Щоденні ігри</button><button data-tab="weekly">Тижневий турнір</button><button data-tab="ranking">Рейтинг</button><button id="menu-profile">Мій профіль</button><button data-tab="friends">Друзі та пошук</button></div></section><section id="play" class="layout" hidden><article class="panel" id="game-panel"><div class="metrics"><div>СКЛАДНІСТЬ<strong id="level">–</strong></div><div>ЧАС<strong id="time">00:00</strong></div><div>ЖИТТЯ<strong id="lives" class="hearts">♡ ♡ ♡</strong></div><div>БАЛИ<strong id="score">0</strong></div></div>
-<div class="boardwrap"><div id="board" role="group" aria-label="Поле судоку"></div><div id="cover"><h2 id="covertext">Нова головоломка</h2><p id="cover-detail"></p><progress id="revive-progress" max="10" value="0" hidden></progress><button id="resume" class="primary">Продовжити</button></div></div><p id="progress"></p><p id="penalties"></p></article>
+<label for="password">Пароль</label><div class="secret"><input id="password" type="password" required minlength="10" maxlength="128" autocomplete="current-password"><button type="button" data-secret="password" aria-label="Показати пароль" aria-pressed="false">Показати</button>
+</div>
+<div id="confirmation-wrap" hidden><label for="confirmation">Підтвердження пароля</label><div class="secret"><input id="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password"><button type="button" data-secret="confirmation" aria-label="Показати підтвердження пароля" aria-pressed="false">Показати</button>
+</div>
+</div>
+<p id="auth-error" role="alert" hidden></p><button id="submit-auth" type="submit" class="primary wide">Увійти</button>
+</form>
+<div class="guest-section"><button id="guest" type="button" class="wide">Продовжити як гість</button>
+</div>
+</dialog>
+<div id="app">
+<nav><button data-tab="menu">Головне меню</button><span id="guest-notice">Гостьовий режим</span><button data-tab="play">Гра</button><button data-tab="challenge">Щоденні ігри</button><button id="my-profile" hidden>Профіль</button><button id="history-tab" data-tab="history">Історія та статистика</button><button data-tab="ranking">Рейтинг</button><button data-tab="weekly">Турнір</button>
+</nav>
+<section id="menu" class="panel">
+<h2>Головне меню</h2><div class="menu-grid"><button id="menu-continue" class="primary" hidden>Продовжити гру</button><label>Складність<select id="menu-level"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="menu-start" class="primary">Нова гра</button><button data-tab="challenge">Щоденні ігри</button><button data-tab="weekly">Тижневий турнір</button><button data-tab="ranking">Рейтинг</button><button id="menu-profile">Мій профіль</button><button data-tab="friends">Друзі та пошук</button>
+</div>
+</section><section id="play" class="layout" hidden><article class="panel" id="game-panel"><div class="metrics">
+<div>СКЛАДНІСТЬ<strong id="level">–</strong>
+</div>
+<div>ЧАС<strong id="time">00:00</strong>
+</div>
+<div>ЖИТТЯ<strong id="lives" class="hearts">♡ ♡ ♡</strong>
+</div>
+<div>БАЛИ<strong id="score">0</strong>
+</div>
+</div>
+<div class="boardwrap"><div id="board" role="group" aria-label="Поле судоку">
+</div><div id="cover"><h2 id="covertext">Нова головоломка</h2><p id="cover-detail"></p><progress id="revive-progress" max="10" value="0" hidden></progress><button id="resume" class="primary">Продовжити</button>
+</div>
+</div><p id="progress"></p><p id="penalties"></p>
+</article>
 <aside class="panel" id="game-tools"><h2 id="game-mode">Нова гра</h2><label id="difficulty-label">Складність<select id="difficulty"><option value="0">Легка</option><option value="1" selected>Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select></label><button id="newgame" class="primary wide">Нова головоломка</button>
-<h2>Цифри та нотатки</h2><div id="pad"></div><div class="actions" id="tools"><button data-action="undo">↶ Скасувати</button><button data-action="redo">↷ Повторити</button><button data-action="erase">Стерти</button><button id="notes">Нотатки</button><button data-action="hint" id="hint">Підказка (0)</button><button data-action="candidates" id="candidates">Кандидати (0)</button><button data-action="pause">Пауза</button></div><label class="switch-row"><input id="auto-finish" type="checkbox"><span>Автозавершення ≤9 клітинок</span></label><section class="rewards" id="rewards" hidden><h2>Поповнення</h2><button id="daily-open" hidden>Нагороди</button><div class="reward-buttons"><button data-reward="hint">+1 підказка</button><button data-reward="candidates">+1 кандидати</button></div></section></aside><article id="result" class="panel" hidden><div class="result-banner"><div id="result-icon"></div><h2 id="result-title"></h2><p id="result-level"></p><strong id="result-score"></strong><p id="result-time"></p></div><div id="result-breakdown"></div><h2 id="comparison-heading">Порівняння з гравцями цієї складності</h2><div id="comparison"></div><div class="actions result-actions"><select id="result-difficulty" aria-label="Складність нової гри"><option value="0">Легка</option><option value="1">Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select><button id="result-new" class="primary">Нова головоломка</button><button id="result-rank">Рейтинг</button><button id="result-daily" hidden>Щоденні нагороди</button></div></article></section>
-<section id="history" class="panel" hidden><h2>Історія та статистика</h2><div id="summary" class="metrics"></div><div id="historyrows"></div></section>
-<section id="ranking" class="panel" hidden><h2>Серверний рейтинг</h2><label>Таблиця<select id="rankmode"><option value="server">Серверний рейтинг</option><option value="all">Загальні бали (офлайн включено)</option></select></label><label>Показник<select id="rankmetric"><option value="score">Бали</option><option value="wins">Перемоги</option><option value="perfect">Ідеальні перемоги</option><option value="current">Поточна серія</option><option value="streak">Найдовша серія</option></select></label><label>Складність<select id="ranklevel"><option value="">Усі складності</option><option value="Easy">Легка</option><option value="Medium">Середня</option><option value="Hard">Складна</option><option value="Expert">Експерт</option></select></label><div id="rankrows"></div></section><section id="weekly" class="panel" hidden><h2 id="weekly-title">Тижневий турнір</h2><div id="weeklyrows"></div><h2>Попередній тиждень</h2><div id="previous-week"></div><button id="weekly-rewards" class="primary" hidden>Отримати приз</button></section><section id="challenge" class="panel" hidden><div class="calendar-head"><button id="calendar-prev" aria-label="Попередній місяць">‹</button><h2 id="calendar-title">Щоденні ігри</h2><button id="calendar-next" aria-label="Наступний місяць">›</button></div><p id="calendar-progress"></p><button id="calendar-login" hidden>Увійти</button><div class="calendar-grid calendar-labels"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span></div><div id="calendar-days" class="calendar-grid"></div><button id="challenge-rewards" class="primary" hidden>Отримати нагороду</button><h2>Місячні кубки</h2><div id="calendar-cups" class="cups"></div></section>
-<section id="profile" class="panel" hidden><h2 id="profile-name">Профіль</h2><p id="profile-stats"></p><div id="profile-friend" class="actions"></div><div id="profile-level-stats"></div><h2>Кубки</h2><div id="profile-cups" class="cups"></div><h2>Історія ігор</h2><label>Складність<select id="profile-level"><option value="">Усі складності</option><option value="Easy">Легка</option><option value="Medium">Середня</option><option value="Hard">Складна</option><option value="Expert">Експерт</option></select></label><div id="profile-history"></div><div class="actions"><button id="profile-prev">Попередня</button><button id="profile-next">Наступна</button></div></section><section id="friends" class="panel" hidden><h2>Друзі та пошук</h2><form id="player-form" class="actions"><input id="player-search" placeholder="Нікнейм" minlength="2" maxlength="80"><button type="submit">Знайти / оновити</button></form><div id="player-results" class="actions"></div><div id="friend-list"></div></section></div>
-<p id="status" role="status" aria-live="polite"></p></main>
-<dialog id="confirm"><h2>Нова головоломка?</h2><p>Поточна незавершена гра залишиться в історії.</p><form method="dialog" class="actions"><button value="cancel">Скасувати</button><button value="yes" class="primary">Створити</button></form></dialog>
-<dialog id="ad"><h2>Демонстраційна реклама</h2><p id="ad-kind"></p><strong id="ad-time" aria-live="polite">8 с</strong><progress id="ad-progress" max="8" value="0"></progress><p>Це заглушка реклами. Винагорода доступна після таймера.</p><div class="actions"><button id="ad-cancel">Скасувати</button><button id="ad-claim" class="primary" disabled>Отримати</button></div></dialog><dialog id="daily"><h2 id="daily-heading">Щоденні нагороди</h2><p id="daily-summary"></p><div id="wallet"></div><p id="daily-milestone"></p><div id="daily-cards"></div><p id="daily-result" role="status" aria-live="polite"></p><button id="daily-close" class="wide">Закрити</button></dialog><dialog id="help"><h2>Довідка</h2><p>Стрілки: вибір клітинки. 1–9: цифри. N/Space: нотатки. H: підказка. A: кандидати. P/Esc: пауза. Ctrl+Z/Y: скасування/повтор.</p><p>Три життя; після поразки один шанс за рекламу протягом 10 с. Реклама триває 8 с. Підказки та кандидати можна поповнити рекламою лише за відсутності ресурсу. Автозавершення: −20 балів за клітинку.</p><p>Щодня за 1-шу та 3-тю різні перемоги: картки ×1, ×1, ×2; за 7-му: ×3, ×3, ×3. Турнір: місця 1–2 (×3, ×3, ×3), 3 (×3, ×3, ×2), 4–10 (×2, ×2, ×2), 11–30 (×1, ×1, ×2). Дві картки містять різні типи ресурсу, третя має випадковий тип. Обирається одна з трьох прихованих карток. Ідеальна перемога: без помилок, допомоги та відновлення.</p><p>Щоденні ігри: спільна головоломка для кожної дати. Пропущені дні можна завершити до кінця місяця. За перемогу один набір ×1, ×1, ×2; за всі дні місяця один декоративний кубок. Режим не входить до звичайних щоденних порогів і турніру.</p><p>Гостьові ігри не враховуються в рейтингу. Загальний рейтинг містить неперевірені офлайн-результати.</p><button id="help-close" class="primary wide">Закрити</button></dialog></body></html>
+<h2>Цифри та нотатки</h2><div id="pad">
+</div><div class="actions" id="tools"><button data-action="undo">↶ Скасувати</button><button data-action="redo">↷ Повторити</button><button data-action="erase">Стерти</button><button id="notes">Нотатки</button><button data-action="hint" id="hint">Підказка (0)</button><button data-action="candidates" id="candidates">Кандидати (0)</button><button data-action="pause">Пауза</button>
+</div><label class="switch-row"><input id="auto-finish" type="checkbox"><span>Автозавершення ≤9 клітинок</span></label><section class="rewards" id="rewards" hidden>
+<h2>Поповнення</h2><button id="daily-open" hidden>Нагороди</button><div class="reward-buttons"><button data-reward="hint">+1 підказка</button><button data-reward="candidates">+1 кандидати</button>
+</div>
+</section>
+</aside><article id="result" class="panel" hidden><div class="result-banner"><div id="result-icon">
+</div><h2 id="result-title">
+</h2><p id="result-level"></p><strong id="result-score"></strong><p id="result-time"></p>
+</div><div id="result-breakdown">
+</div><h2 id="comparison-heading">Порівняння з гравцями цієї складності</h2><div id="comparison">
+</div><div class="actions result-actions"><select id="result-difficulty" aria-label="Складність нової гри"><option value="0">Легка</option><option value="1">Середня</option><option value="2">Складна</option><option value="3">Експерт</option></select><button id="result-new" class="primary">Нова головоломка</button><button id="result-rank">Рейтинг</button><button id="result-daily" hidden>Щоденні нагороди</button>
+</div>
+</article>
+</section>
+<section id="history" class="panel" hidden>
+<h2>Історія та статистика</h2><div id="summary" class="metrics">
+</div><div id="historyrows">
+</div>
+</section>
+<section id="ranking" class="panel" hidden>
+<h2>Серверний рейтинг</h2><label>Таблиця<select id="rankmode"><option value="server">Серверний рейтинг</option><option value="all">Загальні бали (офлайн включено)</option></select></label><label>Показник<select id="rankmetric"><option value="score">Бали</option><option value="wins">Перемоги</option><option value="perfect">Ідеальні перемоги</option><option value="current">Поточна серія</option><option value="streak">Найдовша серія</option></select></label><label>Складність<select id="ranklevel"><option value="">Усі складності</option><option value="Easy">Легка</option><option value="Medium">Середня</option><option value="Hard">Складна</option><option value="Expert">Експерт</option></select></label><div id="rankrows">
+</div>
+</section><section id="weekly" class="panel" hidden><h2 id="weekly-title">Тижневий турнір</h2><div id="weeklyrows">
+</div>
+<h2>Попередній тиждень</h2><div id="previous-week">
+</div><button id="weekly-rewards" class="primary" hidden>Отримати приз</button>
+</section><section id="challenge" class="panel" hidden><div class="calendar-head"><button id="calendar-prev" aria-label="Попередній місяць">‹</button><h2 id="calendar-title">Щоденні ігри</h2><button id="calendar-next" aria-label="Наступний місяць">›</button>
+</div><p id="calendar-progress"></p><button id="calendar-login" hidden>Увійти</button><div class="calendar-grid calendar-labels"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span>
+</div><div id="calendar-days" class="calendar-grid">
+</div><button id="challenge-rewards" class="primary" hidden>Отримати нагороду</button>
+<h2>Місячні кубки</h2><div id="calendar-cups" class="cups">
+</div>
+</section>
+<section id="profile" class="panel" hidden><h2 id="profile-name">Профіль</h2><p id="profile-stats"></p><div id="profile-friend" class="actions">
+</div><div id="profile-level-stats">
+</div>
+<h2>Кубки</h2><div id="profile-cups" class="cups">
+</div>
+<h2>Історія ігор</h2><label>Складність<select id="profile-level"><option value="">Усі складності</option><option value="Easy">Легка</option><option value="Medium">Середня</option><option value="Hard">Складна</option><option value="Expert">Експерт</option></select></label><div id="profile-history">
+</div><div class="actions"><button id="profile-prev">Попередня</button><button id="profile-next">Наступна</button>
+</div>
+</section><section id="friends" class="panel" hidden>
+<h2>Друзі та пошук</h2><form id="player-form" class="actions"><input id="player-search" placeholder="Нікнейм" minlength="2" maxlength="80"><button type="submit">Знайти / оновити</button>
+</form><div id="player-results" class="actions">
+</div><div id="friend-list">
+</div>
+</section>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+</main>
+<dialog id="confirm">
+<h2>Нова головоломка?</h2><p>Поточна незавершена гра залишиться в історії.</p><form method="dialog" class="actions"><button value="cancel">Скасувати</button><button value="yes" class="primary">Створити</button>
+</form>
+</dialog>
+<dialog id="ad">
+<h2>Демонстраційна реклама</h2><p id="ad-kind"></p><strong id="ad-time" aria-live="polite">8 с</strong><progress id="ad-progress" max="8" value="0"></progress><p>Це заглушка реклами. Винагорода доступна після таймера.</p><div class="actions"><button id="ad-cancel">Скасувати</button><button id="ad-claim" class="primary" disabled>Отримати</button>
+</div>
+</dialog><dialog id="daily"><h2 id="daily-heading">Щоденні нагороди</h2><p id="daily-summary"></p><div id="wallet">
+</div><p id="daily-milestone"></p><div id="daily-cards">
+</div><p id="daily-result" role="status" aria-live="polite"></p><button id="daily-close" class="wide">Закрити</button>
+</dialog><dialog id="help">
+<h2>Довідка</h2><p>Стрілки: вибір клітинки. 1–9: цифри. N/Space: нотатки. H: підказка. A: кандидати. P/Esc: пауза. Ctrl+Z/Y: скасування/повтор.</p><p>Три життя; після поразки один шанс за рекламу протягом 10 с. Реклама триває 8 с. Підказки та кандидати можна поповнити рекламою лише за відсутності ресурсу. Автозавершення: −20 балів за клітинку.</p><p>Щодня за 1-шу та 3-тю різні перемоги: картки ×1, ×1, ×2; за 7-му: ×3, ×3, ×3. Турнір: місця 1–2 (×3, ×3, ×3), 3 (×3, ×3, ×2), 4–10 (×2, ×2, ×2), 11–30 (×1, ×1, ×2). Дві картки містять різні типи ресурсу, третя має випадковий тип. Обирається одна з трьох прихованих карток. Ідеальна перемога: без помилок, допомоги та відновлення.</p><p>Щоденні ігри: спільна головоломка для кожної дати. Пропущені дні можна завершити до кінця місяця. За перемогу один набір ×1, ×1, ×2; за всі дні місяця один декоративний кубок. Режим не входить до звичайних щоденних порогів і турніру.</p><p>Гостьові ігри не враховуються в рейтингу. Загальний рейтинг містить неперевірені офлайн-результати.</p><button id="help-close" class="primary wide">Закрити</button>
+</dialog>
+</body>
+</html>
