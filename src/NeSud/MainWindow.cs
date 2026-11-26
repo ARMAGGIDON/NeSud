@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -27,7 +28,7 @@ public sealed class MainWindow : Window
     private Button coverButton = null!;
     private Difficulty nextDifficulty;
     private CancellationTokenSource? generation;
-    private int lastSavedSecond;
+    private int lastSavedSecond, accountedSeconds;
     private bool closing;
     private Game? G => state.Game;
     private bool Busy => generation is not null;
@@ -64,7 +65,7 @@ public sealed class MainWindow : Window
         Loaded += async (_, _) =>
         {
             if (G is null) await Generate(false);
-            else { SyncClock(); Render(); FocusCell(); }
+            else { SyncClock(); Render(); FocusCell(); if (G.Completed) status.Text = "Відновлено завершену головоломку."; }
             if (store.Warning is { } warning) status.Text = warning;
         };
         Render();
@@ -307,9 +308,9 @@ public sealed class MainWindow : Window
     private void Render()
     {
         var g = G;
-        bool active = Playing, visible = g is not null && !g.Paused && !Busy && !g.Completed;
-        heading.Text = g is null ? "Підготовка" : Level(g.Puzzle.Difficulty);
-        errors.Text = g is null ? "0" : g.Mistakes.ToString(CultureInfo.CurrentCulture);
+        bool active = Playing, visible = g is not null && !g.Paused && !Busy;
+        heading.Text = g is null ? "Підготовка" : g.Completed ? "Розв’язано" : Level(g.Puzzle.Difficulty);
+        errors.Text = !state.ShowMistakes ? "Приховано" : (g?.Mistakes ?? 0).ToString(CultureInfo.CurrentCulture);
         ReadClock();
         for (int i = 0; i < levels.Length; i++)
         {
@@ -322,7 +323,7 @@ public sealed class MainWindow : Window
         int selectedValue = g is null ? 0 : g.Values[g.Selected];
         for (int i = 0; i < 81; i++)
         {
-            var b = cells[i]; b.IsTabStop = visible && i == g!.Selected;
+            var b = cells[i]; b.IsTabStop = active && i == g!.Selected;
             if (g is null) { b.Content = null; b.Background = B("Panel"); continue; }
             int value = g.Values[i];
             bool given = g.Puzzle.Givens[i] != 0, selected = i == g.Selected;
@@ -331,7 +332,7 @@ public sealed class MainWindow : Window
             bool peer = state.HighlightPeers && Sudoku.Peers[g.Selected].Contains(i);
             string background = selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel";
             b.Background = B(background);
-            string fg = wrong ? "Wrong" : given ? "Given" : state.Dark ? "Accent" : "Accent";
+            string fg = wrong ? "Wrong" : given ? "Given" : "Accent";
             b.Foreground = B(fg);
             b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
             b.Content = value != 0 ? value.ToString() : g.Notes[i] != 0 ? NoteGrid(g.Notes[i]) : null;
@@ -342,8 +343,7 @@ public sealed class MainWindow : Window
         for (int i = 0; i < 9; i++)
         {
             int d = i + 1;
-            int remaining = g is null ? 9 : 9 - Enumerable.Range(0, 81)
-                .Count(j => g.Values[j] == d && g.Puzzle.Solution[j] == d);
+            int remaining = g is null ? 9 : Math.Max(0, 9 - g.Values.Count(v => v == d));
             var stack = Stack(); stack.Children.Add(Text(d.ToString(), 21, "Text", true));
             var count = Text($"ще {remaining}", 10, "Muted"); count.TextAlignment = TextAlignment.Center;
             ((TextBlock)stack.Children[0]).TextAlignment = TextAlignment.Center;
@@ -354,7 +354,7 @@ public sealed class MainWindow : Window
         }
         int filled = g?.Values.Count(v => v != 0) ?? 0;
         int givens = g?.Puzzle.Givens.Count(v => v != 0) ?? 0;
-        progress.Text = g is null ? "Підготовка поля" : $"Заповнено {filled}/81  •  Ваші клітинки: {filled - givens}/{81 - givens}  •  Підказки: {g.Hints}";
+        progress.Text = g is null ? "Підготовка поля" : g.Completed ? $"✓ Судоку розв’язано!  •  Час: {FormatTime(g.Seconds)}  •  Підказки: {g.Hints}" : $"Заповнено {filled}/81  •  Ваші клітинки: {filled - givens}/{81 - givens}  •  Підказки: {g.Hints}";
         progressBar.Value = filled;
         undo.IsEnabled = active && g!.UndoStack.Count > 0; redo.IsEnabled = active && g!.RedoStack.Count > 0;
         erase.IsEnabled = active && g!.Editable(g.Selected); hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
@@ -394,23 +394,24 @@ public sealed class MainWindow : Window
     {
         if (G is { } g && clock.IsRunning)
         {
-            int delta = (int)clock.Elapsed.TotalSeconds;
-            if (delta > 0) { g.Seconds += delta; clock.Restart(); }
+            int elapsed = (int)clock.Elapsed.TotalSeconds;
+            int delta = elapsed - accountedSeconds;
+            if (delta > 0) { g.Seconds += delta; accountedSeconds = elapsed; }
         }
         time.Text = FormatTime(G?.Seconds ?? 0);
     }
     private void SyncClock()
     {
         ReadClock();
-        if (Playing && !clock.IsRunning) clock.Restart();
-        else if (!Playing) clock.Reset();
+        if (Playing && !clock.IsRunning) { accountedSeconds = 0; clock.Restart(); }
+        else if (!Playing) { clock.Reset(); accountedSeconds = 0; }
     }
     private void Save()
     {
         try
         {
             store.Save(state); lastSavedSecond = G?.Seconds ?? 0;
-            saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted");
+            saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = StateStore.DefaultPath;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { saveStatus.Text = "Не збережено"; saveStatus.Foreground = B("Wrong"); saveStatus.ToolTip = ex.Message; }
@@ -498,7 +499,7 @@ public sealed class MainWindow : Window
 
     private void ShowHelp()
     {
-        MessageBox.Show(this, "Стрілки / WASD: вибір клітинки (A окремо: кандидати; рух ліворуч лише ←)\n" +
+        MessageBox.Show(this, "Стрілки: вибір клітинки\n" +
             "1–9 / NumPad: цифра; Shift+цифра: нотатка\n" +
             "N / Space: режим нотаток\nDelete / Backspace / 0: стерти\n" +
             "Ctrl+Z / Ctrl+Y: скасувати / повторити\nH: підказка; A: усі кандидати\n" +

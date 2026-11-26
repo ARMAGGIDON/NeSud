@@ -78,7 +78,7 @@ public sealed class Game
     public (int Cell, int Digit, string Reason)? GetHint()
     {
         if (Paused || Completed) return null;
-        int wrong = Array.FindIndex(Values, v => false);
+        int wrong = -1;
         for (int i = 0; i < 81; i++)
             if (Values[i] != 0 && Values[i] != Puzzle.Solution[i]) { wrong = i; break; }
         if (wrong >= 0) return (wrong, Puzzle.Solution[wrong], "Виправлення помилки");
