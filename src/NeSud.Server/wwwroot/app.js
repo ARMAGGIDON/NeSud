@@ -46,7 +46,7 @@ function accept(data){
  if(game.completed||game.finalDefeat)loadComparison();
  }
  render();
- if(previousGame?.id===game?.id&&game){
+ if(game&&previousGame?.id===game.id){
  for(let i=0;i<81;i++)if(game.values[i]!==previousGame.values[i]&&game.values[i])animate(buttons[i],game.wrong[i]?"shake":"pop");
  if(game.lives<previousGame.lives)animate($("lives"),"heart-loss");
  }
@@ -67,7 +67,7 @@ async function act(action,extra={}){
 setInterval(()=>{if(busy||authBusy||adBusy)return;if(!token){if(navigator.onLine&&!$("auth").open&&Date.now()>=nextGuest)login(true);return}if(!online)reconnect();else if(game)act("heartbeat")},3000);
 setInterval(()=>{if(token&&online&&tab==="ranking")navigate("ranking")},10000);
 function confirmNew(){return new Promise(resolve=>{const d=$("confirm");d.querySelector("p").textContent=guestMode?"Поточну демонстраційну гру буде замінено.":"Поточна незавершена гра залишиться в історії.";d.returnValue="cancel";d.addEventListener("close",()=>resolve(d.returnValue==="yes"),{once:true});d.showModal()})}
-$("newgame").onclick=async()=>{if(!online||busy||adPending)return;if(game&&!game.completed&&!(await confirmNew()))return;if(!online||busy)return;const e=epoch;busy=true;render();message("Генерація головоломки…");
+$("newgame").onclick=async()=>{if(!online||busy||adPending)return;if(game&&!game.completed&&!game.finalDefeat&&!(await confirmNew()))return;if(!online||busy)return;const e=epoch;busy=true;render();message("Генерація головоломки…");
  try{const data=await api("web/new",{difficulty:Number($("difficulty").value),id:game?.id??null,revision:game?.revision??0,autoFinish});if(e!==epoch)return;selected=data.selected;accept(data);message("Нову головоломку створено.");}
  catch(e){disconnect(e)}finally{busy=false;render()}};
 $("resume").onclick=()=>!online?(token?reconnect():login(true)):game?.outOfLives?(game.reviveSeconds>0?reward("life"):$("newgame").onclick()):act("resume");
@@ -112,7 +112,7 @@ $("daily-close").onclick=()=>$("daily").close();
 setInterval(refreshDaily,15000);
 function adRender(){$("ad-time").textContent=adRemaining>0?adRemaining+" с":"Готово!";$("ad-progress").value=Math.max(0,8-adRemaining);$("ad-claim").disabled=adRemaining>0||adBusy||busy||!online}
 async function reward(kind){
- if(!online||busy||adPending||!game||game.completed||kind==="life"&&(!game.outOfLives||!game.reviveSeconds))return;adPending=true;
+ if(!online||busy||adPending||!game||game.completed||game.outOfLives&&kind!=="life"||kind==="life"&&(!game.outOfLives||!game.reviveSeconds))return;adPending=true;
  if(game.reward&&game.reward.kind!==kind){if(!await act("reward-cancel")){adPending=false;return}}
  if(!await act("reward-start",{reward:kind})){adPending=false;render();return}
  adKind=kind;adRemaining=game.reward?.remaining??8;$("ad-kind").textContent=rewardNames[kind];
@@ -150,7 +150,7 @@ function showResult(){
  if(!done||!comparison?.games){c.textContent=done?(comparison?"Поки недостатньо результатів.":"Завантаження статистики…"):"Порівняння доступне для завершених ігор.";return}
  for(const [label,val] of [["Ігор / гравців",comparison.games+" / "+comparison.players],["Середній час",fmt(Math.round(comparison.averageSeconds))],["Медіанний час",fmt(Math.round(comparison.medianSeconds))],["Найкращий час",fmt(comparison.bestSeconds)],["Середній бал",Math.round(comparison.averageScore)],["Середні помилки",comparison.averageMistakes.toFixed(1)],["Середні підказки",comparison.averageHints.toFixed(1)],["Середні зміни кандидатів",comparison.averageCandidates.toFixed(1)],["Ваш бал не нижче ніж у",comparison.scorePercentile+"% ігор"],["Ваш час не довше ніж у",comparison.timePercentile+"% ігор"]])resultRow(c,label,val)
 }
-function updateRevive(){if(!game?.outOfLives||game.finalDefeat)return;const left=Math.max(0,Math.ceil((reviveEnd-performance.now())/1000));$("revive-progress").value=left;$("cover-detail").textContent=game.reward?"Останній шанс використано.":left>0?"Останній шанс: "+left+" с":"Час вичерпано.";$("resume").disabled=busy||adPending||left===0;if(!left&&!game.reward&&online&&!busy&&!adPending)act("heartbeat")}
+function updateRevive(){if(!game?.outOfLives||game.finalDefeat||!online)return;const left=Math.max(0,Math.ceil((reviveEnd-performance.now())/1000));$("revive-progress").value=left;$("cover-detail").textContent=game.reward?"Останній шанс використано.":left>0?"Останній шанс: "+left+" с":"Час вичерпано.";$("resume").disabled=busy||adPending||left===0;if(!left&&!game.reward&&online&&!busy&&!adPending)act("heartbeat")}
 setInterval(updateRevive,200);
 function render(){
  const active=online&&game&&!game.paused&&!game.completed&&!game.outOfLives&&!busy&&!adPending;

@@ -176,7 +176,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
                 if (game.GrantReward(request.Reward!, advertisement: false)) { walletKind = request.Reward; changed = true; }
                 break;
             case "reward-start":
-                if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : !game.CanReward(request.Reward ?? "")) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
+                if (request.Reward == "life" ? !game.CanStartRevive(DateTimeOffset.UtcNow) : game.OutOfLives || !game.CanReward(request.Reward ?? "")) return Results.BadRequest(new { error = "Цей ресурс уже заповнено або гра завершена." });
                 if (session.Reward is not null && session.Reward.Kind != request.Reward)
                     return Results.BadRequest(new { error = "Спочатку завершіть або скасуйте попередню винагороду." });
                 if (session.Reward is null)
@@ -197,7 +197,7 @@ app.MapPost("/api/web/action", (HttpContext c, ServerStore s, MoveRequest reques
                 if (session.Reward is not null) { if (session.Reward.Kind == "life") game.CancelRevive(); session = session with { Reward = null, LastSeen = DateTimeOffset.UtcNow }; changed = true; }
                 break;
             case "pause": if (!game.Paused && !game.Completed) { game.Paused = true; changed = true; } break;
-            case "resume": if (game.Paused && !game.Completed && !game.OutOfLives) { game.Paused = false; changed = true; } break;
+            case "resume": if (game.Paused && !game.Completed && !game.OutOfLives) { game.Paused = false; game.TryAutoFinish(); changed = true; } break;
             case "auto-finish":
                 if (!game.Completed && !game.OutOfLives) { game.AutoFinish = request.Note; game.TryAutoFinish(); changed = true; }
                 break;
