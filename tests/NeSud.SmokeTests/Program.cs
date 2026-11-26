@@ -106,7 +106,10 @@ Check(lifeGame.Lives == 0 && lifeGame.OutOfLives && lifeGame.Mistakes == 3, "Lif
 Check(!lifeGame.Undo() && !lifeGame.Redo() && !lifeGame.Enter(blanks[3], lifeGame.Puzzle.Solution[blanks[3]])
     && !lifeGame.FillNotes() && lifeGame.GetHint() is null, "Exhaustion blocks actions");
 Check(lifeGame.CurrentScore == initialScore - 225, "Mistake score penalty");
-Check(lifeGame.GrantReward("life") && lifeGame.Lives == 1 && !lifeGame.OutOfLives &&
+var lossTime = lifeGame.ReviveDeadline!.Value.AddSeconds(-10);
+Check(!lifeGame.GrantReward("life") && lifeGame.CanStartRevive(lossTime) && !lifeGame.CanStartRevive(lossTime.AddSeconds(10)), "Revival is limited to defeat and ten seconds");
+Check(lifeGame.BeginRevive(lossTime) && !lifeGame.BeginRevive(lossTime) && !lifeGame.FinishRevive(lossTime.AddSeconds(7)), "Single ad attempt and early claim denied");
+Check(lifeGame.FinishRevive(lossTime.AddSeconds(8)) && lifeGame.Lives == 1 && !lifeGame.OutOfLives &&
     lifeGame.CurrentScore == initialScore - 325, "Life restoration and score penalty");
 Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
 var aid = Game.Start(puzzles[0]);
@@ -131,8 +134,36 @@ Check(copied.Valid() && copied.CandidateUses == 1 && copied.CandidateChanges == 
     copied.CurrentScore == aid.CurrentScore, "Resource persistence");
 var legacy = Game.Start(puzzles[0]); legacy.RulesVersion = 1; legacy.CandidateUses = 2;
 int legacyScore = legacy.CurrentScore; legacy.UpgradeRules();
-Check(legacy.RulesVersion == 2 && legacy.CurrentScore == legacyScore, "Legacy migration");
+Check(legacy.RulesVersion == 3 && legacy.CurrentScore == legacyScore, "Legacy migration");
 Console.WriteLine("PASS lives, aid, variable penalties, legacy migration, persistence");
+
+var cancelledRevive = Game.Start(puzzles[0]);
+Check(!cancelledRevive.CanStartRevive(DateTimeOffset.UtcNow) && !cancelledRevive.GrantReward("life"), "No proactive lives");
+for (int j = 0; j < 3; j++) cancelledRevive.Enter(blanks[j], cancelledRevive.Puzzle.Solution[blanks[j]] % 9 + 1);
+var startedRevive = cancelledRevive.ReviveDeadline!.Value.AddSeconds(-10);
+Check(cancelledRevive.BeginRevive(startedRevive), "Start revival");
+cancelledRevive.CancelRevive();
+Check(cancelledRevive.FinalDefeat(startedRevive.AddSeconds(1)) &&
+    !cancelledRevive.BeginRevive(startedRevive.AddSeconds(1)) && !cancelledRevive.FinishRevive(startedRevive.AddSeconds(8)), "Cancel consumes chance");
+var auto = Game.Start(puzzles[0]);
+foreach (int j in blanks.Take(blanks.Length-10)) auto.Enter(j, auto.Puzzle.Solution[j]);
+auto.AutoFinish = true;
+Check(!auto.TryAutoFinish(), "Auto finish not at ten blanks");
+int tenth = blanks[blanks.Length-10];
+Check(auto.Enter(tenth, auto.Puzzle.Solution[tenth]) && auto.Completed && auto.AutoFilled == 9 &&
+    auto.AutoFillPenalty == 180 && auto.Seconds == 0, "Auto finish applies points not time");
+Check(auto.Remaining(1) == 0 && auto.Remaining(9) == 0, "Digit counts on completion");
+var manual = Game.Start(puzzles[0]);
+foreach (int j in blanks) manual.Enter(j, manual.Puzzle.Solution[j]);
+manual.Seconds = manual.TargetSeconds/2;
+Check(manual.SpeedBonus == (int)Math.Round(manual.BaseScore*0.6*0.25), "Quadratic midpoint");
+manual.Seconds = manual.TargetSeconds;
+Check(manual.SpeedBonus == 0, "Target speed bonus zero");
+var rapid = new MoveAudit();
+var nowAudit = DateTimeOffset.UtcNow;
+for (int j = 0; j < 20; j++) rapid = rapid.Record(nowAudit.AddMilliseconds(j*30));
+Check(rapid.Flag(manual), "Private rapid move audit");
+Console.WriteLine("PASS timed single revival, cancellation, auto finish, counts, quadratic bonus and audit");
 
 var dailyDir = Path.Combine(Path.GetTempPath(), "NeSud-daily-tests-" + Guid.NewGuid().ToString("N"));
 try

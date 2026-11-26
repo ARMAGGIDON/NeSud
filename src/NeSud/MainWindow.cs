@@ -62,7 +62,7 @@ public sealed class MainWindow : Window
         state = store.Load();
         state.Game?.UpgradeRules();
         if (G?.ReviveReadyAt is not null) G.CancelRevive();
-        if (G is not null) state.AutoFinish = G.AutoFinish;
+        if (G is { Completed: false }) state.AutoFinish = G.AutoFinish;
         // A legacy life purchase cannot be used outside the new last-chance rule.
         if (state.PendingReward?.Request.Kind == "life") state.PendingReward = null;
         account = RestoreSession();
@@ -311,6 +311,13 @@ public sealed class MainWindow : Window
         result.Children.Add(resultTitle); Gap(result); result.Children.Add(resultSummary); Gap(result, 18);
         result.Children.Add(Text("Розклад оцінки", 18, "Text", true)); Gap(result, 5); result.Children.Add(resultBreakdown); Gap(result, 15);
         result.Children.Add(Text("Порівняння з гравцями цієї складності", 18, "Text", true)); Gap(result, 5); result.Children.Add(resultComparison); Gap(result, 15);
+        var resultLevels = new UniformGrid { Columns = 4 }; result.Children.Add(resultLevels);
+        foreach (var level in Enum.GetValues<Difficulty>())
+        {
+            var d = level;
+            var button = Action(Level(d), () => { state.NextDifficulty = nextDifficulty = d; _ = Generate(false); });
+            button.Margin = new Thickness(3); resultLevels.Children.Add(button);
+        }
         result.Children.Add(Action("Нова головоломка", () => _ = Generate(false), primary: true));
         result.Children.Add(Action("Рейтинг", () => _ = ShowRanking())); result.Children.Add(Action("Щоденні нагороди", () => _ = ShowDaily()));
         resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
@@ -781,7 +788,7 @@ public sealed class MainWindow : Window
     private async Task Generate(bool confirm)
     {
         if (Busy || closing || watchingReward || state.PendingReward is not null) return;
-        if (confirm && G is { Completed: false } g && (g.UndoStack.Count > 0 || g.Seconds > 0) &&
+        if (confirm && G is { Completed: false, OutOfLives: false } g && (g.UndoStack.Count > 0 || g.Seconds > 0) &&
             !Confirm("Поточну незавершену гру буде замінено. Створити нову?")) return;
         ReadClock(); clock.Reset();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));

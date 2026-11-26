@@ -41,8 +41,8 @@ $("logout").onclick=async()=>{if(busy||authBusy)return;try{if(game&&!game.paused
 async function start(){$("app").hidden=false;$("account").hidden=!guestMode;$("logout").hidden=guestMode;$("guest-notice").hidden=!guestMode;$("history-tab").hidden=guestMode;await navigate("play");await reconnect();if(!guestMode)refreshDaily()}
 function accept(data){
  previousGame=game;game=data?.empty?null:data;online=navigator.onLine;
- if(game){selected=Math.max(0,Math.min(80,selected));reviveEnd=performance.now()+(game.reviveSeconds||0)*1000;
- if(previousGame?.id!==game.id){resultKey="";comparison=null}
+ if(game){selected=Math.max(0,Math.min(80,selected));reviveEnd=performance.now()+(game.reviveRemainingMs||0);
+ if(previousGame?.id!==game.id){resultKey="";comparison=null;$("result-difficulty").value=String(game.difficulty)}
  if(game.completed||game.finalDefeat)loadComparison();
  }
  render();
@@ -61,7 +61,7 @@ window.addEventListener("offline",()=>disconnect(Error("немає мережі"
 window.addEventListener("online",()=>token?reconnect():login(true));
 async function act(action,extra={}){
  if(!online||busy||!game)return false;const e=epoch;busy=true;
- try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;accept(data);if(action==="hint")selected=game.selected;if(game.completed&&!guestMode)refreshDaily();return true;}
+ try{const data=await api("web/action",{id:game.id,revision:game.revision,action,...extra});if(e!==epoch)return;accept(data);if(action==="hint"){selected=game.selected;animate(buttons[selected],"hint-pulse")}if(game.completed&&!guestMode)refreshDaily();return true;}
  catch(e){if(e.status===400)message(e.message);else disconnect(e);return false}finally{busy=false;render()}
 }
 setInterval(()=>{if(busy||authBusy||adBusy)return;if(!token){if(navigator.onLine&&!$("auth").open&&Date.now()>=nextGuest)login(true);return}if(!online)reconnect();else if(game)act("heartbeat")},3000);
@@ -127,8 +127,8 @@ document.querySelectorAll("[data-reward]").forEach(b=>b.onclick=()=>reward(b.dat
 function fmt(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
 function animate(el,name){if(!el||matchMedia("(prefers-reduced-motion: reduce)").matches)return;el.classList.remove(name);void el.offsetWidth;el.classList.add(name);el.addEventListener("animationend",()=>el.classList.remove(name),{once:true})}
 $("auto-finish").checked=autoFinish;
-$("auto-finish").onchange=async()=>{const value=$("auto-finish").checked;autoFinish=value;localStorage.setItem("autoFinish",value?"1":"0");if(game&&!game.completed&&!game.outOfLives){if(!await act("auto-finish",{note:value}))$("auto-finish").checked=game.autoFinish}};
-$("result-new").onclick=()=>$("newgame").onclick();
+$("auto-finish").onchange=async()=>{const value=$("auto-finish").checked;autoFinish=value;localStorage.setItem("autoFinish",value?"1":"0");if(game&&!game.completed&&!game.outOfLives){if(!await act("auto-finish",{note:value})){autoFinish=!!game.autoFinish;localStorage.setItem("autoFinish",autoFinish?"1":"0");$("auto-finish").checked=autoFinish}}};
+$("result-new").onclick=()=>{$("difficulty").value=$("result-difficulty").value;$("newgame").onclick()};
 $("result-rank").onclick=()=>navigate("ranking");
 $("result-daily").onclick=()=>$("daily-open").onclick();
 async function loadComparison(){

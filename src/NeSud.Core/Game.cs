@@ -86,7 +86,7 @@ public sealed class Game
         if (OutOfLives && !ReviveAttempted) ReviveDeadline = DateTimeOffset.UtcNow.AddSeconds(10);
     }
 
-    public bool CanReward(string kind) => !Completed && RulesVersion > 0 && (kind switch
+    public bool CanReward(string kind) => !Completed && (RulesVersion < 3 || !OutOfLives) && RulesVersion > 0 && (kind switch
     {
         "life" => RulesVersion < 3 && Lives < MaxLives,
         "hint" => HintCredits < MaxAid,

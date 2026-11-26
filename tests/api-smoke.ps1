@@ -44,6 +44,9 @@ $hg = @{Authorization="Bearer $($guest.token)"}
 $demo = Post 'web/new' @{difficulty=0;id=$null;revision=0} $hg
 Assert ($demo.values.Count -eq 81) 'Guest board'
 Assert ($demo.lives -eq 3 -and $demo.hintCredits -eq 1 -and $demo.candidateCredits -eq 1) 'Initial resources'
+Assert ($demo.remaining.Count -eq 9 -and $demo.wrong.Count -eq 81) 'Board metadata'
+$noLife = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body (@{id=$demo.id;revision=$demo.revision;action='reward-start';reward='life'} | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$noLife.StatusCode -eq 400) 'No proactive life restoration'
 $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='reward-start';reward='hint'} $hg
 $claim = @{id=$demo.id;revision=$demo.revision;action='reward-claim';reward='hint'}
 $early = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body ($claim | ConvertTo-Json) -SkipHttpErrorCheck
@@ -58,6 +61,24 @@ $scoreBefore = $demo.currentScore
 $delta = $demo.candidateDelta
 $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='candidates'} $hg
 Assert ($demo.candidateCredits -eq 0 -and $demo.candidateUses -eq 1 -and $demo.candidateChanges -eq $delta -and $demo.effectiveCandidatePenalty -eq (2*$delta) -and $demo.currentScore -le [Math]::Max(0,($scoreBefore-2*$delta))) 'Candidate scoring'
+$wrongCount = 0
+for ($j=0; $j -lt 81 -and $wrongCount -lt 3; $j++) {
+    if ($demo.givens[$j] -ne 0) { continue }
+    $r = [int][Math]::Floor($j / 9)
+    $conflictDigit = 0
+    for ($k=$r*9; $k -lt ($r+1)*9; $k++) { if ($demo.givens[$k] -gt 0) { $conflictDigit=$demo.givens[$k]; break } }
+    if ($conflictDigit -eq 0) { continue }
+    $demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='enter';cell=$j;digit=$conflictDigit;note=$false} $hg
+    Assert $demo.wrong[$j] 'Wrong digit metadata'
+    $wrongCount++
+}
+Assert ($demo.outOfLives -and $demo.reviveSeconds -gt 0 -and !$demo.finalDefeat) 'Defeat grace period'
+$demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='reward-start';reward='life'} $hg
+Assert ($demo.outOfLives -and $demo.reviveSeconds -eq 0 -and !$demo.finalDefeat) 'Ad start consumes chance'
+$demo = Post 'web/action' @{id=$demo.id;revision=$demo.revision;action='reward-cancel'} $hg
+Assert ($demo.finalDefeat -and $demo.lives -eq 0) 'Ad cancel finalizes defeat'
+$againLife = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/web/action" -Headers $hg -ContentType 'application/json' -Body (@{id=$demo.id;revision=$demo.revision;action='reward-start';reward='life'} | ConvertTo-Json) -SkipHttpErrorCheck
+Assert ([int]$againLife.StatusCode -eq 400) 'No second chance'
 $deny = Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hg -SkipHttpErrorCheck
 Assert ([int]$deny.StatusCode -eq 401) 'Guest account isolation'
 $guest2 = Post 'guest' @{}
