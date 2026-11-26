@@ -26,8 +26,10 @@ public sealed partial class MainWindow
         var window=Modal("Профіль",panel,690,750); OwnModal(window);
         int page=0; bool loading=false;
         var nav=new UniformGrid { Columns=3 }; panel.Children.Add(nav);
-        var prev=Action("Попередня",()=> { page--; _=Load(); });
-        var next=Action("Наступна",()=> { page++; _=Load(); });
+        var prev = Action("Попередня");
+        var next = Action("Наступна");
+        prev.Click += async (_, _) => { page--; await Load(); };
+        next.Click += async (_, _) => { page++; await Load(); };
         nav.Children.Add(prev); nav.Children.Add(next); nav.Children.Add(Action("Закрити",()=>window.Close()));
         async Task Load()
         {
@@ -115,8 +117,8 @@ public sealed partial class MainWindow
             string? selectedDay=null; bool claim=false;
             var panel=Stack(); var title=Text("Щоденні ігри",24,"Text",true); panel.Children.Add(title);
             var nav=new UniformGrid { Columns=3 }; panel.Children.Add(nav);
-            var previous=Action("‹",()=>MoveMonth(-1)); var progress=Text("",16,"Accent",true); progress.TextAlignment=TextAlignment.Center;
-            var next=Action("›",()=>MoveMonth(1)); nav.Children.Add(previous); nav.Children.Add(progress); nav.Children.Add(next);
+            var previous = Action("‹"); var progress=Text("",16,"Accent",true); progress.TextAlignment=TextAlignment.Center;
+            var next = Action("›"); nav.Children.Add(previous); nav.Children.Add(progress); nav.Children.Add(next);
             var grid=new UniformGrid { Columns=7 }; panel.Children.Add(grid);
             var cups=new WrapPanel(); panel.Children.Add(Text("Місячні кубки",17,"Text",true));panel.Children.Add(cups);
             var notice=Text("",13,"Muted");panel.Children.Add(notice);
@@ -124,6 +126,8 @@ public sealed partial class MainWindow
             var reward=Action("Отримати нагороду",()=> { claim=true; window.Close(); },primary:true);reward.Visibility=Visibility.Collapsed;panel.Children.Add(reward);
             var close=Action("Закрити",()=>window.Close());close.IsCancel=true;panel.Children.Add(close);
             bool loading=false;
+            previous.Click += (_, _) => MoveMonth(-1);
+            next.Click += (_, _) => MoveMonth(1);
             void MoveMonth(int delta)
             {
                 if(loading||month is null)return;
@@ -184,16 +188,35 @@ public sealed partial class MainWindow
         var heartbeat=new DispatcherTimer { Interval=TimeSpan.FromSeconds(6) };
         bool Active()=>connected&&!working&&game is { Paused:false,Completed:false,OutOfLives:false,Reward:null };
         void Select(int i){selected=i;Draw();}
-        for(int i=0;i<81;i++){int index=i;var b=Action("",()=>Select(index));b.FontSize=19;b.Padding=new Thickness(0);b.Margin=new Thickness(1);boardCells[i]=b;grid.Children.Add(b);}
-        for(int d=1;d<=9;d++){int digit=d;var b=Action(d.ToString(),()=>_=Move("enter",digit));b.Padding=new Thickness(1);padCells[d-1]=b;pad.Children.Add(b);}
-        var erase=Action("Стерти",()=>_=Move("enter",0));var undo=Action("↶",()=>_=Move("undo"));var redo=Action("↷",()=>_=Move("redo"));
-        var notes=Action("Нотатки",()=>{note=!note;Draw();});
-        var hint=Action("Підказка",()=>_=Aid("hint"));var candidates=Action("Кандидати",()=>_=Aid("candidates"));
-        var pause=Action("Пауза",()=>_=Move(game?.Paused==true?"resume":"pause"));
-        var auto=Action("Автозавершення",()=>_=Move("auto-finish"));
+        for(int i=0;i<81;i++){var b=Action("");b.FontSize=19;b.Padding=new Thickness(0);b.Margin=new Thickness(1);boardCells[i]=b;grid.Children.Add(b);}
+        for(int d=1;d<=9;d++){var b=Action(d.ToString());b.Padding=new Thickness(1);padCells[d-1]=b;pad.Children.Add(b);}
+        var erase = Action("Стерти"); var undo = Action("↶"); var redo = Action("↷");
+        var notes = Action("Нотатки");
+        var hint = Action("Підказка"); var candidates = Action("Кандидати");
+        var pause = Action("Пауза");
+        var auto = Action("Автозавершення");
         foreach(var b in new[]{erase,undo,redo,notes,hint,candidates,pause,auto}){b.Margin=new Thickness(2);tools.Children.Add(b);}
-        var mainAction=Action("Почати",()=>_=Primary(),primary:true);panel.Children.Add(mainAction);
-        var exit=Action("До календаря",()=>window.Close());panel.Children.Add(exit);
+        var mainAction = Action("Почати", primary: true);panel.Children.Add(mainAction);
+        var exit = Action("До календаря", () => window.Close()); panel.Children.Add(exit);
+        for (int i = 0; i < boardCells.Length; i++)
+        {
+            int index = i;
+            boardCells[i].Click += (_, _) => Select(index);
+        }
+        for (int i = 0; i < padCells.Length; i++)
+        {
+            int digit = i + 1;
+            padCells[i].Click += async (_, _) => await Move("enter", digit);
+        }
+        erase.Click += async (_, _) => await Move("enter", 0);
+        undo.Click += async (_, _) => await Move("undo");
+        redo.Click += async (_, _) => await Move("redo");
+        notes.Click += (_, _) => { note = !note; Draw(); };
+        hint.Click += async (_, _) => await Aid("hint");
+        candidates.Click += async (_, _) => await Aid("candidates");
+        pause.Click += async (_, _) => await Move(game?.Paused == true ? "resume" : "pause");
+        auto.Click += async (_, _) => await Move("auto-finish");
+        mainAction.Click += async (_, _) => await Primary();
         void Clock()
         {
             if(game is null)return;

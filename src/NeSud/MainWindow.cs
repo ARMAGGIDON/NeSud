@@ -148,7 +148,7 @@ public sealed partial class MainWindow : Window
         return t;
     }
 
-    private Button Action(string label, Action action, string tip = "", bool primary = false)
+    private Button Action(string label, Action? action = null, string tip = "", bool primary = false)
     {
         var b = new Button { Content = label, Margin = new Thickness(0, 0, 0, 6),
             HorizontalContentAlignment = HorizontalAlignment.Center, MinHeight = 39 };
@@ -160,7 +160,7 @@ public sealed partial class MainWindow : Window
             b.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
             b.FontWeight = FontWeights.SemiBold;
         }
-        b.Click += (_, _) => action();
+        if (action is not null) b.Click += (_, _) => action();
         return b;
     }
 
