@@ -434,6 +434,8 @@ public sealed class MainWindow : Window
         try
         {
             store.Save(state, previous ?? (G is { Completed: true } ? Terminal("completed") : null), previousScope ?? state.GameScope ?? ""); lastSavedSecond = G?.Seconds ?? 0;
+            if (previous is not null || G is { Completed: true } && !syncing && nextSync > DateTimeOffset.UtcNow.AddSeconds(10))
+                nextSync = DateTimeOffset.UtcNow.AddSeconds(10);
             saveStatus.Text = "Збережено ✓"; saveStatus.Foreground = B("Muted"); saveStatus.ToolTip = LocalStore.DefaultPath;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
@@ -551,6 +553,8 @@ public sealed class MainWindow : Window
         panel.Children.Add(Text(message, 15)); Gap(panel, 20);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var window = Modal(title, panel);
+        var owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && w.IsVisible);
+        if (owner is not null && owner != window) window.Owner = owner;
         if (confirm)
         {
             var cancel = Action("Скасувати", () => window.DialogResult = false);
@@ -624,7 +628,7 @@ public sealed class MainWindow : Window
             (uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) &&
             uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0)
             return url.TrimEnd('/');
-        return configured.TrimEnd('/');
+        return "http://localhost:5080";
     }
 
     private AccountSession? RestoreSession()

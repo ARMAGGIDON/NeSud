@@ -32,7 +32,7 @@ $new = Post 'web/new' @{difficulty=0; id=$s.id; revision=$s.revision} $ha
 $history = (Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $ha).Content | ConvertFrom-Json -NoEnumerate
 Assert ($history.Count -eq 1 -and $history[0].outcome -eq 'abandoned') 'Abandoned history'
 $otherHistory = (Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hb).Content | ConvertFrom-Json -NoEnumerate
-Assert ($otherHistory.Count -eq 0) 'Account history isolation'
+Assert ($otherHistory -is [array] -and $otherHistory.Count -eq 0) 'Account history isolation'
 $duplicate = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="SMOKE_A_$id";password='Smoke-test-password-2026';confirmation='Smoke-test-password-2026'} | ConvertTo-Json) -SkipHttpErrorCheck
 Assert ([int]$duplicate.StatusCode -eq 409) 'Case-insensitive unique login'
 $bad = Invoke-WebRequest -Method Post -Uri "$BaseUrl/api/register" -ContentType 'application/json' -Body (@{user="smoke_c_$id";password='Smoke-test-password-2026';confirmation='different-password'} | ConvertTo-Json) -SkipHttpErrorCheck
@@ -45,5 +45,10 @@ $demo = Post 'web/new' @{difficulty=0;id=$null;revision=0} $hg
 Assert ($demo.values.Count -eq 81) 'Guest board'
 $deny = Invoke-WebRequest -Uri "$BaseUrl/api/history" -Headers $hg -SkipHttpErrorCheck
 Assert ([int]$deny.StatusCode -eq 401) 'Guest account isolation'
+$guest2 = Post 'guest' @{}
+$hg2 = @{Authorization="Bearer $($guest2.token)"}
+$demo2 = Invoke-RestMethod -Uri "$BaseUrl/api/web/session" -Headers $hg2
+Assert $demo2.empty 'Independent guest sessions'
+Post 'logout' @{} $hg2 | Out-Null
 Post 'logout' @{} $hg | Out-Null
 Write-Host 'PASS authentication, uniqueness, email, confirmation, guest, game, pause, reconnect, history, isolation' -ForegroundColor Green

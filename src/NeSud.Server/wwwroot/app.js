@@ -20,10 +20,10 @@ document.querySelectorAll("[data-secret]").forEach(b=>b.onclick=()=>{const input
 async function login(guest=false){
  if(authBusy)return;authError("");
  if(!guest&&registration&&$("password").value!==$("confirmation").value){authError("Паролі не збігаються.");$("confirmation").focus();return}
- authBusy=true;$("submit-auth").disabled=$("guest").disabled=true;
+ authBusy=true;$("submit-auth").disabled=$("guest").disabled=$("login-tab").disabled=$("register-tab").disabled=true;
  try{const a=await api(guest?"guest":registration?"register":"login",guest?{}:{user:$("user").value,password:$("password").value,confirmation:registration?$("confirmation").value:null});token=a.token;guestMode=guest;sessionStorage.setItem("token",token);sessionStorage.setItem("guest",guest?"1":"0");$("password").value=$("confirmation").value="";await start();if(guest&&online&&!game)await $("newgame").onclick();}
  catch(e){authError(e.name==="AbortError"||e instanceof TypeError?"Не вдалося з’єднатися з сервісом. Спробуйте ще раз.":e.message)}
- finally{authBusy=false;$("submit-auth").disabled=$("guest").disabled=false}
+ finally{authBusy=false;$("submit-auth").disabled=$("guest").disabled=$("login-tab").disabled=$("register-tab").disabled=false}
 }
 $("login").onsubmit=e=>{e.preventDefault();login()};$("guest").onclick=()=>login(true);
 $("logout").onclick=async()=>{try{if(game&&!game.paused&&!game.completed)await act("pause");await api("logout",{})}catch{}token="";sessionStorage.removeItem("token");sessionStorage.removeItem("guest");showAuth();authError("");message("")};
@@ -44,7 +44,7 @@ async function act(action,extra={}){
 }
 setInterval(()=>{if(!token||busy)return;if(!online)reconnect();else if(game)act("heartbeat")},3000);
 setInterval(()=>{if(token&&online&&tab==="ranking")navigate("ranking")},10000);
-function confirmNew(){return new Promise(resolve=>{const d=$("confirm");d.returnValue="cancel";d.addEventListener("close",()=>resolve(d.returnValue==="yes"),{once:true});d.showModal()})}
+function confirmNew(){return new Promise(resolve=>{const d=$("confirm");d.querySelector("p").textContent=guestMode?"Поточну демонстраційну гру буде замінено.":"Поточна незавершена гра залишиться в історії.";d.returnValue="cancel";d.addEventListener("close",()=>resolve(d.returnValue==="yes"),{once:true});d.showModal()})}
 $("newgame").onclick=async()=>{if(!online||busy)return;if(game&&!game.completed&&!(await confirmNew()))return;if(!online||busy)return;const e=epoch;busy=true;render();message("Генерація головоломки…");
  try{const data=await api("web/new",{difficulty:Number($("difficulty").value),id:game?.id??null,revision:game?.revision??0});if(e!==epoch)return;selected=data.selected;accept(data);message("Нову головоломку створено.");}
  catch(e){disconnect(e)}finally{busy=false;render()}};
@@ -76,7 +76,7 @@ document.addEventListener("keydown",e=>{if(tab!=="play"||!online||!game||e.targe
 function row(parent,values){let r=document.createElement("div");r.className="record";values.forEach(v=>{let s=document.createElement("span");s.textContent=v;r.append(s)});parent.append(r)}
 async function navigate(t){tab=t;["play","history","ranking"].forEach(n=>$(n).hidden=n!==t);try{
  if(t==="history"&&!guestMode){let records=await api("history"),drafts=await api("desktop/drafts"),target=$("historyrows"),wins=records.filter(r=>r.outcome==="completed");target.replaceChildren();$("summary").textContent="Ігор: "+records.length+" · Перемог: "+wins.length+" · Балів: "+wins.reduce((s,r)=>s+r.score,0)+" · Час: "+fmt(records.reduce((s,r)=>s+r.game.seconds,0));row(target,["Дата / джерело","Складність","Результат / час","Оцінка"]);if(game&&!game.completed)row(target,["Поточна · web",levels[game.difficulty],"У процесі · "+fmt(game.seconds),"–"]);drafts.forEach(r=>row(target,[new Date(r.updated).toLocaleString("uk-UA")+" · desktop",levels[r.game.puzzle.difficulty],"У процесі · "+fmt(r.game.seconds),"–"]));records.forEach(r=>row(target,[new Date(r.ended).toLocaleString("uk-UA")+" · "+r.source,levels[r.game.puzzle.difficulty],(r.outcome==="completed"?"Перемога":"Перервано")+" · "+fmt(r.game.seconds),r.score+" балів · помилки: "+r.game.mistakes+" · підказки: "+r.game.hints]));}
- if(t==="ranking"){let ranks=await api("ranking?mode="+$("rankmode").value),target=$("rankrows");target.replaceChildren();row(target,["Місце","Гравець","Перемоги","Бали"]);ranks.forEach((r,i)=>row(target,[i+1,r.user,r.games,r.score]));}
+ if(t==="ranking"){const mode=$("rankmode").value;let ranks=await api("ranking?mode="+mode),target=$("rankrows");if(tab!=="ranking"||$("rankmode").value!==mode)return;target.replaceChildren();row(target,["Місце","Гравець","Перемоги","Бали"]);ranks.forEach((r,i)=>row(target,[i+1,r.user,r.games,r.score]));}
  }catch(e){message(e.message)}}
 $("rankmode").onchange=()=>navigate("ranking");
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>navigate(b.dataset.tab));
