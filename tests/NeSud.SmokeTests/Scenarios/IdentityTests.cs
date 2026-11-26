@@ -55,7 +55,7 @@ internal static partial class SmokeTests
             byte[] damaged = (byte[])avatar.Clone();
             damaged[^1] ^= 1;
             Check(!server.SetAvatar(inviter.User, damaged), "Reject corrupt PNG CRC");
-            Check(server.SetAvatar(inviter.User, null) && server.GetAvatar("renamed") is null, "Remove avatar");
+            Check(!server.SetAvatar(inviter.User, null) && server.GetAvatar("renamed")!.SequenceEqual(avatar), "Reject avatar removal and preserve existing image");
             Console.WriteLine("PASS identity, verification, referral idempotence and avatar validation");
         }
         finally

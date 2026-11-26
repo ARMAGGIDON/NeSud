@@ -70,12 +70,16 @@ internal static partial class Endpoints
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
             if (!s.IsVerified(name)) return VerificationRequired();
+            if (edit.Png is null) return Results.BadRequest(new { error = "Аватар можна лише замінити." });
             if (!s.SetAvatar(name, edit.Png)) return Results.BadRequest(new { error = "Некоректне квадратне PNG-зображення." });
             await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
             return Results.Ok(new SyncAck(true));
         });
-        app.MapGet("/api/avatar", (ServerStore s, string user) =>
-            s.GetAvatar(user) is { } png ? Results.File(png, "image/png") : Results.NotFound());
+        app.MapGet("/api/avatar", (HttpContext c, ServerStore s, string user) =>
+        {
+            c.Response.Headers.CacheControl = "public, max-age=60";
+            return s.GetAvatar(user) is { } png ? Results.File(png, "image/png") : Results.NotFound();
+        });
         app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
         app.MapPost("/api/logout", (HttpContext c, ServerStore s) =>
         {

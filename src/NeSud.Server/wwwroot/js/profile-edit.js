@@ -8,20 +8,41 @@ async function loadProfileSettings() {
     $("edit-username").value = settings.username;
     $("edit-username").readOnly = !verifiedAccount;
     $("verification-required").hidden = verifiedAccount;
-    $("avatar-edit").disabled = !verifiedAccount;
+    $("avatar-edit").hidden = !verifiedAccount;
     $("edit-email").value = settings.email || "";
     $("edit-email").readOnly = settings.verified;
+    $("edit-email").disabled = settings.verified;
+    $("edit-email").title = settings.verified ? "Пошта підтверджена. Зміна недоступна." : "";
     $("verify-controls").hidden = settings.verified;
     $("invite-controls").hidden = !settings.verified;
-    $("avatar-remove").disabled = !verifiedAccount || !settings.hasAvatar;
+    $("invite-open").hidden = !verifiedAccount;
+    $("profile-verified").hidden = !verifiedAccount;
+    updateAccountAvatar(settings);
     render();
-    $("invite-count").textContent = "Підтверджених запрошень: " + settings.referrals;
+    $("invite-count").textContent = String(settings.referrals);
     $("invite-link").value = settings.invite ? new URL("?invite=" + encodeURIComponent(settings.invite), location.origin + "/").href : "";
+    return settings;
 }
+$("profile-settings-open").onclick = async () => {
+    try {
+        await loadProfileSettings();
+        profileNotice("");
+        if (!$("profile-settings-dialog").open) $("profile-settings-dialog").showModal();
+    } catch (error) { message(error.message); }
+};
+$("invite-open").onclick = async () => {
+    try {
+        const settings = await loadProfileSettings();
+        if (!settings?.verified) return;
+        $("invite-status").textContent = "";
+        $("invite-dialog").showModal();
+    } catch (error) { message(error.message); }
+};
 $("profile-edit").onsubmit = async event => {
     event.preventDefault();
     try {
         await api("account/settings", { username: $("edit-username").value, email: $("edit-email").value });
+        await loadProfileSettings();
         await loadProfile();
         profileNotice("Збережено.");
     } catch (error) { profileNotice(error.message); }
@@ -40,14 +61,33 @@ $("verify-form").onsubmit = async event => {
     try {
         await api("account/verification", { code: $("verify-code").value.trim() });
         $("verify-code").value = "";
+        await loadProfileSettings();
         await loadProfile();
         await refreshDaily();
-        profileNotice("Пошту підтверджено.");
+        profileNotice("");
+        $("profile-settings-dialog").close();
     } catch (error) { profileNotice(error.message); }
 };
+let copyTimer;
 $("invite-copy").onclick = async () => {
-    try { await navigator.clipboard.writeText($("invite-link").value); profileNotice("Посилання скопійовано."); }
-    catch { $("invite-link").select(); profileNotice("Скопіюйте виділене посилання."); }
+    const button = $("invite-copy"), glyph = button.firstElementChild;
+    try {
+        await navigator.clipboard.writeText($("invite-link").value);
+        clearTimeout(copyTimer);
+        glyph.textContent = "✓";
+        button.classList.add("copied");
+        button.title = "Скопійовано";
+        $("invite-status").textContent = "Скопійовано";
+        copyTimer = setTimeout(() => {
+            glyph.textContent = "⧉";
+            button.classList.remove("copied");
+            button.title = "Копіювати посилання";
+            $("invite-status").textContent = "";
+        }, 1400);
+    } catch {
+        $("invite-link").select();
+        $("invite-status").textContent = "Скопіюйте виділене посилання.";
+    }
 };
 
 let avatarImage = null, avatarObjectUrl = null, avatarGeneration = 0;
@@ -114,12 +154,9 @@ $("avatar-save").onclick = async () => {
     try {
         const png = $("avatar-preview").toDataURL("image/png").split(",")[1];
         await api("account/avatar", { png });
+        avatarVersion = Date.now();
         $("avatar-dialog").close();
+        await refreshVerification();
         await loadProfile();
     } catch (error) { avatarStatus(error.message); $("avatar-save").disabled = false; }
-};
-$("avatar-remove").onclick = async () => {
-    if (!verifiedAccount) return;
-    try { await api("account/avatar", { png: null }); await loadProfile(); }
-    catch (error) { profileNotice(error.message); }
 };

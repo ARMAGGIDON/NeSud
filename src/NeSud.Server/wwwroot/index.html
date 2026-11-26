@@ -208,25 +208,17 @@
                     </div>
                 </section>
                 <section id="profile" class="panel" hidden>
-                    <div class="profile-heading"><img id="profile-avatar" class="avatar" alt="Аватар" hidden><h2 id="profile-name">Профіль</h2><span id="profile-verified" hidden>✓ Пошта підтверджена</span></div>
-                    <div id="profile-settings" hidden>
-                        <h3>Редагування профілю</h3>
-                        <form id="profile-edit" class="profile-edit">
-                            <label>Нікнейм<input id="edit-username" required minlength="3" maxlength="32" readonly></label>
-                            <label>Email<input id="edit-email" type="email" maxlength="254"></label>
-                            <button class="primary" type="submit">Зберегти</button>
-                        </form>
-                        <p id="verification-required">Підтвердьте пошту, щоб змінювати нікнейм та аватар і користуватися друзями.</p>
-                        <div class="actions"><button id="avatar-edit" disabled>Змінити аватар</button><button id="avatar-remove" disabled>Видалити аватар</button></div>
-                        <div id="verify-controls">
-                            <button id="verify-send">Надіслати код на пошту</button>
-                            <form id="verify-form" class="actions"><input id="verify-code" placeholder="Код з листа" required maxlength="16"><button type="submit">Підтвердити</button></form>
+                    <div class="profile-heading">
+                        <div class="profile-avatar-wrap">
+                            <div id="profile-avatar" class="player-avatar large" aria-label="Аватар"></div>
+                            <button id="avatar-edit" class="avatar-overlay" aria-label="Змінити аватар" title="Змінити аватар" hidden>✎</button>
                         </div>
-                        <div id="invite-controls" hidden><h3>Запрошення</h3><p id="invite-count"></p><input id="invite-link" readonly aria-label="Посилання запрошення"><button id="invite-copy">Копіювати посилання</button><p>За кожного нового підтвердженого гравця: 3 підказки та 3 кандидати.</p></div>
-                        <p id="profile-edit-status" role="status"></p>
+                        <div class="profile-identity"><div class="profile-name-row"><h2 id="profile-name">Профіль</h2><span id="profile-verified" class="verified-mark" tabindex="0" aria-label="Пошта підтверджена" data-tooltip="Пошта підтверджена" hidden>✓</span></div><div id="profile-friend" class="actions"></div></div>
+                        <div id="profile-settings" class="profile-tools" hidden><button id="profile-settings-open">Налаштування профілю</button><button id="invite-open" hidden>Запрошення</button></div>
                     </div>
-                    <p id="profile-stats"></p>
-                    <div id="profile-friend" class="actions"></div>
+                    <h2>Статистика</h2>
+                    <div id="profile-stats" class="stat-grid"></div>
+                    <h2>За складностями</h2>
                     <div id="profile-level-stats"></div>
                     <h2>Кубки</h2>
                     <div id="profile-cups" class="cups"></div>
@@ -250,6 +242,32 @@
             </div>
             <p id="status" role="status" aria-live="polite"></p>
         </main>
+        <dialog id="profile-settings-dialog" aria-labelledby="profile-settings-title">
+            <button type="button" class="dialog-close" aria-label="Закрити" data-dismiss>×</button>
+            <h2 id="profile-settings-title">Налаштування профілю</h2>
+            <form id="profile-edit" class="profile-edit">
+                <label>Нікнейм<input id="edit-username" required minlength="3" maxlength="32" readonly></label>
+                <label>Електронна пошта<input id="edit-email" type="email" maxlength="254"></label>
+                <button class="primary" type="submit">Зберегти</button>
+            </form>
+            <p id="verification-required">Підтвердьте пошту, щоб змінювати нікнейм та аватар і користуватися друзями.</p>
+            <div id="verify-controls">
+                <button id="verify-send">Надіслати код на пошту</button>
+                <form id="verify-form" class="actions"><input id="verify-code" placeholder="Код з листа" required maxlength="16"><button type="submit">Підтвердити</button></form>
+            </div>
+            <p id="profile-edit-status" role="status" aria-live="polite"></p>
+        </dialog>
+        <dialog id="invite-dialog" aria-labelledby="invite-title">
+            <button type="button" class="dialog-close" aria-label="Закрити" data-dismiss>×</button>
+            <h2 id="invite-title">Запрошення</h2>
+            <div id="invite-controls">
+                <div class="stat-card"><small>Підтверджених запрошень</small><strong id="invite-count">0</strong></div>
+                <label>Персональне посилання</label>
+                <div class="copy-field"><input id="invite-link" readonly aria-label="Посилання запрошення"><button id="invite-copy" type="button" aria-label="Копіювати посилання" title="Копіювати посилання"><span aria-hidden="true">⧉</span></button></div>
+                <p>За кожного нового підтвердженого гравця: 3 підказки та 3 кандидати.</p>
+                <p id="invite-status" role="status" aria-live="polite"></p>
+            </div>
+        </dialog>
         <dialog id="avatar-dialog" aria-labelledby="avatar-title">
             <button type="button" class="dialog-close" aria-label="Закрити" data-dismiss>×</button>
             <h2 id="avatar-title">Аватар</h2>

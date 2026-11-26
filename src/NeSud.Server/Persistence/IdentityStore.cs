@@ -173,13 +173,13 @@ public sealed partial class ServerStore
 
     public bool SetAvatar(string name, byte[]? png)
     {
-        if (!IsVerified(name)) return false;
+        if (png is null || !IsVerified(name)) return false;
         // Accept only bounded, canonical 256x256 PNG output, never original SVG markup.
-        if (png is not null && (png.Length is < 33 or > 5 * 1024 * 1024 ||
+        if (png.Length is < 33 or > 5 * 1024 * 1024 ||
             !png.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}) ||
             !png.AsSpan(12, 4).SequenceEqual("IHDR"u8) ||
             System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16,4)) != 256 ||
-            System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4)) != 256 || !ValidAvatarPng(png))) return false;
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4)) != 256 || !ValidAvatarPng(png)) return false;
         using var c = db.Open();
         using var cmd = Database.Command(c, "UPDATE account_profiles SET avatar=$a WHERE name=$n AND verified=1", ("$a", png), ("$n", name));
         return cmd.ExecuteNonQuery() == 1;

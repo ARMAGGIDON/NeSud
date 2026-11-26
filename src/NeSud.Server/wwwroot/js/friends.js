@@ -32,7 +32,7 @@ async function loadFriends() {
                 const r = document.createElement("div");
                 r.className = "friend-row";
                 const b = document.createElement("button");
-                b.textContent = f.user;
+                b.append(playerAvatar(f.user), document.createTextNode(f.user));
                 b.className = "profile-link";
                 b.onclick = () => openProfile(f.user);
                 r.append(b);
@@ -51,7 +51,8 @@ async function loadFriends() {
         for (const name of await api("players?q=" + encodeURIComponent(q))) {
             if (tab !== "friends") return;
             const b = document.createElement("button");
-            b.textContent = name;
+            b.className = "profile-link";
+            b.append(playerAvatar(name), document.createTextNode(name));
             b.onclick = () => openProfile(name);
             results.append(b)
         }

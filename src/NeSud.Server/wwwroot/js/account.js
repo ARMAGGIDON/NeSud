@@ -2,6 +2,7 @@
 
 function resetSession() {
     stopRealtime();
+    for (const id of ["profile-settings-dialog", "invite-dialog", "avatar-dialog"]) if ($(id).open) $(id).close();
     regularGame = null;
     challengeDay = null;
     calendarMonth = null;
@@ -108,6 +109,7 @@ async function login(guest = false) {
         if (!guest && registration) {
             history.replaceState(null, "", location.pathname);
             await openProfile();
+            await $("profile-settings-open").onclick();
             try { await api("account/verification/send", {}); profileNotice("Код надіслано на пошту."); }
             catch (error) { profileNotice("Акаунт створено. " + error.message); }
         }
@@ -161,6 +163,7 @@ async function refreshVerification() {
     const settings = await api("account/settings");
     if (epoch !== currentEpoch || guestMode) return false;
     verifiedAccount = settings.verified === true;
+    updateAccountAvatar(settings);
     return verifiedAccount;
 }
 window.addEventListener("focus", async () => {

@@ -182,6 +182,7 @@ function queueAccountRefresh() {
             if (tab === "challenge") await loadCalendar();
             if (tab === "history") await navigate("history");
             await refreshVerification();
+            if (tab === "profile" && !$("profile-settings-dialog").open && !$("avatar-dialog").open && !$("invite-dialog").open) await loadProfile();
             render();
         } catch {}
     }, 350);

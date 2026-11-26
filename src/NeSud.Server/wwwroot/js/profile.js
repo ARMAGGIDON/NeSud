@@ -1,9 +1,52 @@
 "use strict";
 
+let avatarVersion = 0;
+function playerAvatar(user, known = true) {
+    const box = document.createElement("span");
+    box.className = "player-avatar";
+    setPlayerAvatar(box, user, known);
+    return box;
+}
+function setPlayerAvatar(box, user, known = true) {
+    box.replaceChildren();
+    box.dataset.user = user || "";
+    const fallback = document.createElement("span");
+    fallback.className = "avatar-initial";
+    fallback.textContent = user ? Array.from(user)[0].toUpperCase() : "•";
+    fallback.setAttribute("aria-hidden", "true");
+    box.append(fallback);
+    if (!user || !known) return;
+    const img = document.createElement("img");
+    img.alt = "";
+    img.loading = box.classList.contains("large") ? "eager" : "lazy";
+    img.hidden = true;
+    img.onload = () => { img.hidden = false; fallback.hidden = true; };
+    img.onerror = () => img.remove();
+    img.src = "/api/avatar?user=" + encodeURIComponent(user) + (avatarVersion ? "&v=" + avatarVersion : "");
+    box.append(img);
+}
+function updateAccountAvatar(settings) {
+    const button = $("account");
+    button.replaceChildren();
+    if (!guestMode && settings) {
+        button.append(playerAvatar(settings.username, settings.hasAvatar), document.createTextNode("Мій профіль"));
+    } else button.textContent = guestMode ? "Увійти" : "Мій профіль";
+}
+function statCards(target, values) {
+    target.replaceChildren();
+    for (const [label, value] of values) {
+        const card = document.createElement("div"), caption = document.createElement("small"), number = document.createElement("strong");
+        card.className = "stat-card";
+        caption.textContent = label;
+        number.textContent = typeof value === "number" ? value.toLocaleString("uk-UA") : value;
+        card.append(caption, number);
+        target.append(card);
+    }
+}
 function profileLink(el, user) {
     const b = document.createElement("button");
     b.className = "profile-link";
-    b.textContent = el.textContent;
+    b.append(playerAvatar(user), document.createTextNode(el.textContent));
     b.onclick = () => openProfile(user);
     el.replaceChildren(b)
 }
@@ -20,18 +63,20 @@ async function loadProfile() {
     if (tab !== "profile" || profileUser !== user || profilePage !== page || epoch !== e || $("profile-level").value !== level) return;
     $("profile-name").textContent = p.user;
     $("profile-verified").hidden = !p.verified;
-    $("profile-avatar").hidden = !p.avatar;
-    if (p.avatar) $("profile-avatar").src = p.avatar + "&v=" + Date.now();
-    else $("profile-avatar").removeAttribute("src");
-    $("profile-settings").hidden = guestMode || !!user;
-    if (!guestMode && !user) await loadProfileSettings();
-    $("profile-stats").textContent = "Ігор: " + p.games + " · Перемог: " + p.wins + " · Ідеальних: " + p.perfectWins + " · Серія: " + p.currentStreak + " / " + p.bestStreak + " · Балів: " + p.score + " · Щоденних перемог: " + p.dailyWins;
+    setPlayerAvatar($("profile-avatar"), p.user, !!p.avatar);
+    const own = !guestMode && !user;
+    $("profile-settings").hidden = !own;
+    $("avatar-edit").hidden = !own || !p.verified;
+    $("invite-open").hidden = !own || !p.verified;
+    if (own) verifiedAccount = p.verified;
+    statCards($("profile-stats"), [["Ігор", p.games], ["Перемог", p.wins], ["Ідеальних", p.perfectWins],
+        ["Балів", p.score], ["Серія / рекорд", p.currentStreak + " / " + p.bestStreak], ["Щоденних перемог", p.dailyWins]]);
     const stats = $("profile-level-stats");
     stats.replaceChildren();
     row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали"]);
     for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score]);
     $("profile-friend").replaceChildren();
-    if (!guestMode && user && p.verified && await refreshVerification()) {
+    if (!guestMode && user && p.verified && verifiedAccount) {
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;
         const friends = await api("friends");
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;
