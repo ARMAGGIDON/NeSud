@@ -46,7 +46,8 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS desktop_drafts (name TEXT NOT NULL REFERENCES accounts(name), id TEXT NOT NULL, updated TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(name,id));
             """);
         cmd.ExecuteNonQuery();
-        using var migration = db.Open(); using var tx = migration.BeginTransaction();
+        using var migration = db.Open();
+        using var tx = migration.BeginTransaction();
         using var convert = Tx(migration, tx, """
             INSERT INTO wallet(name,kind,amount) SELECT name,'hint',amount FROM wallet WHERE kind='life'
             ON CONFLICT(name,kind) DO UPDATE SET amount=amount+excluded.amount;
@@ -55,6 +56,8 @@ public sealed partial class ServerStore
             """);
         convert.ExecuteNonQuery();
         using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
-        seed.ExecuteNonQuery(); PruneChallengeSessions(migration,tx); tx.Commit();
+        seed.ExecuteNonQuery();
+        PruneChallengeSessions(migration, tx);
+        tx.Commit();
     }
 }

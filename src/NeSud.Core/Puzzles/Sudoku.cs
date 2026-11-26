@@ -78,7 +78,11 @@ public static partial class Sudoku
             {
                 int cell = -1, count = 0;
                 foreach (int i in unit)
-                    if ((masks[i] & (1 << d)) != 0) { cell = i; count++; }
+                    if ((masks[i] & (1 << d)) != 0)
+                    {
+                        cell = i;
+                        count++;
+                    }
                 if (count == 1) return (cell, d, "Прихований одинак");
             }
         return null;

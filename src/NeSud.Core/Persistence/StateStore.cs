@@ -4,37 +4,58 @@ namespace NeSud.Core;
 
 public sealed class Statistics
 {
-    public int Wins { get; set; }
-    public int? BestSeconds { get; set; }
+    public int Wins { get;
+    set; }
+    public int? BestSeconds { get;
+    set; }
 }
 
 public sealed class AppState
 {
-    public int Version { get; set; } = 1;
-    public Game? Game { get; set; }
-    public Guid GameId { get; set; }
-    public DateTimeOffset Started { get; set; }
-    public string? GameScope { get; set; }
-    public string? AccountScope { get; set; }
-    public string? ProtectedSession { get; set; }
-    public PendingReward? PendingReward { get; set; }
-    public Difficulty? NextDifficulty { get; set; }
-    public bool Dark { get; set; } = true;
-    public bool AutoFinish { get; set; }
-    public bool ShowMistakes { get; set; } = true;
-    public bool AutoClean { get; set; } = true;
-    public bool HighlightPeers { get; set; } = true;
-    public double Width { get; set; } = 1080;
-    public double Height { get; set; } = 780;
-    public bool Maximized { get; set; }
-    public Dictionary<Difficulty, Statistics> Stats { get; set; } = [];
+    public int Version { get;
+    set; } = 1;
+    public Game? Game { get;
+    set; }
+    public Guid GameId { get;
+    set; }
+    public DateTimeOffset Started { get;
+    set; }
+    public string? GameScope { get;
+    set; }
+    public string? AccountScope { get;
+    set; }
+    public string? ProtectedSession { get;
+    set; }
+    public PendingReward? PendingReward { get;
+    set; }
+    public Difficulty? NextDifficulty { get;
+    set; }
+    public bool Dark { get;
+    set; } = true;
+    public bool AutoFinish { get;
+    set; }
+    public bool ShowMistakes { get;
+    set; } = true;
+    public bool AutoClean { get;
+    set; } = true;
+    public bool HighlightPeers { get;
+    set; } = true;
+    public double Width { get;
+    set; } = 1080;
+    public double Height { get;
+    set; } = 780;
+    public bool Maximized { get;
+    set; }
+    public Dictionary<Difficulty, Statistics> Stats { get;
+    set; } = [];
 }
 
 public sealed class StateStore(string path)
 {
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeSud", "state.json");
-    public string? Warning { get; private set; }
+    public string? Warning { get;
+    private set; }
 
     public AppState Load()
     {
@@ -43,7 +64,7 @@ public sealed class StateStore(string path)
             if (!File.Exists(candidate)) continue;
             try
             {
-                var state = JsonSerializer.Deserialize<AppState>(File.ReadAllText(candidate));
+                var state = JsonSerializer.Deserialize<AppState > (File.ReadAllText(candidate));
                 if (state is null || state.Version != 1 || state.Stats is null ||
                     state.NextDifficulty is Difficulty difficulty && !Enum.IsDefined(difficulty) ||
                     state.Stats.Any(p => !Enum.IsDefined(p.Key) || p.Value is null ||

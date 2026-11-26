@@ -5,37 +5,63 @@ namespace NeSud.Core;
 public sealed record Snapshot(int[] Values, int[] Notes);
 public sealed class Game
 {
-    public Puzzle Puzzle { get; set; } = null!;
-    public int[] Values { get; set; } = new int[81];
-    public int[] Notes { get; set; } = new int[81];
-    public List<Snapshot> UndoStack { get; set; } = [];
-    public List<Snapshot> RedoStack { get; set; } = [];
-    public int Seconds { get; set; }
-    public int Mistakes { get; set; }
-    public int Hints { get; set; }
-    public int Selected { get; set; }
-    public bool NotesMode { get; set; }
-    public bool Paused { get; set; }
-    public bool Awarded { get; set; }
+    public Puzzle Puzzle { get;
+    set; } = null!;
+    public int[] Values { get;
+    set; } = new int[81];
+    public int[] Notes { get;
+    set; } = new int[81];
+    public List<Snapshot> UndoStack { get;
+    set; } = [];
+    public List<Snapshot> RedoStack { get;
+    set; } = [];
+    public int Seconds { get;
+    set; }
+    public int Mistakes { get;
+    set; }
+    public int Hints { get;
+    set; }
+    public int Selected { get;
+    set; }
+    public bool NotesMode { get;
+    set; }
+    public bool Paused { get;
+    set; }
+    public bool Awarded { get;
+    set; }
     public bool Completed => Values.SequenceEqual(Puzzle.Solution);
     public const int MaxLives = 3, MaxAid = 3, RewardSeconds = 8;
-    public int RulesVersion { get; set; }
-    public int Lives { get; set; } = MaxLives;
-    public int HintCredits { get; set; } = 1;
-    public int CandidateCredits { get; set; } = 1;
-    public int CandidateUses { get; set; }
-    public long CandidatePenalty { get; set; }
-    public long CandidateChanges { get; set; }
+    public int RulesVersion { get;
+    set; }
+    public int Lives { get;
+    set; } = MaxLives;
+    public int HintCredits { get;
+    set; } = 1;
+    public int CandidateCredits { get;
+    set; } = 1;
+    public int CandidateUses { get;
+    set; }
+    public long CandidatePenalty { get;
+    set; }
+    public long CandidateChanges { get;
+    set; }
     public const int CandidatePointCost = 2;
     public long EffectiveCandidatePenalty => RulesVersion >= 2 ? CandidatePenalty : RulesVersion == 1 ? 100L * CandidateUses : 0;
-    public int LifeRestores { get; set; }
-    public bool AutoFinish { get; set; }
-    public int AutoFilled { get; set; }
+    public int LifeRestores { get;
+    set; }
+    public bool AutoFinish { get;
+    set; }
+    public int AutoFilled { get;
+    set; }
     public const int AutoFillCost = 20;
-    public DateTimeOffset? ReviveDeadline { get; set; }
-    public bool ReviveAttempted { get; set; }
-    public DateTimeOffset? ReviveReadyAt { get; set; }
-    public DateTimeOffset? ReviveExpiresAt { get; set; }
+    public DateTimeOffset? ReviveDeadline { get;
+    set; }
+    public bool ReviveAttempted { get;
+    set; }
+    public DateTimeOffset? ReviveReadyAt { get;
+    set; }
+    public DateTimeOffset? ReviveExpiresAt { get;
+    set; }
     public int BaseScore => 1000 * ((int)Puzzle.Difficulty + 1);
     public int TargetSeconds => Puzzle.Difficulty switch
     { Difficulty.Easy => 480, Difficulty.Medium => 720, Difficulty.Hard => 1200, _ => 1800 };
@@ -51,27 +77,43 @@ public sealed class Game
     public bool BeginRevive(DateTimeOffset now)
     {
         if (!CanStartRevive(now)) return false;
-        ReviveAttempted = true; ReviveReadyAt = now.AddSeconds(RewardSeconds); ReviveExpiresAt = now.AddMinutes(2);
+        ReviveAttempted = true;
+        ReviveReadyAt = now.AddSeconds(RewardSeconds);
+        ReviveExpiresAt = now.AddMinutes(2);
         return true;
     }
     public bool FinishRevive(DateTimeOffset now)
     {
         if (!OutOfLives || !ReviveAttempted || ReviveReadyAt is not { } ready || ReviveExpiresAt is not { } expiry ||
             now < ready || now >= expiry) return false;
-        Lives = 1; LifeRestores++; AdsWatched++; CancelRevive(); return true;
+        Lives = 1;
+        LifeRestores++;
+        AdsWatched++;
+        CancelRevive();
+        return true;
     }
-    public void CancelRevive() { ReviveReadyAt = ReviveExpiresAt = null; }
+    public void CancelRevive()
+    {
+        ReviveReadyAt = ReviveExpiresAt = null;
+    }
     public int Remaining(int digit) => Enumerable.Range(0, 81).Count(i => Puzzle.Solution[i] == digit && Values[i] != digit);
     public bool TryAutoFinish()
     {
         if (RulesVersion < 3 || !AutoFinish || Paused || Completed || OutOfLives) return false;
         int blanks = Values.Count(v => v == 0);
         if (blanks is < 1 or > 9 || Enumerable.Range(0, 81).Any(i => Values[i] != 0 && Values[i] != Puzzle.Solution[i])) return false;
-        for (int i = 0; i < 81; i++) if (Values[i] == 0) { Values[i] = Puzzle.Solution[i]; Notes[i] = 0; }
-        AutoFilled += blanks; return true;
+        for (int i = 0; i < 81; i++) if (Values[i] == 0)
+        {
+            Values[i] = Puzzle.Solution[i];
+            Notes[i] = 0;
+        }
+        AutoFilled += blanks;
+        return true;
     }
-    public int AdsWatched { get; set; }
-    public HashSet<int> ManualCorrect { get; set; } = [];
+    public int AdsWatched { get;
+    set; }
+    public HashSet<int> ManualCorrect { get;
+    set; } = [];
     public bool OutOfLives => RulesVersion > 0 && Lives == 0 && !Completed;
     public int CurrentScore => (int)Math.Max(0L, (long)BaseScore + SpeedBonus -
         Seconds / 3L - 75L * Mistakes - 150L * Hints -
@@ -80,9 +122,14 @@ public sealed class Game
     public void UpgradeRules()
     {
         if (RulesVersion >= 3 || Completed) return;
-        if (RulesVersion == 0) { Lives = Math.Max(0, MaxLives - Mistakes); HintCredits = CandidateCredits = 1; }
+        if (RulesVersion == 0)
+        {
+            Lives = Math.Max(0, MaxLives - Mistakes);
+            HintCredits = CandidateCredits = 1;
+        }
         CandidatePenalty = EffectiveCandidatePenalty;
-        RulesVersion = 3; ReviveAttempted = LifeRestores > 0;
+        RulesVersion = 3;
+        ReviveAttempted = LifeRestores > 0;
         if (OutOfLives && !ReviveAttempted) ReviveDeadline = DateTimeOffset.UtcNow.AddSeconds(10);
     }
 
@@ -99,11 +146,16 @@ public sealed class Game
         if (!CanReward(kind) || advertisement && !CanAdReward(kind) && kind != "life") return false;
         switch (kind)
         {
-            case "life": Lives++; LifeRestores++; break;
-            case "hint": HintCredits++; break;
-            case "candidates": CandidateCredits++; break;
+            case "life": Lives++;
+            LifeRestores++;
+            break;
+            case "hint": HintCredits++;
+            break;
+            case "candidates": CandidateCredits++;
+            break;
         }
-        if (advertisement) AdsWatched++; return true;
+        if (advertisement) AdsWatched++;
+        return true;
     }
 
     public static Game Start(Puzzle puzzle) => new()
@@ -125,14 +177,18 @@ public sealed class Game
     {
         if (Paused || Completed || OutOfLives || UndoStack.Count == 0) return false;
         RedoStack.Add(Capture());
-        Restore(UndoStack[^1]); UndoStack.RemoveAt(UndoStack.Count - 1); TryAutoFinish();
+        Restore(UndoStack[^ 1]);
+        UndoStack.RemoveAt(UndoStack.Count - 1);
+        TryAutoFinish();
         return true;
     }
     public bool Redo()
     {
         if (Paused || Completed || OutOfLives || RedoStack.Count == 0) return false;
         UndoStack.Add(Capture());
-        Restore(RedoStack[^1]); RedoStack.RemoveAt(RedoStack.Count - 1); TryAutoFinish();
+        Restore(RedoStack[^ 1]);
+        RedoStack.RemoveAt(RedoStack.Count - 1);
+        TryAutoFinish();
         return true;
     }
 
@@ -143,19 +199,27 @@ public sealed class Game
         if (note && digit != 0)
         {
             if (Values[i] != 0) return false;
-            Remember(); Notes[i] ^= 1 << digit;
+            Remember();
+            Notes[i] ^= 1 << digit;
             return true;
         }
         if (Values[i] == digit && Notes[i] == 0) return false;
         Remember();
-        Values[i] = digit; Notes[i] = 0;
-        if (hint) { Hints++; if (RulesVersion > 0) HintCredits--; }
+        Values[i] = digit;
+        Notes[i] = 0;
+        if (hint)
+        {
+            Hints++;
+            if (RulesVersion > 0) HintCredits--;
+        }
         else if (digit != 0 && digit != Puzzle.Solution[i])
-        { Mistakes++; if (RulesVersion > 0) Lives = Math.Max(0, Lives - 1);
+        { Mistakes++;
+        if (RulesVersion > 0) Lives = Math.Max(0, Lives - 1);
             if (RulesVersion >= 3 && OutOfLives && !ReviveAttempted) ReviveDeadline = DateTimeOffset.UtcNow.AddSeconds(10); }
         if (autoClean && digit != 0 && digit == Puzzle.Solution[i])
             foreach (int peer in Sudoku.Peers[i]) Notes[peer] &= ~(1 << digit);
-        TryAutoFinish(); return true;
+        TryAutoFinish();
+        return true;
     }
 
     public int CandidateDelta()
@@ -172,9 +236,18 @@ public sealed class Game
         var next = Enumerable.Range(0, 81).Select(i => Values[i] == 0 ? Sudoku.Candidates(Values, i) : 0).ToArray();
         if (next.SequenceEqual(Notes) || RulesVersion > 0 && CandidateCredits == 0) return false;
         int changes = CandidateDelta();
-        Remember(); Notes = next;
-        if (RulesVersion > 0) { CandidateCredits--; CandidateUses++; }
-        if (RulesVersion >= 2) { CandidateChanges += changes; CandidatePenalty += (long)CandidatePointCost * changes; }
+        Remember();
+        Notes = next;
+        if (RulesVersion > 0)
+        {
+            CandidateCredits--;
+            CandidateUses++;
+        }
+        if (RulesVersion >= 2)
+        {
+            CandidateChanges += changes;
+            CandidatePenalty += (long)CandidatePointCost * changes;
+        }
         return true;
     }
 
@@ -183,7 +256,11 @@ public sealed class Game
         if (Paused || Completed || OutOfLives || RulesVersion > 0 && HintCredits == 0) return null;
         int wrong = -1;
         for (int i = 0; i < 81; i++)
-            if (Values[i] != 0 && Values[i] != Puzzle.Solution[i]) { wrong = i; break; }
+            if (Values[i] != 0 && Values[i] != Puzzle.Solution[i])
+            {
+                wrong = i;
+                break;
+            }
         if (wrong >= 0) return (wrong, Puzzle.Solution[wrong], "Виправлення помилки");
         if (Sudoku.LogicalMove(Values) is { } m) return (m.Cell, m.Digit, m.Technique);
         int cell = Values[Selected] == 0 ? Selected : Array.IndexOf(Values, 0);
@@ -192,11 +269,23 @@ public sealed class Game
 
     public void Restart()
     {
-        Values = (int[])Puzzle.Givens.Clone(); Notes = new int[81];
-        UndoStack.Clear(); RedoStack.Clear(); Seconds = Mistakes = Hints = 0;
-        Paused = NotesMode = Awarded = false; Selected = Array.IndexOf(Values, 0);
-        RulesVersion = 2; Lives = MaxLives; HintCredits = CandidateCredits = 1;
-        CandidateUses = LifeRestores = AdsWatched = 0; CandidateChanges = CandidatePenalty = 0; AutoFilled = 0; ReviveDeadline = null; ReviveAttempted = false; CancelRevive(); ManualCorrect.Clear();
+        Values = (int[])Puzzle.Givens.Clone();
+        Notes = new int[81];
+        UndoStack.Clear();
+        RedoStack.Clear();
+        Seconds = Mistakes = Hints = 0;
+        Paused = NotesMode = Awarded = false;
+        Selected = Array.IndexOf(Values, 0);
+        RulesVersion = 2;
+        Lives = MaxLives;
+        HintCredits = CandidateCredits = 1;
+        CandidateUses = LifeRestores = AdsWatched = 0;
+        CandidateChanges = CandidatePenalty = 0;
+        AutoFilled = 0;
+        ReviveDeadline = null;
+        ReviveAttempted = false;
+        CancelRevive();
+        ManualCorrect.Clear();
     }
 
     public bool Valid()

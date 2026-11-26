@@ -11,7 +11,9 @@ public sealed partial class ServerStore
     private static string Day(DateTimeOffset time) => TimeZoneInfo.ConvertTime(time, DailyZone).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     private static SqliteCommand Tx(SqliteConnection c, SqliteTransaction tx, string sql, params (string Name, object? Value)[] args)
     {
-        var cmd = Database.Command(c, sql, args); cmd.Transaction = tx; return cmd;
+        var cmd = Database.Command(c, sql, args);
+        cmd.Transaction = tx;
+        return cmd;
     }
     private static RewardItem[] Options(int amount, int thirdAmount)
     {
@@ -60,11 +62,11 @@ public sealed partial class ServerStore
         string day = Day(DateTimeOffset.UtcNow);
         SettleWeeks(c, tx);
         int wins = EnsureWinPacks(c, tx, name, day);
-        var packs = new List<DailyPack>();
+        var packs = new List<DailyPack > ();
         using (var cmd = Tx(c, tx, "SELECT day,milestone,slot FROM daily_packs WHERE name=$n AND chosen IS NULL ORDER BY day,rowid", ("$n", name)))
         using (var rows = cmd.ExecuteReader())
             while (rows.Read()) packs.Add(new(rows.GetString(0), rows.GetString(1), rows.GetInt32(2)));
-        var balances = new Dictionary<string,int>();
+        var balances = new Dictionary<string, int > ();
         using (var cmd = Tx(c, tx, "SELECT kind,amount FROM wallet WHERE name=$n", ("$n", name)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read()) balances[rows.GetString(0)] = rows.GetInt32(1);
         return new(day, wins, balances.GetValueOrDefault("life"), balances.GetValueOrDefault("hint"), balances.GetValueOrDefault("candidates"), packs);
@@ -73,8 +75,11 @@ public sealed partial class ServerStore
     {
         lock (Gate)
         {
-            using var c = db.Open(); using var tx = c.BeginTransaction();
-            var status = EnsureDaily(c, tx, name); tx.Commit(); return status;
+            using var c = db.Open();
+            using var tx = c.BeginTransaction();
+            var status = EnsureDaily(c, tx, name);
+            tx.Commit();
+            return status;
         }
     }
     public DailyResult? Choose(string name, DailyChoice choice)
@@ -82,7 +87,8 @@ public sealed partial class ServerStore
         if (choice.Card is < 0 or > 2) return null;
         lock (Gate)
         {
-            using var c = db.Open(); using var tx = c.BeginTransaction();
+            using var c = db.Open();
+            using var tx = c.BeginTransaction();
             EnsureDaily(c, tx, name);
             var args = new (string, object?)[] { ("$n", name), ("$d", choice.Day), ("$m", choice.Milestone), ("$s", choice.Slot) };
             RewardItem item;
@@ -93,7 +99,7 @@ public sealed partial class ServerStore
                 if (!rows.Read()) return null;
                 chosen = rows.IsDBNull(1) ? null : rows.GetInt32(1);
                 if (chosen is int previous && previous != choice.Card) return null;
-                item = Database.Decode<RewardItem[]>(rows.GetString(0))[choice.Card];
+                item = Database.Decode<RewardItem[] > (rows.GetString(0))[choice.Card];
             }
             if (chosen is null)
             {
@@ -105,7 +111,9 @@ public sealed partial class ServerStore
                     """, ("$n", name), ("$k", item.Kind), ("$a", item.Amount));
                 credit.ExecuteNonQuery();
             }
-            var status = EnsureDaily(c, tx, name); tx.Commit(); return new(item, status);
+            var status = EnsureDaily(c, tx, name);
+            tx.Commit();
+            return new(item, status);
         }
     }
     private static bool Debit(SqliteConnection c, SqliteTransaction tx, string name, string kind)
@@ -116,7 +124,8 @@ public sealed partial class ServerStore
     }
     public bool HasWallet(string name, string kind)
     {
-        using var c = db.Open(); using var cmd = Database.Command(c, "SELECT amount FROM wallet WHERE name=$n AND kind=$k", ("$n", name), ("$k", kind));
+        using var c = db.Open();
+        using var cmd = Database.Command(c, "SELECT amount FROM wallet WHERE name=$n AND kind=$k", ("$n", name), ("$k", kind));
         return Convert.ToInt64(cmd.ExecuteScalar() ?? 0) > 0;
     }
     public WalletResult? SpendDesktop(string name, WalletRequest request)
@@ -124,7 +133,8 @@ public sealed partial class ServerStore
         if (request.Operation == Guid.Empty || request.GameId == Guid.Empty || request.Kind is not ("life" or "hint" or "candidates")) return null;
         lock (Gate)
         {
-            using var c = db.Open(); using var tx = c.BeginTransaction();
+            using var c = db.Open();
+            using var tx = c.BeginTransaction();
             using (var get = Tx(c, tx, "SELECT game_id,kind FROM wallet_spends WHERE name=$n AND operation=$o",
                 ("$n", name), ("$o", request.Operation.ToString())))
             using (var rows = get.ExecuteReader())
@@ -134,7 +144,9 @@ public sealed partial class ServerStore
             if (request.Kind == "life" || !Debit(c, tx, name, request.Kind)) return null;
             using var add = Tx(c, tx, "INSERT INTO wallet_spends VALUES($n,$o,$g,$k)", ("$n", name),
                 ("$o", request.Operation.ToString()), ("$g", request.GameId.ToString()), ("$k", request.Kind));
-            add.ExecuteNonQuery(); tx.Commit(); return new(request.Operation, request.GameId, request.Kind);
+            add.ExecuteNonQuery();
+            tx.Commit();
+            return new(request.Operation, request.GameId, request.Kind);
         }
     }
 }

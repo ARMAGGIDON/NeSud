@@ -30,7 +30,8 @@ public sealed partial class ServerStore
         lock (Gate)
         {
             if (guests.TryGetValue(key, out var entry) && entry.Expires > DateTimeOffset.UtcNow)
-            { guests[key] = (DateTimeOffset.UtcNow.AddHours(2), entry.Game); return key; }
+            { guests[key] = (DateTimeOffset.UtcNow.AddHours(2), entry.Game);
+            return key; }
         }
         return Authenticate(token);
     }
@@ -79,7 +80,8 @@ public sealed partial class ServerStore
         clean.ExecuteNonQuery();
         using var issue = Database.Command(c, "INSERT INTO tokens VALUES($h,$n,$e)", ("$h", TokenHash(token)),
             ("$n", name), ("$e", DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds()));
-        issue.ExecuteNonQuery(); return new(token, name);
+        issue.ExecuteNonQuery();
+        return new(token, name);
     }
     public string? Authenticate(string token)
     {
