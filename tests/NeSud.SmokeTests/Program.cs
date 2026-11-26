@@ -84,6 +84,13 @@ var dbDir = Path.Combine(Path.GetTempPath(), "NeSud-db-tests-" + Guid.NewGuid().
 try
 {
     var local = new LocalStore(Path.Combine(dbDir, "client.db"), Path.Combine(dbDir, "legacy.json"));
+    using (var connection = new Database(Path.Combine(dbDir, "client.db")).Open())
+    using (var versionQuery = Database.Command(connection, "SELECT sqlite_version()"))
+    {
+        var version = Version.Parse((string)versionQuery.ExecuteScalar()!);
+        Check(version >= new Version(3, 50, 2), "Native SQLite must include the CVE-2025-6965 fix");
+        Console.WriteLine($"PASS native SQLite {version}");
+    }
     var attempt = Game.Start(puzzles[0]);
     var appState = new AppState { Game = attempt, GameId = Guid.NewGuid(), Started = DateTimeOffset.UtcNow };
     var record = new GameRecord(appState.GameId, appState.Started, DateTimeOffset.UtcNow, "desktop", "abandoned", attempt);
