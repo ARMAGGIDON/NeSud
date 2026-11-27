@@ -19,7 +19,7 @@ public sealed partial class MainWindow
             "life" => "M12,21 L3,12 C-3,4 7,-1 12,6 C17,-1 27,4 21,12 Z",
             _ => "M3,3 H21 V21 H3 Z M9,3 V21 M15,3 V21 M3,9 H21 M3,15 H21"
         };
-        var path = new Path { Data = Geometry.Parse(geometry), Stretch = Stretch.Uniform, Width = size, Height = size,
+        var path = new System.Windows.Shapes.Path { Data = Geometry.Parse(geometry), Stretch = Stretch.Uniform, Width = size, Height = size,
             StrokeThickness = 1.7, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round, VerticalAlignment = VerticalAlignment.Center };
         path.SetResourceReference(Shape.StrokeProperty, kind == "life" ? "WrongBrush" : "AccentBrush");
@@ -56,7 +56,7 @@ public sealed partial class MainWindow
         var prize = new Grid { Width = 40, Height = 40, Opacity = 0, RenderTransform = new TranslateTransform(0,14) };
         Canvas.SetLeft(prize,43); Canvas.SetTop(prize,49); art.Children.Add(prize);
         var lid = new Canvas { Width = 126, Height = 126, RenderTransform = new TranslateTransform() };
-        var bow = new Path { Data = Geometry.Parse("M63,47 C24,45 31,17 49,28 Q60,33 63,47 C102,45 95,17 77,28 Q66,33 63,47"),
+        var bow = new System.Windows.Shapes.Path { Data = Geometry.Parse("M63,47 C24,45 31,17 49,28 Q60,33 63,47 C102,45 95,17 77,28 Q66,33 63,47"),
             StrokeThickness = 5, StrokeLineJoin = PenLineJoin.Round };
         bow.SetResourceReference(Shape.StrokeProperty,"AccentBrush");
         lid.Children.Add(bow);

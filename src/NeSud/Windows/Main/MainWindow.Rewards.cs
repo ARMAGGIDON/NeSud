@@ -136,8 +136,8 @@ public sealed partial class MainWindow : Window
             if (day is not null) daily = await Request<DailyStatus>("daily", token: session.Token);
             if (closing || !ReferenceEquals(account, session) || giftDialogOpen) return;
             if (day is null && (state.GameId != id || G?.Completed != true || surfaces.Count != 0)) return;
-            if (daily?.Packs.Any(p => day is null ? p.Milestone is not ("weekly" or "challenge") : p.Milestone == "challenge" && p.Day == day) != true) return;
             if (day is null) pendingWinReward = Guid.Empty;
+            if (daily?.Packs.Any(p => day is null ? p.Milestone is not ("weekly" or "challenge") : p.Milestone == "challenge" && p.Day == day) != true) return;
             await ShowDaily(day, automatic: true);
         }
         catch { }
@@ -176,7 +176,7 @@ public sealed partial class MainWindow : Window
             wallet.Children.Add(ResourceLabel("candidates", d.Candidates.ToString()));
             body.Children.Add(wallet);
             Gap(body);
-            foreach (var kind in new[] { "hint", "candidates" })
+            foreach (var kind in automatic ? Array.Empty<string>() : new[] { "hint", "candidates" })
             {
                 string k = kind;
                 var use = Action($"Використати: {ResourceName(k)} ({WalletCount(k)})", () =>
@@ -229,7 +229,11 @@ public sealed partial class MainWindow : Window
                     await RevealGift(gifts[index], result.Item);
                     if (!window.IsVisible) return;
                     foreach (var gift in gifts.Where((_, i) => i != index)) gift.Button.Opacity = .35;
-                    body.Children.Add(Action("Далі", () => { notice.Text = ""; Draw(); }, primary: true));
+                    body.Children.Add(Action(daily.Packs.Any(Matches) ? "Далі" : "Готово", () =>
+                    {
+                        if (!daily.Packs.Any(Matches)) window.Close();
+                        else { notice.Text = ""; Draw(); }
+                    }, primary: true));
                 }
                 catch
                 {

@@ -700,7 +700,7 @@ html {
 .resource-icon { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; flex-shrink: 0; }
 .gift-prize .resource-icon { width: 100%; height: auto; }
 .gift-caption { font-size: 12px; color: var(--text); }
-.mystery-card.revealed { opacity: 1; }
+.mystery-card.revealed { opacity: 1; filter: none; }
 .mystery-card.unchosen { opacity: .35; }
 .mystery-card.revealed .gift-lid { transform: translate(30%, -170%) rotate(14deg); transition: transform .45s ease-out; }
 .mystery-card.revealed .gift-prize { opacity: 1; transform: translateY(-120%); transition: transform .45s ease-out, opacity .45s; }

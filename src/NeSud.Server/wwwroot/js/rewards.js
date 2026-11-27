@@ -65,7 +65,14 @@ async function showVictoryReward(id, day, e) {
     const key = e + ":" + id;
     if (pendingRewardGame === key) return;
     pendingRewardGame = key;
-    await refreshDaily();
+    try {
+        if (dailyTask) await dailyTask;
+        if (epoch !== e || game?.id !== id || !online) return;
+        const updated = await api("daily");
+        if (epoch !== e || game?.id !== id) return;
+        daily = updated;
+        render();
+    } catch { return; }
     if (epoch !== e || game?.id !== id || !game.completed || tab !== "play" || document.querySelector("dialog[open]")) return;
     if (!daily?.packs.some(p => day ? p.milestone === "challenge" && p.day === day : !["weekly", "challenge"].includes(p.milestone))) return;
     dailyMode = day ? "challenge" : "win";
@@ -127,10 +134,13 @@ async function chooseCard(pack, card) {
     if (dailyBusy || (rewardAttempt !== null && rewardAttempt !== card)) return;
     rewardAttempt = card;
     dailyBusy = true;
+    const e = epoch;
     drawDaily();
     try {
         const r = await api("daily/choose", { ...pack, card });
+        if (e !== epoch) return;
         daily = r.status;
+        if (!$("daily").open) return;
         revealed = true;
         const cards = $("daily-cards");
         Array.from(cards.children).forEach((b, i) => {
@@ -144,8 +154,9 @@ async function chooseCard(pack, card) {
         $("daily-result").textContent = "Отримано: " + resourceNames[r.item.kind] + " ×" + r.item.amount;
         const next = document.createElement("button");
         next.className = "primary next-card";
-        next.textContent = "Далі";
+        next.textContent = daily.packs.some(matchesPack) ? "Далі" : "Готово";
         next.onclick = () => {
+            if (!daily.packs.some(matchesPack)) { $("daily").close(); return; }
             revealed = false;
             rewardAttempt = null;
             $("daily-result").textContent = "";
@@ -162,6 +173,7 @@ async function chooseCard(pack, card) {
         render()
     }
 }
+$("daily").addEventListener("cancel", e => { if (dailyBusy) e.preventDefault(); });
 $("daily-open").onclick = async() => {
     if (guestMode) {
         showAuth();
