@@ -329,9 +329,14 @@ public sealed partial class MainWindow
             if (game is { Paused: false, Completed: false, OutOfLives: false } && connected)
             {
                 e.Cancel = true;
-                await Move("pause");
-                allowClose = true;
-                window.Close();
+                window.IsClosingPending = true;
+                try
+                {
+                    await Move("pause");
+                    allowClose = true;
+                    window.Close();
+                }
+                finally { window.IsClosingPending = false; }
             }
         };
         Func<Task<bool>> pauseForHeader = async () =>

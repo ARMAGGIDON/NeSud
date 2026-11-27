@@ -69,7 +69,13 @@ public sealed partial class MainWindow
             if (!top.IsPage) { homeRequested = false; return; }
             top.Close();
             // Closing a daily game can require an asynchronous server pause.
-            if (top.IsVisible) return;
+            if (top.IsVisible)
+            {
+                // The page may close asynchronously after pausing; its Closed handler resumes navigation.
+                // A rejected close must not trigger home navigation on an unrelated future action.
+                if (!top.IsClosingPending) homeRequested = false;
+                return;
+            }
         }
         homeRequested = false;
         OpenMenu();
@@ -108,6 +114,7 @@ public sealed partial class MainWindow
 
         public bool IsVisible => frame is not null && !closed;
         public bool IsPage => page;
+        public bool IsClosingPending { get; set; }
         public string Title { get; }
 
         public bool? DialogResult
@@ -222,7 +229,7 @@ public sealed partial class MainWindow
             owner.surfaceHost.Children.Add(layer);
             owner.UpdateHeaderNavigation();
             Fit();
-            Fade(shell);
+            MainWindow.Fade(shell);
 
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {

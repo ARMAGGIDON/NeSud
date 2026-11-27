@@ -115,7 +115,7 @@ function render() {
     updateRevive();
 }
 document.addEventListener("keydown", e => {
-    if (tab !== "play" || !online || !game || e.target.matches("input,select") || document.querySelector("dialog[open]") || adPending) return;
+    if (tab !== "play" || !online || !game || e.target.matches("input,select,textarea") || e.target.closest("header") || document.querySelector("dialog[open]") || adPending) return;
     let k = e.key.toLowerCase();
     if (k === "p" || k === "escape") {
         act(game.paused ? "resume": "pause");

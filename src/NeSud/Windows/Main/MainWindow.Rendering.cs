@@ -179,7 +179,7 @@ public sealed partial class MainWindow : Window
             else SetDetailRows(resultComparison, ("Ігор", c.Games.ToString()), ("Гравців", c.Players.ToString()),
                 ("Середній час", FormatTime((int)c.AverageSeconds)), ("Медіана", FormatTime((int)c.MedianSeconds)),
                 ("Найкращий час", FormatTime(c.BestSeconds)), ("Середній бал", c.AverageScore.ToString("N0")),
-                ("Середні помилки", c.AverageMistakes.ToString("F1")), ("Середні підказки", c.AverageHints.ToString("F1")),
+                ("Середні помилки", c.AverageMistakes.ToString("F1")), ("Середні підказки", c.AverageHints.ToString("F1")), ("Середні зміни кандидатів", c.AverageCandidates.ToString("F1")),
                 ("Ваш бал не нижче ніж у", $"{c.ScorePercentile}% ігор"), ("Ваш час не довше ніж у", $"{c.TimePercentile}% ігор"));
         }
         catch

@@ -1334,3 +1334,5 @@ button:not(:disabled):active { filter: brightness(.94); }
 dialog[open] { animation: dialog-enter .16s ease-out; }
 @keyframes dialog-enter { from { opacity: .5; scale: .985; } to { opacity: 1; scale: 1; } }
 @media (prefers-reduced-motion: reduce) { .page-enter, dialog[open] { animation: none; } #home-cue { transition: none; } }
+
+@media (max-width: 560px) { .compact-metrics.penalties { grid-template-columns: repeat(2,minmax(0,1fr)); } #history-level-stats { overflow-x: auto; } #history-level-stats .record { min-width: 540px; } }
