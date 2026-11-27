@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using NeSud.Core;
 using NeSud.Server;
 
+var shutdownTrace = ShutdownTrace.Start();
 var builder = WebApplication.CreateBuilder(args);
 SmtpEnv.AddTo(builder.Configuration, builder.Environment.ContentRootPath);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 8 * 1024 * 1024);
@@ -25,6 +26,7 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 var app = builder.Build();
+shutdownTrace?.Observe(app.Lifetime);
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
@@ -45,4 +47,14 @@ app.MapHub<GameHub>("/hubs/game", options =>
     options.ApplicationMaxBufferSize = 32 * 1024;
     options.TransportMaxBufferSize = 32 * 1024;
 });
-app.Run();
+try
+{
+    shutdownTrace?.Write("Run.enter");
+    app.Run();
+    shutdownTrace?.Write("Run.return");
+}
+catch (Exception ex)
+{
+    shutdownTrace?.Write("Run.error " + ex.GetType().FullName);
+    throw;
+}

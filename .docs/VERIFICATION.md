@@ -52,3 +52,8 @@ Smoke-сценарії: Generation, Game, Storage, Rules, Rewards, Challenges, S
 ## Завершення сервера
 
 Після збірки сервера на Windows запустіть його у першому терміналі, а у другому виконайте `npm --prefix src/NeSud.Server run test:shutdown -- --manual`. Після READY натисніть Ctrl+C один раз у першому терміналі. Очікується закриття обох активних WebSocket, недоступність HTTP і повернення prompt сервера. Тест не створює акаунтів чи ігор. На Linux `npm --prefix src/NeSud.Server run test:shutdown` запускає Debug DLL з тимчасовою SQLite БД, надсилає SIGINT процесу та додатково перевіряє нормальний exit code. Сценарій потребує фактичного локального виконання; синтаксична перевірка не підтверджує завершення процесу.
+
+
+### Діагностика Ctrl+C у Windows
+
+Якщо prompt повертається без повідомлення про завершення або Ctrl+C спрацьовує нестабільно, увімкніть `NESUD_SHUTDOWN_TRACE` (абсолютний шлях до тимчасового файлу). Сервер записує PID, часові мітки та незалежні від ILogger події Process.start, Run.enter, ApplicationStarted, ApplicationStopping, ApplicationStopped, Run.return, ProcessExit. Діагностика не змінює обробку сигналів, shutdown timeout або WebSocket. Порівняйте запуск через dotnet run та прямий запуск DLL з однакового робочого каталогу, спочатку в IDE, потім у звичайному Windows Terminal. Натискайте Ctrl+C один раз, перевіряйте prompt, код завершення та trace. Відсутність ApplicationStopping не підтверджує конкретну причину, а лише відсутність зафіксованого штатного початку зупинки; наявність ApplicationStopped та Run.return підтверджує завершення host. Не використовуйте тестову трасу на мережевому диску. Логи не містять токенів чи адрес БД.
