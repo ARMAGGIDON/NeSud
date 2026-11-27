@@ -1457,3 +1457,6 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 .mininotes .focused-note { color: var(--accenttext); background: var(--accent); border-radius: 3px; font-weight: 700; }
 #pad button.focused-digit { background: var(--same); opacity: 1; }
 #pad button.spent-digit:disabled { opacity: .45; }
+
+#board.paint-mode { touch-action: none; user-select: none; cursor: crosshair; }
+#board.paint-mode .cell { cursor: crosshair; }

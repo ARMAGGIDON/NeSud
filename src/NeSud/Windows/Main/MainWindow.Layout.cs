@@ -485,9 +485,11 @@ public sealed partial class MainWindow : Window
     };
 
     private Grid BuildBoard() => BuildBoard(cells, ClickCell,
-        i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); });
+        i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); },
+        (i, first) => { PaintLocalStroke(i, first); return Task.CompletedTask; }, () => Playing);
 
-    private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null)
+    private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null,
+        Func<int, bool, Task>? paint = null, Func<bool>? canStart = null)
     {
         var result = new Grid { Width = 540, Height = 540, SnapsToDevicePixels = true };
         result.SetResourceReference(Panel.BackgroundProperty, "StrongLineBrush");
@@ -524,6 +526,7 @@ public sealed partial class MainWindow : Window
             target[i] = b;
             At(result, b, r, c);
         }
+        if (paint is not null) AttachPaintStroke(result, paint, canStart ?? (() => true));
         return result;
     }
 }

@@ -32,7 +32,10 @@ public sealed partial class MainWindow
 
         var boardCells = new Button[81];
         Action<int>? selectCell = null, clickCell = null;
-        var grid = BuildBoard(boardCells, i => clickCell?.Invoke(i), i => selectCell?.Invoke(i));
+        Func<int, bool, Task>? paintCell = null;
+        Func<bool>? canPaint = null;
+        var grid = BuildBoard(boardCells, i => clickCell?.Invoke(i), i => selectCell?.Invoke(i),
+            (i, first) => paintCell?.Invoke(i, first) ?? Task.CompletedTask, () => canPaint?.Invoke() == true);
         var boardArea = new Grid();
         boardArea.Children.Add(BoardView(grid));
         var cover = new Grid();
@@ -146,6 +149,28 @@ public sealed partial class MainWindow
         }
         selectCell = Select;
         clickCell = i => _ = ClickChallengeCell(i);
+        Guid strokeGame = Guid.Empty;
+        int strokeDigit = 0;
+        bool strokeNote = false;
+        canPaint = Active;
+        paintCell = async (i, first) =>
+        {
+            if (!Active() || game is null || !window.IsVisible) return;
+            if (first)
+            {
+                strokeGame = game.Id;
+                strokeDigit = game.Values[i] != 0 ? game.Values[i] :
+                    paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
+                strokeNote = note || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                await ClickChallengeCell(i);
+                return;
+            }
+            if (strokeGame != game.Id || strokeDigit == 0 || game.Remaining[strokeDigit - 1] == 0 ||
+                game.Values[i] != 0 || game.Givens[i] != 0) return;
+            paintDigit = strokeDigit;
+            Select(i);
+            await Move("enter", strokeDigit, noteOverride: strokeNote);
+        };
         async Task ClickChallengeCell(int i)
         {
             if (!Active() || game is null) return;
@@ -312,7 +337,7 @@ public sealed partial class MainWindow
             await Move("enter", digit, temporaryNote: temporaryNote);
         }
 
-        async Task<bool> Move(string action, int digit = 0, string? reward = null, bool temporaryNote = false)
+        async Task<bool> Move(string action, int digit = 0, string? reward = null, bool temporaryNote = false, bool? noteOverride = null)
         {
             if (working || !connected || game is null)return false;
             working = true;
@@ -324,7 +349,7 @@ public sealed partial class MainWindow
             {
                 string wireAction = !state.AutoClean && action is ("enter" or "hint") ? action + "-keep-notes" : action;
                 var g = await Request<OnlineGameView > ("web/action", new { id = game.Id, revision = game.Revision,
-                    action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : note || temporaryNote, reward, challengeDay = day });
+                    action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : (noteOverride ?? (note || temporaryNote)), reward, challengeDay = day });
                 bool wonNow = game?.Completed != true && g.Completed;
                 Accept(g);
                 if (wonNow && window.IsVisible)

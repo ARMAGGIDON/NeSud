@@ -12,6 +12,7 @@ for (let i = 0; i < 81; i++) {
     let b = document.createElement("button");
     b.className = "cell";
     b.onclick = async event => {
+        if (paintMode && event.detail > 0) return; // Pointer strokes are handled by the board.
         if (pulse) await pulse;
         if (!game || busy || !online || game.paused || game.completed || game.outOfLives || adPending) return;
         const digit = paintDigit || focusDigit || game.values[selected];
@@ -24,6 +25,83 @@ for (let i = 0; i < 81; i++) {
     $("board").append(b);
     buttons.push(b)
 }
+// The pointer belongs to the board for the entire stroke. Network moves are serialized.
+const paintBoard = $("board");
+let stroke = null, drainingStroke = false;
+const strokeQueue = [];
+function strokeCell(x, y) {
+    const b = document.elementFromPoint(x, y)?.closest(".cell");
+    return b ? buttons.indexOf(b) : -1;
+}
+function queueStrokePoint(s, x, y) {
+    const i = strokeCell(x, y);
+    if (i >= 0 && !s.seen.has(i)) {
+        s.seen.add(i);
+        strokeQueue.push({ s, i, first: s.seen.size === 1 });
+    }
+}
+function sampleStroke(s, x, y) {
+    if (s.last) {
+        const [px, py] = s.last;
+        const step = Math.max(1, Math.min(paintBoard.clientWidth, paintBoard.clientHeight) / 36);
+        const n = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / step));
+        for (let k = 1; k <= n; k++) queueStrokePoint(s, px + (x - px) * k / n, py + (y - py) * k / n);
+    } else queueStrokePoint(s, x, y);
+    s.last = [x, y];
+    void drainStroke();
+}
+function validStroke(s) {
+    return !s.cancelled && paintMode && epoch === s.epoch && tab === "play" && game?.id === s.id &&
+        online && !game.paused && !game.completed && !game.outOfLives && !game.reward && !adPending;
+}
+async function drainStroke() {
+    if (drainingStroke) return;
+    drainingStroke = true;
+    try {
+        while (strokeQueue.length) {
+            const { s, i, first } = strokeQueue.shift();
+            if (pulse) await pulse;
+            if (!validStroke(s) || busy) continue;
+            if (first) {
+                if (game.values[i]) s.digit = game.values[i];
+                selectCell(i);
+                buttons[i].focus();
+            }
+            if (!s.digit || !game.remaining[s.digit - 1] || game.values[i] || game.givens[i]) continue;
+            paintDigit = s.digit;
+            selectCell(i);
+            buttons[i].focus();
+            if (!await act("enter", { cell: i, digit: s.digit, note: s.note })) s.cancelled = true;
+        }
+    } finally { drainingStroke = false; }
+}
+paintBoard.addEventListener("pointerdown", e => {
+    if (!paintMode || e.button !== 0 || !e.isPrimary) return;
+    e.preventDefault();
+    if (stroke || drainingStroke || !game || (busy && !pulse) || !online || game.paused ||
+        game.completed || game.outOfLives || game.reward || adPending) return;
+    stroke = { pointer: e.pointerId, epoch, id: game.id, digit: paintDigit || focusDigit || game.values[selected],
+        note: note || e.shiftKey, seen: new Set(), last: null, cancelled: false };
+    paintBoard.setPointerCapture(e.pointerId);
+    sampleStroke(stroke, e.clientX, e.clientY);
+});
+paintBoard.addEventListener("pointermove", e => {
+    if (stroke?.pointer !== e.pointerId) return;
+    if (!(e.buttons & 1)) { finishStroke(e, false); return; }
+    sampleStroke(stroke, e.clientX, e.clientY);
+});
+function finishStroke(e, cancel) {
+    if (stroke?.pointer !== e.pointerId) return;
+    const s = stroke;
+    if (cancel) s.cancelled = true;
+    else sampleStroke(s, e.clientX, e.clientY);
+    stroke = null;
+    if (paintBoard.hasPointerCapture(e.pointerId)) paintBoard.releasePointerCapture(e.pointerId);
+}
+paintBoard.addEventListener("pointerup", e => finishStroke(e, false));
+paintBoard.addEventListener("pointercancel", e => finishStroke(e, true));
+paintBoard.addEventListener("lostpointercapture", e => finishStroke(e, true));
+
 for (let d = 1; d <= 9; d++) {
     const b = document.createElement("button");
     const num = document.createElement("strong"), count = document.createElement("small");
@@ -109,8 +187,10 @@ for (const [id, key, apply] of [
 }
 
 $("paint-digit").checked = paintMode;
+paintBoard.classList.toggle("paint-mode", paintMode);
 $("paint-digit").onchange = () => {
     paintMode = $("paint-digit").checked;
+    paintBoard.classList.toggle("paint-mode", paintMode);
     paintDigit = paintMode ? (focusDigit || game?.values[selected] || 0) : 0;
     localStorage.setItem("paintDigit", paintMode ? "1" : "0");
     render();
