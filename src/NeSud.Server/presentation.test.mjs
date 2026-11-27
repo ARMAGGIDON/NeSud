@@ -145,3 +145,38 @@ test("floating search ignores stale results and does not alter friend sections",
     assert.equal($("player-search-popup").hidden, true);
     assert.equal($("player-results").children.length, 0);
 });
+
+test("reload route preserves the exact page, challenge day and filters", () => {
+    const normalize = new Function(read("route.js") + "\nreturn normalizeRoute;")();
+    const play = normalize({ tab: "play", challengeDay: "2026-11-27" }, false);
+    assert.equal(play.tab, "play");
+    assert.equal(play.challengeDay, "2026-11-27");
+    assert.equal(normalize(play, true).tab, "menu");
+    const profile = normalize({ tab: "profile", profileUser: "other", profilePage: 3, profileLevel: "Hard" }, false);
+    assert.equal(profile.profileUser, "other");
+    assert.equal(profile.profilePage, 3);
+    assert.equal(profile.profileLevel, "Hard");
+    assert.equal(normalize({ tab: "ranking", rankMode: "all", rankMetric: "wins", rankLevel: "Expert" }, false).rankMetric, "wins");
+    assert.equal(normalize({ tab: "challenge", calendarMonth: "2026-10" }, false).calendarMonth, "2026-10");
+    assert.equal(normalize({ tab: "play", challengeDay: "2026-02-30" }, false).challengeDay, null);
+    assert.equal(normalize({ tab: "invalid" }, false).tab, "menu");
+    assert.equal(normalize({ tab: "friends" }, true).tab, "menu");
+});
+test("route storage is cleared on account reset and tolerates invalid JSON", () => {
+    const storage = new Map(), elements = new Map();
+    const sessionStorage = { getItem: k => storage.get(k) ?? null, setItem: (k,v) => storage.set(k,v), removeItem: k => storage.delete(k) };
+    const $ = id => { if (!elements.has(id)) elements.set(id, { value: "" }); return elements.get(id); };
+    const app = new Function("sessionStorage", "$", `
+        let token = "session", guestMode = false, tab = "profile", challengeDay = null, calendarMonth = null, profileUser = "other", profilePage = 2;
+        ${read("route.js")}
+        return { saveRoute, readRoute, clearRoute, applyRoute };
+    `)(sessionStorage, $);
+    $("profile-level").value = "Medium";
+    app.saveRoute();
+    assert.equal(app.readRoute().profileUser, "other");
+    assert.equal(app.readRoute().profileLevel, "Medium");
+    app.clearRoute();
+    assert.equal(app.readRoute().tab, "menu");
+    sessionStorage.setItem("nesud.navigation.v1", "{");
+    assert.equal(app.readRoute().tab, "menu");
+});

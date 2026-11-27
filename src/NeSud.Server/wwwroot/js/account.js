@@ -1,6 +1,7 @@
 "use strict";
 
 function resetSession() {
+    clearRoute();
     stopRealtime();
     for (const id of ["profile-settings-dialog", "invite-dialog", "avatar-dialog"]) if ($(id).open) $(id).close();
     regularGame = null;
@@ -99,6 +100,7 @@ async function login(guest = false) {
         game = null;
         selected = 0;
         note = false;
+        clearRoute();
         token = a.token;
         guestMode = guest;
         verifiedAccount = false;
@@ -143,17 +145,29 @@ $("logout").onclick = async() => {
     message("");
     await login(true)
 };
-async function start() {
+async function start(restoredRoute = null) {
+    const route = normalizeRoute(restoredRoute, guestMode), secret = token;
+    applyRoute(route);
     $("app").hidden = false;
     $("account").hidden = false;
     $("account").textContent = guestMode ? "Увійти" : "Мій профіль";
     $("logout").hidden = guestMode;
     $("guest-notice").hidden = !guestMode;
-    await navigate("menu");
+    // Select the route before the snapshot: play must recover the exact game
+    // in paused mode rather than observe a regular game from the main menu.
+    setTab(route.tab);
     await reconnect();
+    if (token !== secret) return;
     if (!guestMode) {
-        try { await refreshVerification(); } catch { verifiedAccount = false; }
+        try {
+            const verified = await refreshVerification();
+            if (token !== secret) return;
+            if (tab === "friends" && !verified) setTab("menu");
+        } catch { if (token !== secret) return; }
         refreshDaily();
+    }
+    if (tab === route.tab && tab !== "menu" && tab !== "play") {
+        if (tab !== "friends" || verifiedAccount) await navigate(tab);
     }
     render();
 }

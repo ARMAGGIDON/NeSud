@@ -54,6 +54,7 @@ function setTab(t) {
     const changed = tab !== t;
     if (changed) rankingRequest++;
     tab = t;
+    saveRoute();
     $("home-brand").classList.toggle("can-return", t !== "menu");
     watchRankings(t === "ranking" || t === "weekly");
 
