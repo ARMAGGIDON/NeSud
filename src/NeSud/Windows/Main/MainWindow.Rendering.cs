@@ -133,7 +133,6 @@ public sealed partial class MainWindow : Window
         if (g?.OutOfLives == true && !Busy) UpdateDefeat();
         bool showResult = !inMenu && !Busy && !watchingReward && g is not null && (g.Completed || g.FinalDefeat(DateTimeOffset.UtcNow));
         menuCard.Visibility = inMenu ? Visibility.Visible : Visibility.Collapsed;
-        menuNavigation.Visibility = inMenu ? Visibility.Collapsed : Visibility.Visible;
         continueMenu.Visibility = G is null ? Visibility.Collapsed : Visibility.Visible;
         continueMenu.Content = G is { Completed: true } || G?.FinalDefeat(DateTimeOffset.UtcNow) == true ? "Останній результат" : "Продовжити гру";
         continueMenu.IsEnabled = !Busy && state.PendingReward is null;

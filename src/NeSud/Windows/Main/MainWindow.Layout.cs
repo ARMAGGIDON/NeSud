@@ -100,7 +100,7 @@ public sealed partial class MainWindow : Window
 
     private void Build()
     {
-        var root = new Grid { Margin = new Thickness(24, 18, 24, 14) };
+        var root = new Grid { Margin = new Thickness(24, 0, 24, 14) };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -108,12 +108,24 @@ public sealed partial class MainWindow : Window
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
 
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+        var header = new Grid { Margin = new Thickness(24, 18, 24, 14) };
+        headerBar = header;
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var brand = Stack();
-        brand.Children.Add(Text("NeSud", 30, "Text", true));
-
+        var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        headerBack = Action("‹", () => { if (surfaces.Count > 0) surfaces[^1].Close(); }, "Повернутися до попередньої сторінки");
+        headerBack.Visibility = Visibility.Collapsed;
+        headerBack.Margin = new Thickness(0, 0, 10, 0);
+        brand.Children.Add(headerBack);
+        var home = Action("NeSud", NavigateHome, "Головне меню");
+        home.FontSize = 30;
+        home.FontWeight = FontWeights.SemiBold;
+        home.Background = Brushes.Transparent;
+        home.BorderBrush = Brushes.Transparent;
+        home.Padding = new Thickness(0, 0, 8, 0);
+        home.Margin = new Thickness(0);
+        System.Windows.Automation.AutomationProperties.SetName(home, "NeSud: головне меню");
+        brand.Children.Add(home);
         At(header, brand, 0, 0);
         theme = Action("Тема", () => {
             state.Dark = !state.Dark;
@@ -124,13 +136,12 @@ public sealed partial class MainWindow : Window
         theme.VerticalAlignment = VerticalAlignment.Center;
         theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        menuNavigation = Action("Головне меню", OpenMenu);
         accountNavigation = Action("Увійти", () => { if (account is null) ShowAccount(); else _ = ShowProfile(null); });
-        foreach (var b in new[] { menuNavigation, Action("Довідка", ShowHelp), accountNavigation, theme })
+        foreach (var b in new[] { Action("Довідка", ShowHelp), accountNavigation, theme })
         { b.Margin = new Thickness(5, 0, 0, 0);
         headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1);
-        At(root, header, 0, 0, 3);
+
 
         var play = new Grid();
         play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -367,7 +378,12 @@ public sealed partial class MainWindow : Window
         mainContent = root;
         surfaceHost = new Grid { ClipToBounds = true };
         surfaceHost.Children.Add(mainContent);
-        Content = surfaceHost;
+        var shell = new Grid();
+        shell.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        shell.RowDefinitions.Add(new RowDefinition());
+        At(shell, header, 0, 0);
+        At(shell, surfaceHost, 1, 0);
+        Content = shell;
     }
 
     private StackPanel Metric(string label, TextBlock value)

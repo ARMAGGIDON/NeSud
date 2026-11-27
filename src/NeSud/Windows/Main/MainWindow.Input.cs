@@ -26,6 +26,12 @@ public sealed partial class MainWindow : Window
     {
         if (surfaces.Count > 0)
         {
+            if (e.Key == Key.F1 && surfaces[^1].IsPage)
+            {
+                ShowHelp();
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.Escape && Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true })
             {
                 surfaces[^1].Close();

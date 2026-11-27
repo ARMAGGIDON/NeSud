@@ -9,6 +9,7 @@ public sealed partial class MainWindow
 {
     private void ShowHelp()
     {
+        if (surfaces.LastOrDefault()?.Title == "Довідка") return;
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

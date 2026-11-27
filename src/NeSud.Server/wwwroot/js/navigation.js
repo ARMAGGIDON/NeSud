@@ -13,7 +13,6 @@ function row(parent, values) {
 function setTab(t) {
     tab = t;
     watchRankings(t === "ranking" || t === "weekly");
-    $("back-menu").hidden = t === "menu";
 
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
         $(n).hidden = n !== t;
@@ -105,3 +104,5 @@ async function navigate(t) {
     }
 }
 $("rankmode").onchange = $("rankmetric").onchange = $("ranklevel").onchange = () => navigate("ranking");
+
+$("home-brand").onclick = () => navigate("menu");

@@ -13,6 +13,7 @@ public sealed partial class MainWindow
         if (user is not null && account is not null &&
             string.Equals(user, account.Username ?? account.User, StringComparison.OrdinalIgnoreCase))
             user = null;
+        if (user is null && surfaces.LastOrDefault()?.Title == "Мій профіль") return;
         var panel = Stack();
         var header = new Grid { Margin = new Thickness(0, 0, 0, 16) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -54,7 +55,7 @@ public sealed partial class MainWindow
         next.Margin = new Thickness(4, 8, 0, 0);
         nav.Children.Add(prev);
         nav.Children.Add(next);
-        var window = Page("Профіль", panel, 900);
+        var window = Page(user is null ? "Мій профіль" : "Профіль", panel, 900);
         int page = 0;
         bool loading = false;
         bool reloadPending = false;

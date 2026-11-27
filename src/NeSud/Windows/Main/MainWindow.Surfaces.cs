@@ -11,6 +11,39 @@ public sealed partial class MainWindow
 {
     private Grid surfaceHost = null!, mainContent = null!;
     private readonly List<InAppSurface> surfaces = new();
+    private Grid headerBar = null!;
+    private Button headerBack = null!;
+    private bool homeRequested;
+
+    private void UpdateHeaderNavigation()
+    {
+        var top = surfaces.LastOrDefault();
+        headerBar.IsEnabled = top is null || top.IsPage;
+        headerBack.Visibility = top is { IsPage: true } &&
+            (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void NavigateHome()
+    {
+        if (closing || surfaces.LastOrDefault() is { IsPage: false }) return;
+        homeRequested = true;
+        ContinueHome();
+    }
+
+    private void ContinueHome()
+    {
+        if (!homeRequested || closing) return;
+        while (surfaces.Count > 0)
+        {
+            var top = surfaces[^1];
+            if (!top.IsPage) { homeRequested = false; return; }
+            top.Close();
+            // Closing a daily game can require an asynchronous server pause.
+            if (top.IsVisible) return;
+        }
+        homeRequested = false;
+        OpenMenu();
+    }
 
     private void CloseSurfaces()
     {
@@ -44,6 +77,8 @@ public sealed partial class MainWindow
         }
 
         public bool IsVisible => frame is not null && !closed;
+        public bool IsPage => page;
+        public string Title { get; }
 
         public bool? DialogResult
         {
@@ -59,6 +94,7 @@ public sealed partial class MainWindow
         {
             this.owner = owner;
             this.page = page;
+            Title = title;
             preferredWidth = width;
             preferredHeight = maxHeight;
             layer = new Grid { ClipToBounds = true, Focusable = false };
@@ -71,21 +107,14 @@ public sealed partial class MainWindow
             layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            dismiss = owner.Action(page ? "‹ Назад" : "×", Close, page ? "Повернутися" : "Закрити");
-            dismiss.HorizontalAlignment = page ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-            dismiss.MinWidth = page ? 92 : 38;
+            dismiss = owner.Action("×", Close, "Закрити");
+            dismiss.HorizontalAlignment = HorizontalAlignment.Right;
+            dismiss.MinWidth = 38;
             dismiss.MinHeight = 36;
-            dismiss.FontSize = page ? 14 : 23;
+            dismiss.FontSize = 23;
             dismiss.Margin = new Thickness(0, 0, 0, 8);
-            System.Windows.Automation.AutomationProperties.SetName(dismiss, page ? "Назад" : "Закрити");
-            MainWindow.At(layout, dismiss, 0, 0);
-            if (page && title != "Довідка")
-            {
-                var help = owner.Action("Довідка", owner.ShowHelp);
-                help.HorizontalAlignment = HorizontalAlignment.Right;
-                help.VerticalAlignment = VerticalAlignment.Top;
-                MainWindow.At(layout, help, 0, 0);
-            }
+            System.Windows.Automation.AutomationProperties.SetName(dismiss, "Закрити");
+            if (!page) MainWindow.At(layout, dismiss, 0, 0);
 
             UIElement body = content;
             if (content is not Grid && content is not ScrollViewer)
@@ -107,7 +136,7 @@ public sealed partial class MainWindow
 
             MainWindow.At(layout, body, 1, 0);
             shell = owner.Card(layout, page ? 18 : 14);
-            shell.Margin = page ? new Thickness(24, 18, 24, 14) : new Thickness(12);
+            shell.Margin = page ? new Thickness(24, 0, 24, 14) : new Thickness(12);
             shell.HorizontalAlignment = page ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
             shell.VerticalAlignment = page ? VerticalAlignment.Stretch : VerticalAlignment.Center;
             System.Windows.Automation.AutomationProperties.SetName(shell, title);
@@ -158,14 +187,17 @@ public sealed partial class MainWindow
                 owner.surfaces[^1].layer.IsEnabled = false;
 
             frame = new DispatcherFrame();
+            owner.homeRequested = false;
             owner.surfaces.Add(this);
             owner.surfaceHost.Children.Add(layer);
+            owner.UpdateHeaderNavigation();
             Fit();
 
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (!IsVisible) return;
-                dismiss.Focus();
+                if (!page) dismiss.Focus();
+                else layer.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
                 Loaded?.Invoke(this, EventArgs.Empty);
             }));
 
@@ -193,7 +225,10 @@ public sealed partial class MainWindow
                 owner.surfaces[^1].layer.IsEnabled = true;
 
             frame!.Continue = false;
+            owner.UpdateHeaderNavigation();
             Closed?.Invoke(this, EventArgs.Empty);
+            if (owner.homeRequested && !owner.closing)
+                _ = owner.Dispatcher.BeginInvoke(new Action(owner.ContinueHome));
             if (!owner.closing && previousFocus is UIElement { IsVisible: true, IsEnabled: true } target)
                 target.Focus();
         }

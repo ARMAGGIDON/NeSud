@@ -27,7 +27,7 @@
     <body>
         <header>
             <div>
-                <h1>NeSud</h1>
+                <h1><button id="home-brand" type="button" title="Головне меню" aria-label="NeSud: головне меню">NeSud</button></h1>
             </div>
             <div class="header-actions">
                 <button id="help-open">Довідка</button>
@@ -68,10 +68,7 @@
                 </div>
             </dialog>
             <div id="app">
-                <nav>
-                    <button id="back-menu" data-tab="menu" hidden>‹ Головне меню</button>
-                    <span id="guest-notice">Гостьовий режим</span>
-                </nav>
+                <span id="guest-notice">Гостьовий режим</span>
                 <section id="menu" class="panel">
                     <h2>Головне меню</h2>
                     <div class="menu-grid">
@@ -170,10 +167,12 @@
                     <div id="historyrows"></div>
                 </section>
                 <section id="ranking" class="panel" hidden>
-                    <h2>Серверний рейтинг</h2>
+                    <h2>Рейтинг</h2>
+                    <div class="rank-filters">
                     <label>Таблиця<select id="rankmode"><option value="server">Серверний рейтинг</option><option value="all">Загальні бали (офлайн включено)</option></select></label>
                     <label>Показник<select id="rankmetric"><option value="score">Бали</option><option value="wins">Перемоги</option><option value="perfect">Ідеальні перемоги</option><option value="current">Поточна серія</option><option value="streak">Найдовша серія</option></select></label>
                     <label>Складність<select id="ranklevel"><option value="">Усі складності</option><option value="Easy">Легка</option><option value="Medium">Середня</option><option value="Hard">Складна</option><option value="Expert">Експерт</option></select></label>
+                    </div>
                     <div id="rankrows"></div>
                 </section>
                 <section id="weekly" class="panel" hidden>

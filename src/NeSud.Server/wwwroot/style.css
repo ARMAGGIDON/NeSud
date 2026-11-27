@@ -1298,3 +1298,13 @@ dialog > .dialog-close {
 #profile-settings-dialog, #invite-dialog { width: min(560px, calc(100vw - 32px)); }
 .profile-heading .actions:empty { display: none; }
 .record > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Shared navigation and page layout. Only page content scrolls under the header. */
+header { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-block: 10px; }
+#home-brand { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 700; color: var(--text); }
+#home-brand:hover { color: var(--accent); filter: none; }
+#guest-notice { display: inline-block; margin-bottom: 12px; }
+.rank-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 12px 0; }
+#ranking .rank-filters label { display: grid; width: 100%; margin: 0; }
+.rank-filters select { width: 100%; min-width: 0; }
+@media(max-width:650px) { .rank-filters { grid-template-columns: 1fr; } }
