@@ -159,6 +159,7 @@ async function flushGameRefresh() {
             if (day === currentDay) {
                 const wasTerminal = game?.completed || game?.finalDefeat;
                 accept(data);
+                if (tab === "profile" && !profileUser) queueAccountRefresh();
                 if (!wasTerminal && (game?.completed || game?.finalDefeat)) queueAccountRefresh();
             } else {
                 regularGame = data?.empty ? null : data;
@@ -185,7 +186,6 @@ function queueAccountRefresh() {
         try {
             if (tab === "friends") await loadFriends();
             if (tab === "challenge") await loadCalendar();
-            if (tab === "history") await navigate("history");
             await refreshVerification();
             if (tab === "profile" && !$("profile-settings-dialog").open && !$("avatar-dialog").open && !$("invite-dialog").open) await loadProfile();
             render();

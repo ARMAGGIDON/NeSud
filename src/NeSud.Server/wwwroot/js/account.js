@@ -22,7 +22,6 @@ function resetSession() {
     $("account").hidden = false;
     updateAccountAvatar(null);
     $("logout").hidden = true;
-    $("history-tab").disabled = true;
     $("guest-notice").hidden = false;
     setTab("menu");
     render();
@@ -150,7 +149,6 @@ async function start() {
     $("account").textContent = guestMode ? "Увійти" : "Мій профіль";
     $("logout").hidden = guestMode;
     $("guest-notice").hidden = !guestMode;
-    $("history-tab").disabled = guestMode;
     await navigate("menu");
     await reconnect();
     if (!guestMode) {

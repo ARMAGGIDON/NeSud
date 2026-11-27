@@ -55,6 +55,8 @@ function profileLink(el, user) {
 async function openProfile(user = null) {
     profileUser = !guestMode && ownUsername && user?.toLowerCase() === ownUsername.toLowerCase() ? null : user;
     profilePage = 0;
+    $("profile-active").hidden = true;
+    $("profile-active-rows").replaceChildren();
     $("profile-level").value = "";
     await navigate("profile")
 }
@@ -72,12 +74,25 @@ async function loadProfile() {
     $("avatar-edit").hidden = !own || !p.verified;
     $("invite-open").hidden = !own || !p.verified;
     if (own) verifiedAccount = p.verified;
-    statCards($("profile-stats"), [["Ігор", p.games], ["Перемог", p.wins], ["Ідеальних", p.perfectWins],
-        ["Балів", p.score], ["Серія / рекорд", p.currentStreak + " / " + p.bestStreak], ["Щоденних перемог", p.dailyWins]]);
+    const metrics = [["Ігор", p.games], ["Перемог", p.wins], ["Ідеальних", p.perfectWins],
+        ["Балів", p.score], ["Серія / рекорд", p.currentStreak + " / " + p.bestStreak], ["Щоденних перемог", p.dailyWins]];
+    $("profile-active").hidden = !own;
+    $("profile-active-rows").replaceChildren();
+    statCards($("profile-stats"), metrics);
+    if (own) {
+        try {
+            const details = await api("profile/own");
+            if (tab !== "profile" || epoch !== e || profileUser !== user || profilePage !== page) return;
+            statCards($("profile-stats"), [...metrics, ["Час", fmt(details.seconds)], ["Помилок", details.mistakes], ["Підказок", details.hints]]);
+            renderActiveGames(details.active);
+        } catch (error) {
+            if (tab === "profile" && epoch === e && profileUser === user) emptyList($("profile-active-rows"), error.message);
+        }
+    }
     const stats = $("profile-level-stats");
     stats.replaceChildren();
-    row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали"]);
-    for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score]);
+    row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали", "Найкращий час"]);
+    for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score, s.bestSeconds == null ? "Немає" : fmt(s.bestSeconds)]);
     $("profile-friend").replaceChildren();
     if (!guestMode && user && p.verified && verifiedAccount && p.user !== ownUsername) {
         if (tab !== "profile" || epoch !== e || profileUser !== user) return;
@@ -93,6 +108,25 @@ async function loadProfile() {
     $("profile-prev").disabled = page === 0;
     $("profile-next").disabled = !p.hasMore;
     if (!p.history.length) emptyList(target, "Ігор ще немає.");
+}
+function renderActiveGames(games) {
+    const target = $("profile-active-rows");
+    target.replaceChildren();
+    if (!games.length) { emptyList(target, "Активних ігор немає."); return; }
+    row(target, ["Режим / оновлено", "Складність", "Стан / час", "Дія"]);
+    for (const g of games) {
+        const mode = g.challengeDay ? "Щоденна " + g.challengeDay : g.source === "desktop" ? "Desktop" : "Web";
+        row(target, [[mode, new Date(g.updated).toLocaleString("uk-UA")], levels[g.difficulty],
+            [g.paused ? "На паузі" : "Розпочато", fmt(g.seconds)], ""]);
+        const cell = target.lastElementChild.lastElementChild;
+        if (g.source === "desktop") cell.textContent = "У застосунку";
+        else {
+            const button = document.createElement("button");
+            button.textContent = "Продовжити";
+            button.onclick = () => g.challengeDay ? openChallenge(g.challengeDay) : openRegular();
+            cell.append(button);
+        }
+    }
 }
 function drawCups(target, cups) {
     target.replaceChildren();

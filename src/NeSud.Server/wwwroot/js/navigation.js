@@ -29,14 +29,14 @@ function setTab(t) {
     $("home-brand").classList.toggle("can-return", t !== "menu");
     watchRankings(t === "ranking" || t === "weekly");
 
-    ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
+    ["menu", "play", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
         $(n).hidden = n !== t;
         if (n === t && changed) animate($(n), "page-enter");
     });
 }
 
 async function navigate(t) {
-    if (guestMode && (t === "challenge" || t === "history" || t === "friends")) return;
+    if (guestMode && (t === "challenge" || t === "friends")) return;
     if (t === "friends") {
         try {
             if (!await refreshVerification()) { message("Підтвердьте електронну пошту."); return; }
@@ -56,45 +56,6 @@ async function navigate(t) {
         if (t === "profile") {
             await loadProfile();
             return
-        }
-        if (t === "history" && !guestMode) {
-            let records = await api("history"), drafts = await api("desktop/drafts"), target = $("historyrows"), wins = records.filter(r => r.outcome === "completed");
-            if (tab !== "history") return;
-            target.replaceChildren();
-
-            let streak = 0, best = 0, perfect = 0;
-            for (const r of [...records].reverse()) {
-                if (r.outcome === "completed") {
-                    streak++;
-                    best = Math.max(best, streak);
-                    if (!r.game.mistakes && !r.game.hints && !r.game.candidateUses && !r.game.autoFilled && !r.game.lifeRestores) perfect++
-                }else streak = 0
-            }
-            statCards($("summary"), [["Ігор", records.length], ["Перемог", wins.length], ["Ідеальних", perfect],
-                ["Балів", wins.reduce((s,r) => s + r.score, 0)], ["Серія / рекорд", streak + " / " + best],
-                ["Час", fmt(records.reduce((s,r) => s + r.game.seconds, 0))], ["Помилок", records.reduce((s,r) => s + r.game.mistakes, 0)],
-                ["Підказок", records.reduce((s,r) => s + r.game.hints, 0)], ["Щоденних перемог", wins.filter(r => r.challengeDay).length]]);
-            const levelStats = $("history-level-stats");
-            levelStats.replaceChildren();
-            row(levelStats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали", "Найкращий час"]);
-            for (let d = 0; d < 4; d++) {
-                const group = records.filter(r => r.game.puzzle.difficulty === d), done = group.filter(r => r.outcome === "completed");
-                let current = 0, best = 0;
-                for (const r of [...group].reverse()) {
-                    current = r.outcome === "completed" ? current + 1: 0;
-                    best = Math.max(best, current)
-                }
-                const perfect = done.filter(r => !r.game.mistakes && !r.game.hints && !r.game.candidateUses && !r.game.autoFilled && !r.game.lifeRestores).length;
-                row(levelStats, [levels[d], done.length + " / " + group.length, perfect, current + " / " + best,
-                    done.reduce((s, r) => s + r.score, 0), done.length ? fmt(Math.min(...done.map(r => r.game.seconds))) : "Немає"]);
-            }
-            row(target, ["Дата / джерело", "Складність", "Результат / час", "Оцінка"]);
-            const currentGame = challengeDay ? regularGame : game;
-            if (currentGame && !currentGame.completed && !currentGame.finalDefeat)
-                row(target, [["Поточна", "Web"], levels[currentGame.difficulty], ["У процесі", fmt(currentGame.seconds)], "–"]);
-            drafts.forEach(r => row(target, [[new Date(r.updated).toLocaleString("uk-UA"), "Desktop"], levels[r.game.puzzle.difficulty], ["У процесі", fmt(r.game.seconds)], "–"]));
-            if (!records.length && !drafts.length && target.children.length === 1) emptyList(target, "Ігор ще немає.");
-            records.forEach(r => row(target, [[new Date(r.ended).toLocaleString("uk-UA"), r.challengeDay ? "Щоденна " + r.challengeDay : r.source], levels[r.game.puzzle.difficulty], [r.outcome === "completed" ? "Перемога" : r.outcome === "defeated" ? "Поразка" : "Перервано", fmt(r.game.seconds)], [r.score + " балів", "Помилки: " + r.game.mistakes, "Підказки: " + r.game.hints, "Кандидати: " + (r.game.candidateUses || 0), "Відновлення: " + (r.game.lifeRestores || 0)]]));
         }
         if (t === "ranking") {
             const mode = $("rankmode").value, metric = $("rankmetric").value, level = $("ranklevel").value;
