@@ -39,12 +39,12 @@ public sealed partial class MainWindow : Window
     private void ApplyTheme()
     {
         string[] names = ["Background", "Panel", "Text", "Muted", "Control", "Line", "StrongLine",
-            "Accent", "AccentText", "Peer", "Same", "Selected", "Given", "Wrong", "WrongBg"];
+            "Accent", "AccentText", "Peer", "Same", "Selected", "Given", "Wrong", "WrongBg", "Online"];
         string[] colors = state.Dark
             ? ["#101722", "#182230", "#E8EFF8", "#A1B2C8", "#233247", "#38495E", "#7890AC",
-               "#75C9FF", "#0D2031", "#23374C", "#30506B", "#416B8E", "#F1F5FC", "#FF9EA8", "#512C3B"]
+               "#75C9FF", "#0D2031", "#23374C", "#30506B", "#416B8E", "#F1F5FC", "#FF9EA8", "#512C3B", "#4CB884"]
             : ["#F1F5F9", "#FFFFFF", "#192C42", "#53677F", "#E8EFF6", "#C9D5E2", "#758CA5",
-               "#1769A8", "#FFFFFF", "#E2EFF9", "#C7E0F5", "#A8D0F0", "#192C42", "#A92335", "#FBE2E5"];
+               "#1769A8", "#FFFFFF", "#E2EFF9", "#C7E0F5", "#A8D0F0", "#192C42", "#A92335", "#FBE2E5", "#187849"];
         for (int i = 0; i < names.Length; i++)
         {
             var brush = ColorBrush(colors[i]);
@@ -98,9 +98,12 @@ public sealed partial class MainWindow : Window
     private static StackPanel Stack() => new();
     private static void Gap(StackPanel panel, double h = 10) => panel.Children.Add(new Border { Height = h });
 
+    private const double PageContentWidth = 1000;
+    private const double PageShellWidth = PageContentWidth + 36;
+
     private void Build()
     {
-        var root = new Grid { Margin = new Thickness(24, 0, 24, 14) };
+        var root = new Grid { Margin = new Thickness(24, 0, 24, 14), MaxWidth = PageShellWidth };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -108,7 +111,7 @@ public sealed partial class MainWindow : Window
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
 
-        var header = new Grid { Margin = new Thickness(24, 18, 24, 14) };
+        var header = new Grid { Margin = new Thickness(24, 18, 24, 14), MaxWidth = PageShellWidth };
         headerBar = header;
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -134,22 +137,27 @@ public sealed partial class MainWindow : Window
             Margin = new Thickness(8,0,0,0), Opacity = 0
         };
         homeCue.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
-        homeContent.Children.Add(homeCue);
         home.Content = homeContent;
         home.FontSize = 30;
         home.FontWeight = FontWeights.SemiBold;
         home.Background = Brushes.Transparent;
         home.BorderBrush = Brushes.Transparent;
-        home.Padding = new Thickness(0, 0, 8, 0);
+        home.Padding = new Thickness(0);
         home.Margin = new Thickness(0);
         System.Windows.Automation.AutomationProperties.SetName(home, "NeSud: головне меню");
         brand.Children.Add(home);
-        headerBack = Action("‹", NavigateBack, "Попередня сторінка");
+        headerBack = Action("", NavigateBack, "Попередня сторінка");
+        headerBack.Content = homeCue;
+        homeCue.Margin = new Thickness(0);
         headerBack.Width = 34;
         headerBack.MinWidth = 0;
+        headerBack.MinHeight = 38;
         headerBack.Padding = new Thickness(0);
-        headerBack.Margin = new Thickness(5,0,0,0);
+        headerBack.Margin = new Thickness(5, 0, 0, 0);
+        headerBack.Background = Brushes.Transparent;
+        headerBack.BorderBrush = Brushes.Transparent;
         headerBack.Visibility = Visibility.Hidden;
+        AutomationProperties.SetName(headerBack, "Попередня сторінка");
         brand.Children.Add(headerBack);
         At(header, brand, 0, 0);
         theme = Action("Тема", () => {

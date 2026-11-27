@@ -17,17 +17,16 @@ public sealed partial class MainWindow
 
     private void UpdateHomeCue()
     {
-        if (homeCue is null) return;
-        double opacity = !inMenu || surfaces.Count > 0 ? 1 : 0;
-        if (SystemParameters.ClientAreaAnimation)
-        {
-            // Avoid restarting the animation during timer-driven Render calls.
-            if (homeCue.Tag is double old && old == opacity) return;
-            homeCue.Tag = opacity;
+        if (headerBack is null) return;
+        bool visible = !inMenu || surfaces.LastOrDefault() is { IsPage: true };
+        var visibility = visible ? Visibility.Visible : Visibility.Hidden;
+        if (headerBack.Visibility == visibility) return;
+        headerBack.Visibility = visibility;
+        homeCue.BeginAnimation(UIElement.OpacityProperty, null);
+        homeCue.Opacity = 1;
+        if (visible && SystemParameters.ClientAreaAnimation)
             homeCue.BeginAnimation(UIElement.OpacityProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(180)));
-        }
-        else homeCue.Opacity = opacity;
+                new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
     }
     private bool homeRequested;
     private Action? afterHome;
@@ -49,8 +48,7 @@ public sealed partial class MainWindow
         var top = surfaces.LastOrDefault();
         headerBar.IsEnabled = top is null || top.IsPage;
         UpdateHomeCue();
-        headerBack.Visibility = top is { IsPage: true } &&
-            (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Hidden;
+        if (!headerBar.IsEnabled) CloseConnectionPopup();
     }
 
     private void NavigateHome() => NavigateHomeThen(null);
@@ -177,7 +175,7 @@ public sealed partial class MainWindow
 
             if (page && body is FrameworkElement element)
             {
-                element.MaxWidth = 1000;
+                element.MaxWidth = PageContentWidth;
                 element.HorizontalAlignment = HorizontalAlignment.Stretch;
             }
 
@@ -185,6 +183,7 @@ public sealed partial class MainWindow
             shell = owner.Card(layout, page ? 18 : 14);
             shell.Margin = page ? new Thickness(24, 0, 24, 14) : new Thickness(12);
             shell.HorizontalAlignment = page ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+            if (page) shell.MaxWidth = PageShellWidth;
             shell.VerticalAlignment = page ? VerticalAlignment.Stretch : VerticalAlignment.Center;
             System.Windows.Automation.AutomationProperties.SetName(shell, title);
             KeyboardNavigation.SetTabNavigation(shell, KeyboardNavigationMode.Cycle);

@@ -24,6 +24,13 @@ public sealed partial class MainWindow : Window
 {
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && connectionIndicator?.Tag is ConnectionStatusView connection && connection.Popup.IsOpen)
+        {
+            CloseConnectionPopup();
+            connectionIndicator.Focus();
+            e.Handled = true;
+            return;
+        }
         if (surfaces.Count > 0)
         {
             if (e.Key == Key.F1 && surfaces[^1].IsPage)
