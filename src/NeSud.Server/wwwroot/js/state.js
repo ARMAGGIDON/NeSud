@@ -6,6 +6,7 @@ let regularGame = null;
 let verifiedAccount = false;
 let challengeDay = null, calendarMonth = null, profileUser = null, profilePage = 0;
 let autoFinish = localStorage.getItem("autoFinish") === "1";
+let highlightPeers = localStorage.getItem("highlightPeers") !== "0", autoClean = localStorage.getItem("autoClean") !== "0";
 let adPending = false, adClock = null, adKind = "", adRemaining = 8, adBusy = false, nextGuest = 0;
 let token = sessionStorage.getItem("token") || "", guestMode = sessionStorage.getItem("guest") === "1", registration = false, authBusy = false, game = null, selected = 0, note = false, online = false, busy = false, tab = "menu", epoch = 0;
 const message = s => $("status").textContent = s;
@@ -29,8 +30,6 @@ async function api(path, body) {
             const problem = await r.json().catch (() => ({ }));
             throw Object.assign(Error(problem.error || problem.detail || (r.status === 409 ? "Сеанс змінено в іншій вкладці.": r.status === 429 ? "Забагато спроб. Спробуйте через хвилину.": "Сервіс тимчасово недоступний.")), { status: r.status });
         }
-        lastConnectionUpdate = new Date();
-        updateConnectionIndicator();
         return await r.json().catch (() => null);
     }finally {
         clearTimeout(timeout)

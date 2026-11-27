@@ -8,6 +8,7 @@
         <script src="vendor/signalr.js" defer></script>
         <script src="vendor/signalr-protocol-msgpack.js" defer></script>
         <script src="js/state.js" defer></script>
+        <script src="js/route.js" defer></script>
         <script src="js/realtime.js" defer></script>
         <script src="js/account.js" defer></script>
         <script src="js/session.js" defer></script>
@@ -22,6 +23,7 @@
         <script src="js/help.js" defer></script>
         <script src="js/profile-edit.js" defer></script>
         <script src="js/dialogs.js" defer></script>
+        <script src="js/select-wheel.js" defer></script>
         <script src="js/startup.js" defer></script>
     </head>
     <body>
@@ -30,7 +32,6 @@
                 <h1><button id="home-brand" type="button" title="Головне меню" aria-label="NeSud: головне меню"><svg class="brand-cat" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3 4l5 4a13 13 0 0 1 8 0l5-4v10a9 9 0 0 1-18 0zM8 13h.1M16 13h.1M10 16l2 1 2-1M12 17v2M8 19l-3-1M16 19l3-1"/></svg>NeSud<span id="home-cue" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6"/></svg></span></button></h1>
             </div>
             <div class="header-actions">
-                <span id="connection-indicator" class="connection-indicator" tabindex="0" role="img" aria-label="З’єднання" title="Підключення"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 8a14 14 0 0 1 18 0M6 12a9 9 0 0 1 12 0M9 16a4.5 4.5 0 0 1 6 0M12 20h.01"/></svg></span>
                 <button id="help-open">Довідка</button>
                 <button id="theme">Тема</button>
                 <button id="account" class="primary">Увійти</button>
@@ -109,7 +110,7 @@
                             </div>
                         </div>
                         <div id="progress" class="compact-metrics"></div>
-                        <div id="penalties" class="compact-metrics penalties"></div>
+                        <progress id="game-progress" max="81" value="0" aria-label="Заповнені клітинки"></progress>
                     </article>
                     <aside class="panel" id="game-tools">
                         <h2 id="game-mode">Нова гра</h2>
@@ -126,10 +127,12 @@
                             <button data-action="candidates" id="candidates">Кандидати (0)</button>
                             <button data-action="pause">Пауза</button>
                         </div>
-                        <label class="switch-row">
-                            <input id="auto-finish" type="checkbox">
-                            <span>Автозавершення ≤9 клітинок</span>
-                        </label>
+                        <section class="game-settings">
+                            <h2>Налаштування</h2>
+                            <label class="switch-row"><input id="auto-finish" type="checkbox"><span>Автозавершення ≤9 клітинок</span></label>
+                            <label class="switch-row"><input id="highlight-peers" type="checkbox"><span>Підсвічувати пов’язані клітинки</span></label>
+                            <label class="switch-row"><input id="auto-clean" type="checkbox"><span>Автоматично очищати нотатки</span></label>
+                        </section>
                         <section class="rewards" id="rewards" hidden>
                             <h2>Поповнення</h2>
                             <button id="daily-open" hidden>Нагороди</button>
@@ -174,9 +177,10 @@
                     <div id="rankrows"></div>
                 </section>
                 <section id="weekly" class="panel" hidden>
-                    <h2 id="weekly-title">Тижневий турнір</h2>
+                    <h2>Тижневий турнір</h2>
+                    <h3 id="weekly-title">Поточний тиждень</h3>
                     <div id="weeklyrows"></div>
-                    <h2>Попередній тиждень</h2>
+                    <h3 id="previous-week-title">Попередній тиждень</h3>
                     <div id="previous-week"></div>
                     <button id="weekly-rewards" class="primary" hidden>Отримати приз</button>
                 </section>
@@ -230,11 +234,16 @@
                 </section>
                 <section id="friends" class="panel" hidden>
                     <h2>Друзі та пошук</h2>
-                    <form id="player-form" class="actions">
-                        <input id="player-search" placeholder="Нікнейм" minlength="2" maxlength="80">
+                    <form id="player-form" class="actions" novalidate>
+                        <div class="player-search-anchor">
+                            <input id="player-search" aria-label="Нікнейм гравця" aria-controls="player-search-popup" aria-expanded="false" autocomplete="off" placeholder="Нікнейм" maxlength="80">
+                            <section id="player-search-popup" class="player-search-area" aria-label="Результати пошуку" hidden>
+                                <small id="player-search-status" role="status"></small>
+                                <div id="player-results"></div>
+                            </section>
+                        </div>
                         <button type="submit">Знайти / оновити</button>
                     </form>
-                    <div id="player-results" class="actions"></div>
                     <div id="friend-list"></div>
                 </section>
             </div>

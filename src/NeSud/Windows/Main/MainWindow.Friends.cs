@@ -12,9 +12,12 @@ namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private void AddFriendActions(StackPanel panel, string user, string? status, Func<Task> reload)
+    private Func<bool>? dismissPlayerSearch;
+
+    private void AddFriendActions(Panel panel, string user, string? status, Func<Task> reload)
     {
         var actions = new WrapPanel();
+        if (panel is Grid) Grid.SetColumn(actions, 1);
         panel.Children.Add(actions);
         var choices = status switch { "incoming" => new[] { ("Прийняти", "accept"), ("Відхилити", "decline") },
             "outgoing" => new[] { ("Скасувати запит", "cancel") }, "friend" => new[] { ("Видалити друга", "remove") }, _ => new[] { ("Додати в друзі", "send") } };
@@ -57,52 +60,175 @@ public sealed partial class MainWindow
         }
 
         var panel = Stack();
-        panel.Children.Add(Text("Друзі та пошук гравців", 24, "Text", true));
-        var search = new TextBox { MinWidth = 250, Padding = new Thickness(6), Margin = new Thickness(0, 6, 0, 6) };
-        panel.Children.Add(Text("Нікнейм гравця", 13, "Muted"));
-        panel.Children.Add(search);
+        panel.Children.Add(Text("Друзі та пошук", 24, "Text", true));
+        var form = new Grid { Margin = new Thickness(0, 8, 0, 10), MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Left };
+        form.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        form.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var search = new TextBox { MaxLength = 80, Margin = new Thickness(0, 0, 8, 0) };
+        System.Windows.Automation.AutomationProperties.SetName(search, "Нікнейм гравця");
+        search.ToolTip = "Нікнейм гравця";
+        At(form, search, 0, 0);
+        var find = Action("Знайти / оновити");
+        find.Margin = new Thickness(0);
+        At(form, find, 0, 1);
+        panel.Children.Add(form);
+        var searchStatus = Text("", 13, "Muted");
+        var results = Stack();
+        var resultScroll = new ScrollViewer { Content = results, MaxHeight = 240,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var popupBody = Stack();
+        popupBody.Children.Add(searchStatus);
+        Gap(popupBody, 5);
+        popupBody.Children.Add(resultScroll);
+        var popupCard = Card(popupBody, 9);
+        popupCard.SetResourceReference(Border.BackgroundProperty, "ControlBrush");
+        var popup = new Popup { PlacementTarget = search, Placement = PlacementMode.Bottom, VerticalOffset = 5,
+            AllowsTransparency = true, StaysOpen = true, Child = popupCard,
+            PopupAnimation = SystemParameters.ClientAreaAnimation ? PopupAnimation.Fade : PopupAnimation.None };
+        Gap(panel, 8);
         var body = Stack();
         panel.Children.Add(body);
         var window = Page("Друзі", panel, 570);
         window.Reopen = () => _ = ShowFriends();
-        async Task Load()
+        int version = 0, searchVersion = 0;
+        var sessionToken = account?.Token;
+        var debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        bool CurrentPage() => window.IsVisible && surfaces.LastOrDefault() == window && account?.Token == sessionToken;
+        void HideResults()
         {
-            body.Children.Clear();
+            ++searchVersion;
+            debounce.Stop();
+            popup.IsOpen = false;
+        }
+        async Task Search()
+        {
+            debounce.Stop();
+            int requestVersion = ++searchVersion;
+            string query = search.Text.Trim();
+            bool Current() => CurrentPage() && requestVersion == searchVersion && search.Text.Trim() == query;
+            if (!CurrentPage() || query.Length < 2) { HideResults(); return; }
+            results.Children.Clear();
+            searchStatus.Text = "Пошук…";
+            popupCard.Width = Math.Max(200, search.ActualWidth);
+            popup.IsOpen = true;
             try
             {
-                if (account is not null)
+                var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(query));
+                if (!Current()) return;
+                var names = matches.Where(name => !string.Equals(name, account?.Username ?? account?.User,
+                    StringComparison.OrdinalIgnoreCase)).ToList();
+                searchStatus.Text = names.Count == 0 ? "Гравців не знайдено." : $"Знайдено: {names.Count}";
+                foreach (var name in names)
                 {
-                    var friends = await Request<List<FriendEntry>>("friends");
-                    foreach (var status in new[] { "incoming", "outgoing", "friend" })
-                    {
-                        body.Children.Add(Text(status == "incoming"?"Вхідні запити": status == "outgoing"?"Надіслані запити": "Друзі", 17, "Text", true));
-                        foreach (var f in friends.Where(x => x.Status == status))
-                        {
-                            body.Children.Add(PlayerButton(f.User));
-                            AddFriendActions(body, f.User, f.Status, Load);
-                        }
-                    }
-                }
-                if (account is null) body.Children.Add(Text("Увійдіть, щоб надсилати запити в друзі.", 13, "Muted"));
-                if (search.Text.Trim().Length >= 2)
-                {
-                    body.Children.Add(Text("Результати пошуку", 17, "Text", true));
-                    var matches = await Request<List<string>>("players?q=" + Uri.EscapeDataString(search.Text.Trim()));
-                    foreach (var name in matches.Where(name => !string.Equals(name, account?.Username ?? account?.User, StringComparison.OrdinalIgnoreCase)))
-                        body.Children.Add(PlayerButton(name));
-                    if (matches.Count == 0) body.Children.Add(Text("Гравців не знайдено.", 13, "Muted"));
+                    var user = name;
+                    var player = Action(user, () => { HideResults(); _ = ShowProfile(user); });
+                    player.Content = PlayerIdentity(user, 30);
+                    player.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                    player.Background = Brushes.Transparent;
+                    player.BorderBrush = Brushes.Transparent;
+                    player.Margin = new Thickness(0, 2, 0, 0);
+                    results.Children.Add(player);
                 }
             }
-            catch (Exception ex)
-            {
-                body.Children.Add(Text(ex.Message, 14, "Wrong"));
-            }
+            catch (Exception ex) { if (Current()) searchStatus.Text = ex.Message; }
         }
-        var find = Action("Знайти / оновити", () => _ = Load());
-        find.IsDefault = true;
-        panel.Children.Insert(3, find);
-        window.Loaded += async (_, _) => await Load();
+        async Task Load()
+        {
+            int requestVersion = ++version;
+            bool Current() => CurrentPage() && version == requestVersion;
+            try
+            {
+                var friends = await Request<List<FriendEntry>>("friends");
+                if (!Current()) return;
+                body.Children.Clear();
+                foreach (var (status, label) in new[] { ("incoming", "Вхідні запити"), ("outgoing", "Надіслані запити"), ("friend", "Друзі") })
+                {
+                    body.Children.Add(Text(label, 17, "Text", true));
+                    var entries = friends.Where(x => x.Status == status).ToList();
+                    if (entries.Count == 0)
+                        body.Children.Add(Text(status == "friend" ? "Друзів ще немає." : "Запитів немає.", 13, "Muted"));
+                    foreach (var f in entries)
+                    {
+                        var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+                        row.ColumnDefinitions.Add(new ColumnDefinition());
+                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        At(row, PlayerButton(f.User), 0, 0);
+                        AddFriendActions(row, f.User, f.Status, Load);
+                        body.Children.Add(row);
+                    }
+                    Gap(body, 14);
+                }
+            }
+            catch (Exception ex) { if (Current()) Dialog("Друзі", ex.Message, false); }
+        }
+        void NavigateResults(KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape && popup.IsOpen)
+            {
+                HideResults();
+                search.Focus();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key is not (Key.Down or Key.Up)) return;
+            if (!popup.IsOpen)
+            {
+                if (e.Key == Key.Down && search.Text.Trim().Length >= 2) { _ = Search(); e.Handled = true; }
+                return;
+            }
+            var rows = results.Children.OfType<Button>().ToList();
+            if (rows.Count == 0) return;
+            int index = Keyboard.FocusedElement is Button focused ? rows.IndexOf(focused) : -1;
+            if (e.Key == Key.Up && index <= 0) search.Focus();
+            else rows[Math.Clamp(index + (e.Key == Key.Down ? 1 : -1), 0, rows.Count - 1)].Focus();
+            e.Handled = true;
+        }
+        debounce.Tick += async (_, _) => await Search();
+        search.TextChanged += (_, _) =>
+        {
+            HideResults();
+            if (search.Text.Trim().Length >= 2) debounce.Start();
+        };
+        search.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { e.Handled = true; _ = Search(); return; }
+            NavigateResults(e);
+        };
+        popupCard.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Tab) { HideResults(); search.Focus(); e.Handled = true; return; }
+            NavigateResults(e);
+        };
+        void OutsideClick(object sender, MouseButtonEventArgs e)
+        {
+            if (!form.IsMouseOver) HideResults();
+        }
+        void DeactivateSearch(object? sender, EventArgs e) => HideResults();
+        bool EscapeSearch()
+        {
+            if (!popup.IsOpen) return false;
+            HideResults();
+            search.Focus();
+            return true;
+        }
+        find.Click += (_, _) => { _ = Search(); _ = Load(); };
+        search.IsEnabledChanged += (_, _) => { if (!search.IsEnabled) HideResults(); };
+        window.Loaded += async (_, _) =>
+        {
+            PreviewMouseDown += OutsideClick;
+            Deactivated += DeactivateSearch;
+            LocationChanged += DeactivateSearch;
+            dismissPlayerSearch = EscapeSearch;
+            await Load();
+        };
+        window.Closed += (_, _) =>
+        {
+            HideResults();
+            PreviewMouseDown -= OutsideClick;
+            Deactivated -= DeactivateSearch;
+            LocationChanged -= DeactivateSearch;
+            if (dismissPlayerSearch == EscapeSearch) dismissPlayerSearch = null;
+        };
         window.ShowDialog();
-        await Task.CompletedTask;
     }
 }

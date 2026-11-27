@@ -17,14 +17,6 @@ function compactMetrics(target, entries) {
         if (item.lastElementChild.textContent !== String(value)) item.lastElementChild.textContent = value;
     });
 }
-let lastConnectionUpdate = null;
-function updateConnectionIndicator() {
-    const indicator = $("connection-indicator");
-    indicator.classList.toggle("connected", online);
-    const detail = (online ? "Онлайн" : "Офлайн") + (lastConnectionUpdate ? "\nОстання відповідь: " + lastConnectionUpdate.toLocaleString("uk-UA") : "");
-    indicator.title = detail;
-    indicator.setAttribute("aria-label", detail);
-}
 function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
@@ -42,14 +34,13 @@ function updateClock() {
 }
 setInterval(updateClock, 200);
 function render() {
-    updateConnectionIndicator();
     const active = online && game && !game.paused && !game.completed && !game.outOfLives && (!busy || !!pulse) && !adPending;
     $("cover").hidden = !!(online && game && !game.paused && !game.outOfLives);
     $("covertext").textContent = !online ? "Немає з’єднання": game?.outOfLives ? "Поразка": game?.paused ? "Гра на паузі": busy ? "Генеруємо поле…": "Створіть головоломку";
     $("resume").hidden = online && !game;
     $("resume").disabled = busy;
     $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Відновити життя за рекламу": "Продовжити";
-    $("cover-detail").textContent = "";
+    $("cover-detail").textContent = online && game?.paused ? "Поле приховано, таймер зупинено." : "";
     $("revive-progress").hidden = !game?.outOfLives;
     $("menu-continue").hidden = !regularGame;
     $("menu-continue").textContent = regularGame?.completed || regularGame?.finalDefeat
@@ -67,9 +58,11 @@ function render() {
     $("level").textContent = game ? levels[game.difficulty]: "–";
     updateClock();
     $("lives").textContent = Array.from({ length: 3 }, (_, i) => i < (game?.lives || 0) ? "♥": "♡").join(" ");
-    compactMetrics($("penalties"), game ? [["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes],
-        ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty],
-        ["Життя", "−" + 100 * game.lifeRestores], ["Автозавершення", "−" + game.autoFillPenalty]] : []);
+    $("score").title = game ? [
+        "Час: −" + Math.floor(game.seconds / 3), "Помилки: −" + 75 * game.mistakes,
+        "Підказки: −" + 150 * game.hints, "Кандидати: −" + game.effectiveCandidatePenalty,
+        "Життя: −" + 100 * game.lifeRestores, "Автозавершення: −" + game.autoFillPenalty
+    ].join("\n") : "";
     $("hint").textContent = "Підказка (" + (game?.hintCredits || 0) + ")";
     $("candidates").textContent = "Кандидати (" + (game?.candidateCredits || 0) + ")";
     $("candidates").title = game ? "Зміни: " + game.candidateDelta + "\nШтраф: −" + (2 * game.candidateDelta) + " балів": "";
@@ -82,12 +75,16 @@ function render() {
     $("result-daily").hidden = guestMode || !game?.completed || !daily?.packs.some(p => challengeDay ? p.milestone === "challenge": !["weekly", "challenge"].includes(p.milestone));
     $("challenge-rewards").hidden = guestMode || !daily?.packs.some(p => p.milestone === "challenge");
     $("weekly-rewards").hidden = guestMode || !daily?.packs.some(p => p.milestone === "weekly");
-    compactMetrics($("progress"), game ? [["Заповнено", game.values.filter(Boolean).length + " / 81"],
-        ["Підказки", game.hints]] : []);
+    const filled = game?.values.filter(Boolean).length ?? 0, givens = game?.givens.filter(Boolean).length ?? 0;
+    compactMetrics($("progress"), game ? [["Заповнено", filled + " / 81"],
+        ["Ваші клітинки", (filled - givens) + " / " + (81 - givens)], ["Підказки", game.hints]] : []);
+    $("game-progress").value = filled;
+    $("highlight-peers").checked = highlightPeers;
+    $("auto-clean").checked = autoClean;
     buttons.forEach((b, i) => {
         const v = game?.values[i] || 0, r = Math.floor(i / 9), c = i % 9, sr = Math.floor(selected / 9), sc = selected % 9;
         const animation = ["pop", "shake", "hint-pulse"].filter(k => b.classList.contains(k)).join(" ");
-        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (i === selected ? " selected": v && v === game?.values[selected] ? " same": r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3) ? " peer": "");
+        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (i === selected ? " selected": v && v === game?.values[selected] ? " same": highlightPeers && (r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3)) ? " peer": "");
         if (animation) b.classList.add(...animation.split(" "));
         b.classList.toggle("wrong", !!game?.wrong?.[i]);
         b.replaceChildren();

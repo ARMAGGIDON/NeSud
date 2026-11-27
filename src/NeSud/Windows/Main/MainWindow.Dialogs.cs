@@ -22,13 +22,13 @@ namespace NeSud;
 
 public sealed partial class MainWindow : Window
 {
-    private InAppSurface Modal(string title, UIElement content, double width = 480, double maxHeight = 660) =>
-        OpenSurface(title, content, width, maxHeight, false);
+    private InAppSurface Modal(string title, UIElement content, double width = 480, double maxHeight = 660, bool compactHeader = false) =>
+        OpenSurface(title, content, width, maxHeight, false, compactHeader);
 
     private InAppSurface Page(string title, UIElement content, double width = 780, double maxHeight = 760) =>
         OpenSurface(title, content, width, maxHeight, true);
 
-    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page)
+    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false)
     {
         if (Playing)
         {
@@ -39,7 +39,7 @@ public sealed partial class MainWindow : Window
             Save();
         }
 
-        return new InAppSurface(this, title, content, width, maxHeight, page);
+        return new InAppSurface(this, title, content, width, maxHeight, page, compactHeader);
     }
 
     private bool Dialog(string title, string message, bool confirm)

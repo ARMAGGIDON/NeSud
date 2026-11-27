@@ -181,10 +181,11 @@ internal static partial class Endpoints
                     }
                     break;
                 case "enter":
+                case "enter-keep-notes":
                     if (!game.Paused && !game.Completed && game.Editable(request.Cell))
                     {
                         game.Selected = request.Cell;
-                        bool entered = game.Enter(request.Cell, request.Digit, request.Note);
+                        bool entered = game.Enter(request.Cell, request.Digit, request.Note, autoClean: request.Action == "enter");
                         if (entered && request.Digit > 0 && !request.Note) session = session with { Audit = (session.Audit ?? new MoveAudit()).Record(DateTimeOffset.UtcNow) };
                         changed |= entered;
                     }
@@ -196,9 +197,10 @@ internal static partial class Endpoints
                 case "candidates": changed |= game.FillNotes();
                 break;
                 case "hint":
+                case "hint-keep-notes":
                     if (game.GetHint() is { } hint)
                     { game.Selected = hint.Cell;
-                    changed |= game.Enter(hint.Cell, hint.Digit, hint: true); }
+                    changed |= game.Enter(hint.Cell, hint.Digit, autoClean: request.Action == "hint", hint: true); }
                     break;
                 default: return Results.BadRequest();
             }

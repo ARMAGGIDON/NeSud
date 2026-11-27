@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace NeSud;
 
@@ -30,6 +31,72 @@ public sealed partial class MainWindow
             if (label.Text != values[i].Label) label.Text = values[i].Label;
             if (value.Text != values[i].Value) value.Text = values[i].Value;
         }
+    }
+
+    private FrameworkElement LoadingIndicator(string message)
+    {
+        var rotation = new RotateTransform();
+        var arc = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 10,2 A 8,8 0 1 1 2,10"),
+            StrokeThickness = 2.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            Width = 20, Height = 20, Stretch = Stretch.None
+        };
+        arc.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
+        var canvas = new Canvas
+        {
+            Width = 20, Height = 20, RenderTransform = rotation,
+            RenderTransformOrigin = new Point(.5, .5)
+        };
+        canvas.Children.Add(arc);
+        var indicator = new Border
+        {
+            Width = 30, Height = 30, Padding = new Thickness(5), Child = canvas,
+            HorizontalAlignment = HorizontalAlignment.Left, Background = Brushes.Transparent,
+            ToolTip = message, Focusable = false
+        };
+        System.Windows.Automation.AutomationProperties.SetName(indicator, message);
+        indicator.Loaded += (_, _) =>
+        {
+            if (SystemParameters.ClientAreaAnimation)
+                rotation.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(800))
+                { RepeatBehavior = RepeatBehavior.Forever });
+        };
+        indicator.Unloaded += (_, _) => rotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        return indicator;
+    }
+
+    private FrameworkElement TableState(string message, bool loading = false, Action? retry = null)
+    {
+        var content = Stack();
+        content.HorizontalAlignment = HorizontalAlignment.Center;
+        content.VerticalAlignment = VerticalAlignment.Center;
+        if (loading)
+        {
+            var indicator = LoadingIndicator(message);
+            indicator.HorizontalAlignment = HorizontalAlignment.Center;
+            content.Children.Add(indicator);
+        }
+        else
+        {
+            var label = Text(message, 14, "Muted");
+            label.TextAlignment = TextAlignment.Center;
+            content.Children.Add(label);
+        }
+        if (retry is not null)
+        {
+            Gap(content, 8);
+            var button = Action("Повторити", retry);
+            button.HorizontalAlignment = HorizontalAlignment.Center;
+            content.Children.Add(button);
+        }
+        return new Border { MinHeight = 96, Padding = new Thickness(12), Child = content };
+    }
+
+    private void SetDetailLoading(StackPanel panel, string message)
+    {
+        panel.Children.Clear();
+        panel.Children.Add(LoadingIndicator(message));
     }
 
     private void SetDetailMessage(StackPanel panel, string message)

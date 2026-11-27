@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         var padCells = new Button[9];
         var tools = new UniformGrid { Columns = 4 };
         panel.Children.Add(tools);
-        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
+        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Visible }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
         int selected = 0;
@@ -129,7 +129,10 @@ public sealed partial class MainWindow
                 int value = visible?game!.Values[i]: 0;
                 b.Content = value != 0?value.ToString(): visible && game!.Notes[i] != 0?string.Join(" ", Enumerable.Range(1, 9).Where(d => (game.Notes[i] & (1<<d)) != 0)): "";
                 b.FontSize = value != 0?19: 10;
-                b.Background = B(i == selected && visible?"Selected": visible && game!.Wrong[i]?"WrongBg": "Panel");
+                bool peer = visible && state.HighlightPeers && Sudoku.Peers[selected].Contains(i);
+                bool same = visible && value != 0 && value == game!.Values[selected];
+                b.Background = B(i == selected && visible ? "Selected" : visible && game!.Wrong[i] ? "WrongBg" :
+                    same ? "Same" : peer ? "Peer" : "Panel");
                 b.Foreground = B(visible && game!.Wrong[i]?"Wrong": visible && game!.Givens[i] != 0?"Given": "Accent");
                 b.IsEnabled = active;
                 b.BorderThickness = new Thickness(1, 1, i % 9 % 3 == 2?2: 1, i / 9 % 3 == 2?2: 1);
@@ -154,6 +157,7 @@ public sealed partial class MainWindow
             redo.IsEnabled = active && game!.CanRedo;
             hint.Content = $"Підказка ({game?.HintCredits??0})";
             candidates.Content = $"Кандидати ({game?.CandidateCredits??0})";
+            candidates.ToolTip = game is null ? null : $"Зміни: {game.CandidateDelta}\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
             notes.Content = note?"Нотатки ✓": "Нотатки";
             auto.Content = game?.AutoFinish == true?"Авто ✓": "Авто";
             auto.IsEnabled = connected && !working && game is { Completed: false, OutOfLives: false };
@@ -215,7 +219,9 @@ public sealed partial class MainWindow
             int cell = selected;
             try
             {
-                var g = await Request<OnlineGameView > ("web/action", new { id = game.Id, revision = game.Revision, action, cell, digit, note = action == "auto-finish"?!game.AutoFinish: note, reward, challengeDay = day });
+                string wireAction = !state.AutoClean && action is ("enter" or "hint") ? action + "-keep-notes" : action;
+                var g = await Request<OnlineGameView > ("web/action", new { id = game.Id, revision = game.Revision,
+                    action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : note, reward, challengeDay = day });
                 Accept(g);
                 if (action != "hint")selected = cell;
                 return true;

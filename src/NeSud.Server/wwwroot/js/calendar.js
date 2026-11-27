@@ -15,6 +15,7 @@ async function loadCalendar() {
     const e = epoch, c = await api("challenge/calendar" + (calendarMonth ? "?month=" + encodeURIComponent(calendarMonth): ""));
     if (tab !== "challenge" || epoch !== e) return;
     calendarMonth = c.month;
+    saveRoute();
     $("calendar-prev").disabled = c.month === "2000-01";
     $("calendar-title").textContent = new Date(c.month + "-01T12:00:00").toLocaleDateString("uk-UA", { month: "long", year: "numeric" });
     $("calendar-next").disabled = c.month === c.today.slice(0, 7);
@@ -78,14 +79,17 @@ $("challenge-rewards").onclick = () => {
 };
 $("profile-level").onchange = () => {
     profilePage = 0;
-    loadProfile().catch (e => message(e.message))
+    saveRoute();
+    loadProfile(false).catch (e => message(e.message))
 };
 $("profile-prev").onclick = () => {
     profilePage = Math.max(0, profilePage - 1);
-    navigate("profile")
+    saveRoute();
+    loadProfile(false).catch(e => message(e.message))
 };
 $("profile-next").onclick = () => {
     profilePage++;
-    navigate("profile")
+    saveRoute();
+    loadProfile(false).catch(e => message(e.message))
 };
 $("calendar-login").onclick = showAuth;

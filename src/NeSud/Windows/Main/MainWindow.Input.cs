@@ -24,6 +24,23 @@ public sealed partial class MainWindow : Window
 {
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            if (dismissPlayerSearch?.Invoke() == true)
+            {
+                e.Handled = true;
+                return;
+            }
+            var connection = (Keyboard.FocusedElement as FrameworkElement)?.Tag as ConnectionStatusView;
+            if (connection?.Popup.IsOpen != true)
+                connection = connectionIndicator?.Tag as ConnectionStatusView;
+            if (connection?.Popup.IsOpen == true)
+            {
+                connection.Popup.IsOpen = false;
+                e.Handled = true;
+                return;
+            }
+        }
         if (surfaces.Count > 0)
         {
             if (e.Key == Key.F1 && surfaces[^1].IsPage)

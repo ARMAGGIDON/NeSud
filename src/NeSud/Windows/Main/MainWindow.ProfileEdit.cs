@@ -32,24 +32,29 @@ public sealed partial class MainWindow
         var sessionToken = account?.Token;
         if (sessionToken is null) return;
         var parent = surfaces.LastOrDefault();
-        AccountSettings settings;
+        AccountSettings? settings = null;
+        string? loadError = null;
         try { settings = await Request<AccountSettings>("account/settings"); }
-        catch (Exception ex) { Dialog("Профіль", ex.Message, false); return; }
+        catch (Exception ex) { loadError = ex.Message; }
         if (account?.Token != sessionToken || closing || parent != surfaces.LastOrDefault()) return;
 
         var panel = Stack();
-        panel.Children.Add(Text("Редагування профілю", 24, "Text", true));
         panel.Children.Add(Text("Нікнейм"));
-        var username = new TextBox { Text = settings.Username, MaxLength = 32 };
+        var username = new TextBox { Text = settings?.Username ?? account?.Username ?? account?.User ?? "",
+            MaxLength = 32, IsReadOnly = true, Margin = new Thickness(0, 5, 0, 14) };
         panel.Children.Add(username);
         panel.Children.Add(Text("Електронна пошта"));
-        var email = new TextBox { Text = settings.Email ?? "", MaxLength = 254, IsReadOnly = settings.Verified, IsEnabled = !settings.Verified };
+        var email = new TextBox { Text = settings?.Email ?? "", MaxLength = 254, IsReadOnly = true,
+            Margin = new Thickness(0, 5, 0, 14) };
         panel.Children.Add(email);
-        var notice = Text("", 14, "Muted");
+        var notice = Text(loadError ?? "", 13, loadError is null ? "Muted" : "Wrong");
+        notice.Margin = new Thickness(0, 8, 0, 0);
         var verification = Stack();
+        verification.Visibility = Visibility.Collapsed;
 
         bool busy = false;
-        var window = Modal("Редагування профілю", panel, 620, 760);
+        var window = Modal("Налаштування профілю", panel, 520, 760, compactHeader: true);
+        Button save = null!, sync = null!, signOut = null!;
 
         void Apply(AccountSettings current)
         {
@@ -59,7 +64,7 @@ public sealed partial class MainWindow
             username.IsReadOnly = !current.Verified;
             email.Text = current.Email ?? "";
             email.IsReadOnly = current.Verified;
-            email.IsEnabled = !current.Verified;
+            email.IsEnabled = true;
             email.ToolTip = current.Verified ? "Пошта підтверджена. Зміна недоступна." : null;
             ToolTipService.SetShowOnDisabled(email, true);
             verification.Visibility = current.Verified ? Visibility.Collapsed : Visibility.Visible;
@@ -79,23 +84,39 @@ public sealed partial class MainWindow
         {
             if (busy || account?.Token != sessionToken || !window.IsVisible) return;
             busy = true;
+            notice.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+            save.IsEnabled = sync.IsEnabled = signOut.IsEnabled = verification.IsEnabled = false;
             try { await action(); }
-            catch (Exception ex) { if (window.IsVisible) notice.Text = ex.Message; }
-            finally { busy = false; }
+            catch (Exception ex)
+            {
+                if (window.IsVisible)
+                {
+                    notice.SetResourceReference(TextBlock.ForegroundProperty, "WrongBrush");
+                    notice.Text = ex.Message;
+                }
+            }
+            finally
+            {
+                busy = false;
+                save.IsEnabled = settings is not null;
+                sync.IsEnabled = signOut.IsEnabled = verification.IsEnabled = true;
+                notice.Visibility = notice.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            }
         }
 
-        panel.Children.Add(Action("Зберегти", async () => await Run(async () =>
+        save = Action("Зберегти", async () => await Run(async () =>
         {
             Apply(await Request<AccountSettings>("account/settings", new ProfileEdit(username.Text, email.Text)));
             notice.Text = "Збережено.";
-        }), primary: true));
-        Gap(panel);
+        }), primary: true);
+        save.IsEnabled = settings is not null;
+        panel.Children.Add(save);
         verification.Children.Add(Action("Надіслати код на пошту", async () => await Run(async () =>
         {
             await Request<SyncAck>("account/verification/send", new { });
             notice.Text = "Код надіслано на пошту.";
         })));
-        var code = new TextBox { MaxLength = 16 };
+        var code = new TextBox { MaxLength = 16, Margin = new Thickness(0, 5, 0, 10) };
         verification.Children.Add(Text("Код із листа"));
         verification.Children.Add(code);
         verification.Children.Add(Action("Підтвердити пошту", async () => await Run(async () =>
@@ -108,9 +129,45 @@ public sealed partial class MainWindow
         verification.Children.Add(Text("Зміна нікнейму, аватара та друзі доступні після підтвердження пошти.", 13, "Muted"));
         panel.Children.Add(verification);
         panel.Children.Add(notice);
-        panel.Children.Add(Action("Акаунт", () => { ShowAccount(); if (account?.Token != sessionToken) window.Close(); }));
-        Apply(settings);
-        if (sendVerification && !settings.Verified)
+        Gap(panel, 14);
+        var separator = new Border { Height = 1, Margin = new Thickness(0, 0, 0, 12) };
+        separator.SetResourceReference(Border.BackgroundProperty, "LineBrush");
+        panel.Children.Add(separator);
+        void UpdateStatus()
+        {
+            notice.Visibility = notice.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        }
+        var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 };
+        sync = Action("Синхронізувати", async () => await Run(async () =>
+        {
+            if (syncing) { notice.Text = "Синхронізація вже виконується."; return; }
+            notice.Text = "Синхронізація…";
+            UpdateStatus();
+            await Sync();
+            if (account?.Token != sessionToken) { window.Close(); return; }
+            if (reachable)
+            {
+                var updated = await Request<AccountSettings>("account/settings");
+                if (!window.IsVisible || account?.Token != sessionToken) return;
+                // Preserve unsaved edits when refreshing the synchronization status.
+                if (settings is null) Apply(updated);
+                notice.Text = "Синхронізацію завершено.";
+            }
+            else notice.Text = "Сервіс недоступний. Локальні дані збережено.";
+        }), "Оновити дані профілю");
+        signOut = Action("Вийти з профілю", () =>
+        {
+            if (busy || !SignOutProfile()) return;
+            window.Close();
+        });
+        sync.Margin = new Thickness(0, 0, 4, 0);
+        signOut.Margin = new Thickness(4, 0, 0, 0);
+        actions.Children.Add(sync);
+        actions.Children.Add(signOut);
+        panel.Children.Add(actions);
+        if (settings is not null) Apply(settings);
+        UpdateStatus();
+        if (sendVerification && settings is { Verified: false })
         {
             window.Loaded += async (_, _) => await Run(async () =>
             {

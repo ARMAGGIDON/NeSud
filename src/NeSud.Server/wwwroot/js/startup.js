@@ -16,7 +16,7 @@ const inviteCode = new URLSearchParams(location.search).get("invite");
 if (inviteCode) $("register-invite").value = inviteCode;
 async function initialize() {
     render();
-    if (token) await start();
+    if (token) await start(readRoute());
     else {
         resetSession();
         await login(true);

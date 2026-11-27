@@ -17,17 +17,16 @@ public sealed partial class MainWindow
 
     private void UpdateHomeCue()
     {
-        if (homeCue is null) return;
-        double opacity = !inMenu || surfaces.Count > 0 ? 1 : 0;
-        if (SystemParameters.ClientAreaAnimation)
-        {
-            // Avoid restarting the animation during timer-driven Render calls.
-            if (homeCue.Tag is double old && old == opacity) return;
-            homeCue.Tag = opacity;
+        if (headerBack is null) return;
+        bool visible = !inMenu || surfaces.LastOrDefault() is { IsPage: true };
+        var visibility = visible ? Visibility.Visible : Visibility.Hidden;
+        if (headerBack.Visibility == visibility) return;
+        headerBack.Visibility = visibility;
+        homeCue.BeginAnimation(UIElement.OpacityProperty, null);
+        homeCue.Opacity = 1;
+        if (visible && SystemParameters.ClientAreaAnimation)
             homeCue.BeginAnimation(UIElement.OpacityProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(180)));
-        }
-        else homeCue.Opacity = opacity;
+                new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
     }
     private bool homeRequested;
     private Action? afterHome;
@@ -49,8 +48,7 @@ public sealed partial class MainWindow
         var top = surfaces.LastOrDefault();
         headerBar.IsEnabled = top is null || top.IsPage;
         UpdateHomeCue();
-        headerBack.Visibility = top is { IsPage: true } &&
-            (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Hidden;
+        if (!headerBar.IsEnabled) CloseConnectionPopup();
     }
 
     private void NavigateHome() => NavigateHomeThen(null);
@@ -137,14 +135,14 @@ public sealed partial class MainWindow
             }
         }
 
-        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page)
+        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false)
         {
             this.owner = owner;
             this.page = page;
             Title = title;
             preferredWidth = width;
             preferredHeight = maxHeight;
-            layer = new Grid { ClipToBounds = true, Focusable = false };
+            layer = new Grid { ClipToBounds = true, Focusable = !page };
             if (page)
                 layer.SetResourceReference(Panel.BackgroundProperty, "BackgroundBrush");
             else
@@ -156,12 +154,30 @@ public sealed partial class MainWindow
 
             dismiss = owner.Action("×", Close, "Закрити");
             dismiss.HorizontalAlignment = HorizontalAlignment.Right;
-            dismiss.MinWidth = 38;
-            dismiss.MinHeight = 36;
-            dismiss.FontSize = 23;
-            dismiss.Margin = new Thickness(0, 0, 0, 8);
+            dismiss.Width = 32;
+            dismiss.Height = 32;
+            dismiss.MinWidth = 0;
+            dismiss.MinHeight = 0;
+            dismiss.Padding = new Thickness(0);
+            dismiss.FontSize = 20;
+            dismiss.Background = Brushes.Transparent;
+            dismiss.BorderBrush = Brushes.Transparent;
+            dismiss.Margin = new Thickness(8, 0, 0, 0);
             System.Windows.Automation.AutomationProperties.SetName(dismiss, "Закрити");
-            if (!page) MainWindow.At(layout, dismiss, 0, 0);
+            if (!page)
+            {
+                var heading = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+                heading.ColumnDefinitions.Add(new ColumnDefinition());
+                heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                if (compactHeader)
+                {
+                    var label = owner.Text(title, 23, "Text", true);
+                    label.VerticalAlignment = VerticalAlignment.Center;
+                    MainWindow.At(heading, label, 0, 0);
+                }
+                MainWindow.At(heading, dismiss, 0, 1);
+                MainWindow.At(layout, heading, 0, 0);
+            }
 
             UIElement body = content;
             if (content is not Grid && content is not ScrollViewer)
@@ -169,7 +185,7 @@ public sealed partial class MainWindow
                 body = new ScrollViewer
                 {
                     Content = content,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
                     HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 };
@@ -177,14 +193,19 @@ public sealed partial class MainWindow
 
             if (page && body is FrameworkElement element)
             {
-                element.MaxWidth = 1000;
+                element.MaxWidth = PageContentWidth;
                 element.HorizontalAlignment = HorizontalAlignment.Stretch;
             }
 
             MainWindow.At(layout, body, 1, 0);
             shell = owner.Card(layout, page ? 18 : 14);
+            // A page container is a neutral focus anchor, not a visible interactive control.
+            shell.Focusable = page;
+            shell.FocusVisualStyle = null;
+            KeyboardNavigation.SetIsTabStop(shell, false);
             shell.Margin = page ? new Thickness(24, 0, 24, 14) : new Thickness(12);
             shell.HorizontalAlignment = page ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+            if (page) shell.MaxWidth = PageShellWidth;
             shell.VerticalAlignment = page ? VerticalAlignment.Stretch : VerticalAlignment.Center;
             System.Windows.Automation.AutomationProperties.SetName(shell, title);
             KeyboardNavigation.SetTabNavigation(shell, KeyboardNavigationMode.Cycle);
@@ -245,8 +266,8 @@ public sealed partial class MainWindow
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (!IsVisible) return;
-                if (!page) dismiss.Focus();
-                else layer.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+                if (!page) layer.Focus();
+                else shell.Focus();
                 Loaded?.Invoke(this, EventArgs.Empty);
             }));
 

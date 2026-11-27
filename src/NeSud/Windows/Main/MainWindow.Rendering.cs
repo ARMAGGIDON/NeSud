@@ -167,7 +167,8 @@ public sealed partial class MainWindow : Window
             ("Час", $"−{g.Seconds / 3}"), ($"Помилки ({g.Mistakes})", $"−{75L * g.Mistakes}"),
             ($"Підказки ({g.Hints})", $"−{150L * g.Hints}"), ($"Кандидати ({g.CandidateChanges})", $"−{g.EffectiveCandidatePenalty}"),
             ($"Автозавершення ({g.AutoFilled})", $"−{g.AutoFillPenalty}"), ("Відновлення життя", $"−{100L * g.LifeRestores}"));
-        SetDetailMessage(resultComparison, win ? "Завантаження статистики…" : "Порівняння доступне для завершених ігор.");
+        if (win) SetDetailLoading(resultComparison, "Завантаження статистики…");
+        else SetDetailMessage(resultComparison, "Порівняння доступне для завершених ігор.");
         Fade(resultCard);
         if (!win) return;
         var id = state.GameId;
@@ -184,7 +185,15 @@ public sealed partial class MainWindow : Window
         }
         catch
         {
-            if (!closing && id == state.GameId) SetDetailMessage(resultComparison, "Порівняння тимчасово недоступне офлайн.");
+            if (!closing && id == state.GameId)
+            {
+                SetDetailMessage(resultComparison, "Статистика тимчасово недоступна.");
+                var retry = Action("↻", () => _ = ShowResult(g), "Повторити завантаження статистики");
+                retry.HorizontalAlignment = HorizontalAlignment.Left;
+                retry.MinWidth = 36;
+                AutomationProperties.SetName(retry, "Повторити завантаження статистики");
+                resultComparison.Children.Add(retry);
+            }
         }
     }
 

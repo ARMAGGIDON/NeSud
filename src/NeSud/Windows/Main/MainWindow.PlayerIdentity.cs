@@ -141,7 +141,9 @@ public sealed partial class MainWindow
         var name = Text(label ?? user, 14, "Text", true);
         name.VerticalAlignment = VerticalAlignment.Center;
         name.Margin = new Thickness(8, 0, 0, 0);
+        name.TextWrapping = TextWrapping.NoWrap;
         name.TextTrimming = TextTrimming.CharacterEllipsis;
+        name.ToolTip = label ?? user;
         At(grid, name, 0, 1);
         return grid;
     }
@@ -151,7 +153,15 @@ public sealed partial class MainWindow
         var button = Action(user, () => _ = ShowProfile(user));
         button.Content = PlayerIdentity(user, 32, label);
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        button.Padding = new Thickness(8, 5, 8, 5);
+        button.Padding = new Thickness(1, 3, 4, 3);
+        button.Background = Brushes.Transparent;
+        button.BorderBrush = Brushes.Transparent;
+        button.BorderThickness = new Thickness(1);
+        button.Margin = new Thickness(0);
+        button.ToolTip = "Профіль: " + user;
+        System.Windows.Automation.AutomationProperties.SetName(button, "Профіль: " + user);
+        button.MouseEnter += (_, _) => button.SetResourceReference(Control.BackgroundProperty, "PeerBrush");
+        button.MouseLeave += (_, _) => button.Background = Brushes.Transparent;
         return button;
     }
 
@@ -171,8 +181,9 @@ public sealed partial class MainWindow
         mark.VerticalAlignment = VerticalAlignment.Center;
         var frame = new Border { Child = mark, Width = 24, Height = 24, CornerRadius = new CornerRadius(12),
             Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Пошта підтверджена" };
+            ToolTip = "Пошта підтверджена", Focusable = true };
         frame.SetResourceReference(Border.BackgroundProperty, "SameBrush");
+        ToolTipService.SetShowOnDisabled(frame, true);
         System.Windows.Automation.AutomationProperties.SetName(frame, "Пошта підтверджена");
         return frame;
     }
@@ -227,27 +238,61 @@ public sealed partial class MainWindow
         return grid;
     }
 
-    private void AddPlayerListHeading(StackPanel parent, params string[] labels)
+    private void AddPlayerListHeading(StackPanel parent, params string[] labels) =>
+        AddPlayerListHeading(parent, -1, labels);
+
+    private void AddPlayerListHeading(StackPanel parent, int activeMetric, params string[] labels)
     {
         var grid = PlayerListGrid(labels.Length);
-        At(grid, Text("№", 12, "Muted", true), 0, 0);
+        var place = Text("№", 12, "Muted", true);
+        place.HorizontalAlignment = HorizontalAlignment.Center;
+        At(grid, place, 0, 0);
         At(grid, Text("Гравець", 12, "Muted", true), 0, 1);
         for (int i = 0; i < labels.Length; i++)
-            At(grid, Text(labels[i], 12, "Muted", true), 0, i + 2);
+            At(grid, Text(labels[i], 12, i == activeMetric ? "Accent" : "Muted", true), 0, i + 2);
         parent.Children.Add(grid);
     }
 
-    private void AddPlayerRow(StackPanel parent, string user, int rank, params string[] values)
+    private void AddPlayerRow(StackPanel parent, string user, int rank, params string[] values) =>
+        AddPlayerRow(parent, user, rank, -1, values);
+
+    private void AddPlayerRow(StackPanel parent, string user, int rank, int activeMetric, params string[] values)
     {
         var grid = PlayerListGrid(values.Length);
-        var number = Text(rank.ToString(), 14, "Muted", true);
+        var number = Text(rank.ToString(), 13, "Muted", true);
+        number.HorizontalAlignment = HorizontalAlignment.Center;
         number.VerticalAlignment = VerticalAlignment.Center;
-        At(grid, number, 0, 0);
+        var badge = new Border
+        {
+            Width = 30, Height = 30, CornerRadius = new CornerRadius(7), Child = number,
+            VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
+            ToolTip = $"{rank} місце"
+        };
+        if (rank <= 3)
+        {
+            badge.Background = ColorBrush(rank switch { 1 => "#F2CE72", 2 => "#D2DBE8", _ => "#DCA37E" });
+            number.Foreground = ColorBrush(rank switch { 1 => "#473405", 2 => "#28384C", _ => "#4B291B" });
+        }
+        else
+        {
+            badge.SetResourceReference(Border.BackgroundProperty, rank <= 10 ? "SameBrush" : "ControlBrush");
+            if (rank <= 10) number.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        }
+        System.Windows.Automation.AutomationProperties.SetName(badge, $"{rank} місце");
+        var separator = new Border { BorderThickness = new Thickness(0, 0, 0, 1) };
+        separator.SetResourceReference(Border.BorderBrushProperty, "LineBrush");
+        if (string.Equals(user, account?.Username ?? account?.User, StringComparison.OrdinalIgnoreCase))
+        {
+            separator.SetResourceReference(Border.BackgroundProperty, "PeerBrush");
+            separator.CornerRadius = new CornerRadius(7);
+        }
+        At(grid, separator, 0, 0, values.Length + 2);
+        At(grid, badge, 0, 0);
         At(grid, PlayerButton(user), 0, 1);
         for (int i = 0; i < values.Length; i++)
         {
-            var metric = Text(values[i], 14);
-            metric.Margin = new Thickness(8, 0, 0, 0);
+            var metric = Text(values[i], 14, i == activeMetric ? "Accent" : "Text", i == activeMetric);
+            metric.Margin = new Thickness(0, 0, 4, 0);
             metric.VerticalAlignment = VerticalAlignment.Center;
             At(grid, metric, 0, i + 2);
         }
@@ -265,7 +310,6 @@ public sealed partial class MainWindow
             if (!settings.Verified || settings.Invite is null || account?.Token != sessionToken ||
                 closing || parent != surfaces.LastOrDefault()) return;
             var panel = Stack();
-            panel.Children.Add(Text("Запрошення", 24, "Text", true));
             panel.Children.Add(ProfileMetrics(("Підтверджених запрошень", settings.Referrals.ToString("N0"))));
             panel.Children.Add(Text("Персональне посилання", 13, "Muted"));
             var link = serverUrl.TrimEnd('/') + "/?invite=" + Uri.EscapeDataString(settings.Invite);
@@ -304,7 +348,7 @@ public sealed partial class MainWindow
             field.Children.Add(copy);
             panel.Children.Add(field);
             panel.Children.Add(Text("За кожного нового підтвердженого гравця: 3 підказки та 3 кандидати.", 13, "Muted"));
-            Modal("Запрошення", panel, 580).ShowDialog();
+            Modal("Запрошення", panel, 580, compactHeader: true).ShowDialog();
         }
         catch (Exception ex) { Dialog("Запрошення", ex.Message, false); }
     }

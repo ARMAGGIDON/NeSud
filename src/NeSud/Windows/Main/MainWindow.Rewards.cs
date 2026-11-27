@@ -153,7 +153,8 @@ public sealed partial class MainWindow : Window
                 string k = kind;
                 var use = Action($"Використати: {ResourceName(k)} ({WalletCount(k)})", () =>
                 { window.Close();
-                _ = Spend(k); });
+                _ = Spend(k); }, "Використати ресурс");
+                ToolTipService.SetShowOnDisabled(use, true);
                 use.IsEnabled = WalletCount(k) > 0 && G?.CanReward(k) == true && state.PendingReward is null;
                 body.Children.Add(use);
             }

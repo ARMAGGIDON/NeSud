@@ -204,6 +204,6 @@ function queueRankingRefresh() {
     if (rankingTimer !== null || (tab !== "ranking" && tab !== "weekly")) return;
     rankingTimer = setTimeout(() => {
         rankingTimer = null;
-        if (tab === "ranking" || tab === "weekly") navigate(tab);
+        if ((tab === "ranking" || tab === "weekly") && rankingFilterTimer === null) navigate(tab);
     }, 1000);
 }

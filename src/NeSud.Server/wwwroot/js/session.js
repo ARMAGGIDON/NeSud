@@ -5,7 +5,6 @@ function accept(data) {
     game = data?.empty ? null : data;
     if (!challengeDay) regularGame = game;
     online = navigator.onLine;
-    if (online) lastConnectionUpdate = new Date();
     clockAnchor = performance.now();
     if (game) {
         selected = Math.max(0, Math.min(80, selected));
@@ -73,7 +72,8 @@ async function act(action, extra = { }) {
     const e = epoch;
     busy = true;
     try {
-        const data = await gameMove({ id: game.id, revision: game.revision, challengeDay, action, ...extra });
+        const wireAction = !autoClean && (action === "enter" || action === "hint") ? action + "-keep-notes" : action;
+        const data = await gameMove({ id: game.id, revision: game.revision, challengeDay, action: wireAction, ...extra });
         if (e !== epoch) return;
         if (data.pulseOnly) {
             game = { ...game, ...data };

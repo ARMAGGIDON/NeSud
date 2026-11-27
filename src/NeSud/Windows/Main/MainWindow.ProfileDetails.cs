@@ -1,38 +1,159 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Shapes;
 using NeSud.Core;
 
 namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private System.Windows.Shapes.Path connectionIndicator = null!;
+    private FrameworkElement connectionIndicator = null!;
     private DateTimeOffset? lastConnectionResponse;
 
-    private System.Windows.Shapes.Path ConnectionIndicator()
+    private sealed record ConnectionStatusView(Ellipse Dot, Ellipse Ring, TextBlock Heading,
+        TextBlock Detail, Popup Popup)
     {
-        var icon = new System.Windows.Shapes.Path
-        {
-            Data = Geometry.Parse("M3,8 Q12,0 21,8 M6,12 Q12,6 18,12 M9,16 Q12,13 15,16 M12,20 L12.01,20"),
-            Width = 20, Height = 20, Stretch = Stretch.Uniform, StrokeThickness = 2,
-            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            Margin = new Thickness(6,0,6,0), VerticalAlignment = VerticalAlignment.Center,
-            Focusable = true, ToolTip = "Підключення"
-        };
-        icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "MutedBrush");
-        return icon;
+        public bool? Online { get; set; }
+        public string? Message { get; set; }
     }
 
-    private void SetConnectionIndicator(System.Windows.Shapes.Path icon, bool online, DateTimeOffset? updated, string? extra = null)
+    private FrameworkElement ConnectionIndicator()
     {
-        if (online) icon.Stroke = ColorBrush("#4CB884");
-        else icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "MutedBrush");
-        string tooltip = online ? "Онлайн" : "Офлайн";
-        if (updated is { } at) tooltip += "\nОстання відповідь: " + at.ToLocalTime().ToString("g");
-        if (extra is not null) tooltip += "\n" + extra;
-        icon.ToolTip = tooltip;
-        System.Windows.Automation.AutomationProperties.SetName(icon, tooltip);
+        var scale = new ScaleTransform(1, 1);
+        var ring = new Ellipse
+        {
+            Width = 20, Height = 20, StrokeThickness = 1.5, Opacity = .32,
+            RenderTransform = scale, RenderTransformOrigin = new Point(.5, .5)
+        };
+        var dot = new Ellipse { Width = 9, Height = 9 };
+        ring.SetResourceReference(Shape.StrokeProperty, "MutedBrush");
+        dot.SetResourceReference(Shape.FillProperty, "MutedBrush");
+        // Transparent hit area only: no button template, border or resting/hover background.
+        var host = new Grid
+        {
+            Width = 38, Height = 46, Background = Brushes.Transparent,
+            VerticalAlignment = VerticalAlignment.Center, Focusable = true
+        };
+        KeyboardNavigation.SetIsTabStop(host, true);
+        ToolTipService.SetIsEnabled(host, false);
+        foreach (var element in new FrameworkElement[] { ring, dot })
+        {
+            element.HorizontalAlignment = HorizontalAlignment.Center;
+            element.VerticalAlignment = VerticalAlignment.Center;
+            element.IsHitTestVisible = false;
+            host.Children.Add(element);
+        }
+
+        var title = Text("Підключення", 15, "Text", true);
+        var detail = Text("Очікуємо відповідь сервера.", 13, "Muted");
+        var body = Stack();
+        body.Children.Add(title);
+        Gap(body, 5);
+        body.Children.Add(detail);
+        var card = Card(body, 12);
+        card.MinWidth = 210;
+        card.MaxWidth = 300;
+        card.IsHitTestVisible = false;
+        var popup = new Popup
+        {
+            PlacementTarget = host, Placement = PlacementMode.Custom,
+            CustomPopupPlacementCallback = (size, target, _) =>
+            [
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, target.Height + 5), PopupPrimaryAxis.Horizontal),
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, -size.Height - 5), PopupPrimaryAxis.Horizontal)
+            ],
+            Child = card, StaysOpen = true, AllowsTransparency = true, IsHitTestVisible = false,
+            PopupAnimation = SystemParameters.ClientAreaAnimation ? PopupAnimation.Fade : PopupAnimation.None
+        };
+        host.Tag = new ConnectionStatusView(dot, ring, title, detail, popup);
+
+        void Animate(bool active)
+        {
+            double opacity = active ? .8 : .32;
+            double size = active ? 1.13 : 1;
+            if (SystemParameters.ClientAreaAnimation)
+            {
+                var duration = TimeSpan.FromMilliseconds(160);
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(size, duration));
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(size, duration));
+                ring.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(opacity, duration));
+            }
+            else
+            {
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                ring.BeginAnimation(UIElement.OpacityProperty, null);
+                scale.ScaleX = scale.ScaleY = 1;
+                ring.Opacity = opacity;
+            }
+        }
+
+        void RefreshPopup()
+        {
+            bool open = IsActive && host.IsEnabled && host.IsVisible &&
+                (host.IsMouseOver || host.IsKeyboardFocused);
+            popup.IsOpen = open;
+        }
+        void HidePopup() => popup.IsOpen = false;
+        void OnDeactivated(object? sender, EventArgs e) => HidePopup();
+        void OnLocationChanged(object? sender, EventArgs e) => HidePopup();
+        void OnSizeChanged(object sender, SizeChangedEventArgs e) => HidePopup();
+
+        popup.Opened += (_, _) => Animate(true);
+        popup.Closed += (_, _) => Animate(false);
+        host.MouseEnter += (_, _) => RefreshPopup();
+        host.MouseLeave += (_, _) => RefreshPopup();
+        host.IsKeyboardFocusedChanged += (_, _) => RefreshPopup();
+        host.IsEnabledChanged += (_, _) => { if (!host.IsEnabled) HidePopup(); };
+        host.IsVisibleChanged += (_, _) => { if (!host.IsVisible) HidePopup(); };
+        host.Loaded += (_, _) =>
+        {
+            Deactivated += OnDeactivated;
+            LocationChanged += OnLocationChanged;
+            SizeChanged += OnSizeChanged;
+        };
+        host.Unloaded += (_, _) =>
+        {
+            HidePopup();
+            Deactivated -= OnDeactivated;
+            LocationChanged -= OnLocationChanged;
+            SizeChanged -= OnSizeChanged;
+        };
+        System.Windows.Automation.AutomationProperties.SetName(host, "Стан з’єднання");
+        return host;
+    }
+
+    private void CloseConnectionPopup()
+    {
+        if (connectionIndicator?.Tag is ConnectionStatusView view) view.Popup.IsOpen = false;
+    }
+
+    private void SetConnectionIndicator(FrameworkElement host, bool online, DateTimeOffset? updated, string? extra = null)
+    {
+        if (host.Tag is not ConnectionStatusView view) return;
+        string title = online ? "Онлайн" : "Офлайн";
+        string detail = updated is { } at ? "Остання відповідь: " + at.ToLocalTime().ToString("g")
+            : "Ще немає відповіді сервера.";
+        if (extra is not null) detail += "\n" + extra;
+        if (view.Online != online)
+        {
+            string color = online ? "OnlineBrush" : "MutedBrush";
+            view.Dot.SetResourceReference(Shape.FillProperty, color);
+            view.Ring.SetResourceReference(Shape.StrokeProperty, color);
+            view.Heading.SetResourceReference(TextBlock.ForegroundProperty, color);
+            view.Heading.Text = title;
+            view.Online = online;
+        }
+        string message = title + "\n" + detail;
+        if (view.Message == message) return;
+        view.Message = message;
+        view.Detail.Text = detail;
+        System.Windows.Automation.AutomationProperties.SetName(host, "Стан з’єднання: " + title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(host, detail);
     }
 
     private static string ProfileTime(long seconds) => $"{seconds / 60:00}:{seconds % 60:00}";
