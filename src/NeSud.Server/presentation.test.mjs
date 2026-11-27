@@ -216,3 +216,46 @@ test("select wheel changes unfocused options without wrapping or triggering dupl
     assert.equal(wheel(100), false);
     assert.equal(dispatched.length, 6);
 });
+
+test("ranking loading, empty and error states share headings and preserve cached rows", () => {
+    const document = {
+        createElement: () => new Element(),
+        createDocumentFragment: () => Object.assign(new Element(), { fragment: true })
+    };
+    const app = new Function("$", "document", `
+        let ownUsername = null, avatarVersion = 0;
+        function loadingIcon(label) { const icon = document.createElement("span"); icon.label = label; return icon; }
+        function profileLink(element, user) { element.user = user; }
+        ${read("navigation.js")}
+        return { prepareRank, rankList, failRank, finishRank };
+    `)(() => ({}), document);
+    const target = new Element();
+    target.setAttribute = (key, value) => { target[key] = value; };
+    target.querySelector = selector => {
+        const item = target.children.find(child => child.className.split(" ").includes(selector.slice(1)));
+        if (item) item.remove = () => { target.children = target.children.filter(child => child !== item); };
+        return item;
+    };
+    const headers = ["Бали"];
+    app.prepareRank(target, headers, 0, "Завантаження…");
+    assert.match(target.children[0].className, /rank-heading/);
+    assert.match(target.children[1].className, /rank-state-loading/);
+    app.rankList(target, headers, [], p => [p.score], 0);
+    app.finishRank(target);
+    assert.match(target.children[0].className, /rank-heading/);
+    assert.match(target.children[1].className, /rank-state-empty/);
+    app.rankList(target, headers, [{ user: "player", score: 5 }], p => [p.score], 0);
+    const cached = target.children[1];
+    app.failRank(target, headers, 0, () => {});
+    assert.equal(target.children[1], cached);
+    assert.match(target.children[2].className, /rank-state-error/);
+    app.rankList(target, headers, [{ user: "player", score: 5 }], p => [p.score], 0);
+    app.finishRank(target);
+    assert.equal(target.children[1], cached);
+    assert.equal(target.children.length, 2);
+    app.prepareRank(target, headers, 0, "Завантаження…", true);
+    assert.match(target.children[1].className, /rank-state-loading/);
+    app.failRank(target, headers, 0, () => {});
+    assert.match(target.children[0].className, /rank-heading/);
+    assert.match(target.children[1].className, /rank-state-error/);
+});

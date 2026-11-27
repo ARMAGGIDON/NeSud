@@ -1399,3 +1399,9 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 .friends-section h3 { margin: 0 0 6px; }
 .friends-empty { color: var(--muted); }
 @media (max-width: 360px) { #player-form { grid-template-columns: 1fr; } }
+
+/* Table feedback uses the same geometry in every state. */
+.rank-state { min-height: 96px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px; color: var(--muted); text-align: center; }
+.rank-state p { margin: 0; }
+.rank-state .loading-indicator { margin: 0; }
+.rank-state .loading-indicator:hover::after, .rank-state .loading-indicator:focus-visible::after { left: 50%; transform: translateX(-50%); }
