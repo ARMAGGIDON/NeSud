@@ -30,6 +30,7 @@ public sealed partial class MainWindow
         else homeCue.Opacity = opacity;
     }
     private bool homeRequested;
+    private Action? afterHome;
     private int homeNavigationVersion;
 
     private Func<Task<bool>>? beforePageNavigation;
@@ -52,9 +53,13 @@ public sealed partial class MainWindow
             (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Hidden;
     }
 
-    private void NavigateHome()
+    private void NavigateHome() => NavigateHomeThen(null);
+
+    private void NavigateHomeThen(Action? continuation)
     {
         if (closing || surfaces.LastOrDefault() is { IsPage: false }) return;
+        forwardRoute = null;
+        afterHome = continuation;
         homeNavigationVersion++;
         homeRequested = true;
         ContinueHome();
@@ -66,19 +71,22 @@ public sealed partial class MainWindow
         while (surfaces.Count > 0)
         {
             var top = surfaces[^1];
-            if (!top.IsPage) { homeRequested = false; return; }
+            if (!top.IsPage) { homeRequested = false; afterHome = null; return; }
             top.Close();
             // Closing a daily game can require an asynchronous server pause.
             if (top.IsVisible)
             {
                 // The page may close asynchronously after pausing; its Closed handler resumes navigation.
                 // A rejected close must not trigger home navigation on an unrelated future action.
-                if (!top.IsClosingPending) homeRequested = false;
+                if (!top.IsClosingPending) { homeRequested = false; afterHome = null; }
                 return;
             }
         }
         homeRequested = false;
+        var continuation = afterHome;
+        afterHome = null;
         OpenMenu();
+        if (inMenu) continuation?.Invoke();
     }
 
     private void CloseSurfaces()

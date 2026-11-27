@@ -45,6 +45,13 @@ internal static partial class SmokeTests
             server.SaveSession(user, challenge);
             Check(server.Session(user)!.Id == regular.Id && server.Session(user, today)!.Id == challenge.Id &&
                 server.Session(other, today) is null, "Separate account and mode sessions");
+            var draft = new DesktopDraft(Guid.NewGuid(), now, now, Game.Start(puzzles[0]));
+            Check(server.SaveDraft(user, draft), "Private desktop draft");
+            var active = server.OwnDetails(user);
+            Check(active.Active.Count == 3 && active.Active.Any(x => x.Id == regular.Id) &&
+                active.Active.Any(x => x.Id == challenge.Id && x.ChallengeDay == today) &&
+                active.Active.Any(x => x.Id == draft.Id && x.Source == "desktop") &&
+                server.OwnDetails(other).Active.Count == 0, "Private active-game isolation");
             Game Solve(Puzzle puzzle)
             {
                 var g = Game.Start(puzzle);
@@ -56,6 +63,7 @@ internal static partial class SmokeTests
             var terminal = new GameRecord(challenge.Id, now, now, "web", "completed", solved);
             server.SaveSession(user, challenge, terminal);
             server.SaveSession(user, challenge, terminal);
+            Check(server.OwnDetails(user).Active.All(x => x.Id != challenge.Id), "Completed challenge excluded from active games");
             var rewards = server.Daily(user);
             Check(server.ChallengeWon(user, today) && rewards.Wins == 0 && rewards.Packs.Count == 1 && rewards.Packs[0].Milestone == "challenge" &&
                 server.History(user).Count == 1 && server.History(user)[0].ChallengeDay == today && server.Calendar(user)!.Days.Single(d => d.Day == today).Status == "won", "Daily challenge reward once; shared history");

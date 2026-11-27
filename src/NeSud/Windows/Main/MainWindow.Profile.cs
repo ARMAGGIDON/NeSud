@@ -31,7 +31,7 @@ public sealed partial class MainWindow
         var verified = VerifiedMark();
         verified.Visibility = Visibility.Collapsed;
         title.Children.Add(verified);
-        var tools = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 330 };
+        var tools = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 340 };
         tools.VerticalAlignment = VerticalAlignment.Center;
         At(header, tools, 0, 2);
         var friendActions = Stack();
@@ -44,10 +44,11 @@ public sealed partial class MainWindow
         panel.Children.Add(historyTitle);
         Gap(panel, 6);
         var filter = new ComboBox { ItemsSource = new[] { "Усі складності", "Легка", "Середня", "Складна", "Експерт" }, SelectedIndex = 0 };
+        panel.Children.Add(Text("Складність", 12, "Muted"));
         panel.Children.Add(filter);
         var history = Stack();
         panel.Children.Add(history);
-        var nav = new UniformGrid { Columns = 2 };
+        var nav = new StackPanel { Orientation = Orientation.Horizontal };
         panel.Children.Add(nav);
         var prev = Action("Попередня");
         var next = Action("Наступна");
@@ -72,7 +73,9 @@ public sealed partial class MainWindow
             try
             {
                 bool local = own && account is null;
-                if (own && account is not null) await Sync();
+                if (own && account is not null && !reachable) _ = Probe();
+                if (own && account is not null && reachable) await Sync();
+                if (!window.IsVisible || sessionToken != account?.Token || scope != Scope) return;
                 PublicProfile p;
                 OwnProfileDetails? details = null;
                 try
@@ -113,7 +116,7 @@ public sealed partial class MainWindow
                     catch (Exception ex) { if (window.IsVisible) Dialog("Аватар", ex.Message, false); }
                 } : null, refresh: true));
                 tools.Children.Clear();
-                if (own && account is not null)
+                if (own && account is not null && !local)
                 {
                     tools.Children.Add(Action(p.Verified ? "Налаштування профілю" : "Підтвердити пошту", async () =>
                     {
@@ -122,8 +125,8 @@ public sealed partial class MainWindow
                     }));
                     if (p.Verified) tools.Children.Add(Action("Запрошення", async () => await ShowInvitations()));
                 }
-                if (own && account is null)
-                    tools.Children.Add(Action("Увійти", () => { ShowAccount(); if (sessionToken != account?.Token || scope != Scope) window.Close(); }));
+                if (own && (account is null || local))
+                    tools.Children.Add(Action(account is null ? "Увійти" : "Акаунт", () => { ShowAccount(); if (sessionToken != account?.Token || scope != Scope) window.Close(); }));
                 foreach (Button button in tools.Children) button.Margin = new Thickness(4, 2, 0, 2);
                 body.Children.Clear();
                 body.Children.Add(Text("Статистика", 18, "Text", true));

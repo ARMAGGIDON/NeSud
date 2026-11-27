@@ -98,7 +98,7 @@ public sealed partial class ServerStore
         {
             if (session.Game.Completed || session.Game.FinalDefeat(DateTimeOffset.UtcNow)) return;
             active.Add(new(session.Id, "web", session.ChallengeDay, session.Game.Puzzle.Difficulty,
-                session.Game.Seconds, session.LastSeen, session.Game.Paused));
+                session.Game.Seconds, session.LastSeen, session.Game.Paused || (DateTimeOffset.UtcNow - session.LastSeen).TotalSeconds > 12));
         }
         if (Session(name) is { } regular) Add(regular);
         using (var cmd = Database.Command(c, "SELECT day,payload FROM challenge_sessions WHERE name=$n", ("$n", name)))

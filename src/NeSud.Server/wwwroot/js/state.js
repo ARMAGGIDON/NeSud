@@ -29,6 +29,8 @@ async function api(path, body) {
             const problem = await r.json().catch (() => ({ }));
             throw Object.assign(Error(problem.error || problem.detail || (r.status === 409 ? "Сеанс змінено в іншій вкладці.": r.status === 429 ? "Забагато спроб. Спробуйте через хвилину.": "Сервіс тимчасово недоступний.")), { status: r.status });
         }
+        lastConnectionUpdate = new Date();
+        updateConnectionIndicator();
         return await r.json().catch (() => null);
     }finally {
         clearTimeout(timeout)

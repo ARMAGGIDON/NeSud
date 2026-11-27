@@ -12,7 +12,7 @@ namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private async Task ShowChallengeGame(string day)
+    private async Task ShowChallengeGame(string day, bool resumeOnly = false)
     {
         var panel = Stack();
         panel.Children.Add(Text("Щоденна гра (" + day + ")", 22, "Text", true));
@@ -315,7 +315,7 @@ public sealed partial class MainWindow
         window.Loaded += async (_, _) => {
             await Load(true);
             if (game?.Reward is not null)await Move("reward-cancel", reward: game.Reward.Kind);
-            if (game is null && connected)await Start();
+            if (game is null && connected && !resumeOnly)await Start();
             timer.Start();
             heartbeat.Start();
         };
@@ -332,9 +332,16 @@ public sealed partial class MainWindow
                 window.IsClosingPending = true;
                 try
                 {
-                    await Move("pause");
-                    allowClose = true;
-                    window.Close();
+                    if (await Move("pause"))
+                    {
+                        allowClose = true;
+                        window.Close();
+                    }
+                    else
+                    {
+                        homeRequested = false;
+                        afterHome = null;
+                    }
                 }
                 finally { window.IsClosingPending = false; }
             }
@@ -353,7 +360,7 @@ public sealed partial class MainWindow
             heartbeat.Stop();
         };
         window.MouseHistory = forward => { if (!Active()) return false; _ = Move(forward ? "redo" : "undo"); return true; };
-        window.Reopen = () => _ = ShowChallengeGame(day);
+        window.Reopen = () => _ = ShowChallengeGame(day, resumeOnly: true);
         window.PreviewKeyDown += (_, e) =>
         {
             if (!Active())return;

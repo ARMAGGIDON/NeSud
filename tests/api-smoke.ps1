@@ -24,6 +24,12 @@ $restored = Invoke-RestMethod -Uri "$BaseUrl/api/web/session" -Headers $ha
 Assert ($restored.id -eq $s.id -and $restored.paused) 'Session restore'
 $other = Invoke-RestMethod -Uri "$BaseUrl/api/web/session" -Headers $hb
 Assert $other.empty 'Account session isolation'
+$own = Invoke-RestMethod -Uri "$BaseUrl/api/profile/own" -Headers $ha
+Assert ($own.active.Count -eq 1 -and $own.active[0].id -eq $s.id -and $null -eq $own.active[0].game -and $null -eq $own.active[0].solution) 'Private active game metadata'
+$otherOwn = Invoke-RestMethod -Uri "$BaseUrl/api/profile/own?user=$($a.username)" -Headers $hb
+Assert ($otherOwn.active.Count -eq 0) 'Private active game account isolation'
+$anonymousOwn = Invoke-WebRequest -Uri "$BaseUrl/api/profile/own" -SkipHttpErrorCheck
+Assert ([int]$anonymousOwn.StatusCode -eq 401) 'Private profile requires authentication'
 $s = Post 'web/action' @{id=$s.id; revision=$s.revision; action='resume'} $ha
 Start-Sleep -Seconds 13
 $s = Invoke-RestMethod -Uri "$BaseUrl/api/web/session" -Headers $ha

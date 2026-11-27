@@ -97,9 +97,12 @@ public sealed partial class MainWindow : Window
     {
         if (surfaces.LastOrDefault() is { } top)
         {
+            if (top.IsClosingPending) return;
             var reopen = top.IsPage ? top.Reopen : null;
+            var secret = account?.Token;
+            string scope = Scope;
             EventHandler? closed = null;
-            closed = (_, _) => { top.Closed -= closed; forwardRoute = reopen; };
+            closed = (_, _) => { top.Closed -= closed; forwardRoute = reopen is null ? null : () => { if (secret == account?.Token && scope == Scope) reopen(); }; };
             top.Closed += closed;
             top.Close();
             if (top.IsVisible && !top.IsClosingPending) top.Closed -= closed;

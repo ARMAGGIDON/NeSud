@@ -82,7 +82,7 @@ async function loadProfile() {
     if (own) {
         try {
             const details = await api("profile/own");
-            if (tab !== "profile" || epoch !== e || profileUser !== user || profilePage !== page) return;
+            if (tab !== "profile" || epoch !== e || profileUser !== user || profilePage !== page || $("profile-level").value !== level) return;
             statCards($("profile-stats"), [...metrics, ["Час", fmt(details.seconds)], ["Помилок", details.mistakes], ["Підказок", details.hints]]);
             renderActiveGames(details.active);
         } catch (error) {
@@ -123,7 +123,7 @@ function renderActiveGames(games) {
         else {
             const button = document.createElement("button");
             button.textContent = "Продовжити";
-            button.onclick = () => g.challengeDay ? openChallenge(g.challengeDay) : openRegular();
+            button.onclick = () => g.challengeDay ? openChallenge(g.challengeDay, true) : openRegular();
             cell.append(button);
         }
     }

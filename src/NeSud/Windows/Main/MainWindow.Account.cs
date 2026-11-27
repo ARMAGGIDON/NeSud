@@ -78,7 +78,10 @@ public sealed partial class MainWindow : Window
         {
             panel.Children.Add(PlayerIdentity(account.Username ?? account.User, 48));
             
-            panel.Children.Add(Text(reachable ? "Онлайн: автоматична синхронізація" : "Офлайн: синхронізація після відновлення зв’язку", 13, "Muted"));
+            var syncIndicator = ConnectionIndicator();
+            syncIndicator.HorizontalAlignment = HorizontalAlignment.Left;
+            SetConnectionIndicator(syncIndicator, reachable, lastConnectionResponse, "Автоматична синхронізація після відновлення зв’язку.");
+            panel.Children.Add(syncIndicator);
             Gap(panel, 18);
             panel.Children.Add(Action("Синхронізувати зараз", () => {
                 window.Close();

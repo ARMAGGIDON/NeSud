@@ -41,7 +41,7 @@ function changeMonth(delta) {
     calendarMonth = d.toISOString().slice(0, 7);
     navigate("challenge")
 }
-async function openChallenge(day) {
+async function openChallenge(day, resumeOnly = false) {
     if (guestMode) return;
     if (!await pauseForNavigation()) return;
     epoch++;
@@ -52,7 +52,7 @@ async function openChallenge(day) {
     comparison = null;
     await navigate("play");
     await reconnect();
-    if (online && !game && challengeDay === day) await $("newgame").onclick()
+    if (online && !game && challengeDay === day && !resumeOnly) await $("newgame").onclick()
 }
 async function openRegular() {
     if (challengeDay) {

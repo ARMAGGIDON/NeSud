@@ -98,9 +98,14 @@ public sealed partial class MainWindow
                     var button = Action("Продовжити", () =>
                     {
                         if (!window.IsVisible || surfaces.LastOrDefault() != window) return;
-                        window.Close();
-                        if (local) ResumeLocalGame();
-                        else _ = ShowChallengeGame(r.ChallengeDay!);
+                        var secret = account?.Token;
+                        string scope = Scope;
+                        NavigateHomeThen(() =>
+                        {
+                            if (secret != account?.Token || scope != Scope) return;
+                            if (local && state.GameId == r.Id) ResumeLocalGame();
+                            else if (daily) _ = ShowChallengeGame(r.ChallengeDay!, resumeOnly: true);
+                        });
                     });
                     button.Margin = new Thickness(4);
                     At(table, button, table.RowDefinitions.Count - 1, 3);
