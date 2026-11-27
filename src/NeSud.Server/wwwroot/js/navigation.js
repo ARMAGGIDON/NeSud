@@ -26,7 +26,7 @@ function emptyList(target, message) {
 let rankingRequest = 0;
 function rankList(target, headers, players, metrics, selectedMetric = -1) {
     const rows = players.map(player => [player.user, ...metrics(player)]);
-    const signature = JSON.stringify([headers, rows, selectedMetric, ownUsername]);
+    const signature = JSON.stringify([headers, rows, selectedMetric, ownUsername, avatarVersion]);
     if (target.dataset.signature === signature) return;
     target.dataset.signature = signature;
     const fragment = document.createDocumentFragment();

@@ -185,7 +185,15 @@ public sealed partial class MainWindow : Window
         }
         catch
         {
-            if (!closing && id == state.GameId) SetDetailMessage(resultComparison, "Порівняння тимчасово недоступне офлайн.");
+            if (!closing && id == state.GameId)
+            {
+                SetDetailMessage(resultComparison, "Статистика тимчасово недоступна.");
+                var retry = Action("↻", () => _ = ShowResult(g), "Повторити завантаження статистики");
+                retry.HorizontalAlignment = HorizontalAlignment.Left;
+                retry.MinWidth = 36;
+                AutomationProperties.SetName(retry, "Повторити завантаження статистики");
+                resultComparison.Children.Add(retry);
+            }
         }
     }
 

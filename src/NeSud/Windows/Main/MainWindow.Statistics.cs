@@ -65,7 +65,6 @@ public sealed partial class MainWindow : Window
             if (!window.IsVisible) return;
             int version = ++requestVersion;
             loading = true;
-            SetDetailLoading(status, "Завантаження рейтингу…");
             try
             {
                 string key = new[] { "score", "wins", "perfect", "current", "streak" }[Math.Max(0, metric.SelectedIndex)];
@@ -78,26 +77,29 @@ public sealed partial class MainWindow : Window
                     shownFilter = currentFilter;
                     shownSignature = null;
                 }
+                if (rows.Children.Count == 0) SetDetailLoading(status, "Завантаження рейтингу…");
                 var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=" + key + filter +
                     (selectedMode == 1 ? "&all=true" : ""), token: "");
                 if (!window.IsVisible || version != requestVersion) return;
                 string signature = System.Text.Json.JsonSerializer.Serialize(ranks);
+                status.Children.Clear();
                 if (signature == shownSignature) return;
-                shownSignature = signature;
                 rows.Children.Clear();
+                int activeMetric = key == "score" ? 2 : key is "wins" or "perfect" ? 0 : 1;
                 void Table(List<AccumulatedRank> data)
                 {
-                    AddPlayerListHeading(rows, "Перемоги / ідеальні", "Серія / рекорд", "Бали");
+                    AddPlayerListHeading(rows, activeMetric, "Перемоги / ідеальні", "Серія / рекорд", "Бали");
                     for (int i = 0; i < data.Count; i++)
                     {
                         var r = data[i];
-                        AddPlayerRow(rows, r.User, i + 1, $"{r.Wins} / {r.PerfectWins}", $"{r.CurrentStreak} / {r.BestStreak}", r.Score.ToString("N0"));
+                        AddPlayerRow(rows, r.User, i + 1, activeMetric, $"{r.Wins} / {r.PerfectWins}", $"{r.CurrentStreak} / {r.BestStreak}", r.Score.ToString("N0"));
                         Gap(rows, 5);
                     }
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
                     Gap(rows, 16);
                 }
                 Table(ranks);
+                shownSignature = signature;
             }
             catch
             {
@@ -157,11 +159,11 @@ public sealed partial class MainWindow : Window
                 {
                     body.Children.Add(Text(title, 18, "Text", true));
                     Gap(body);
-                    AddPlayerListHeading(body, "Перемоги", "Бали");
+                    AddPlayerListHeading(body, 1, "Перемоги", "Бали");
                     for (int i = 0; i<leaders.Count; i++)
                     {
                         var r = leaders[i];
-                        AddPlayerRow(body, r.User, i + 1, r.Games.ToString("N0"), r.Score.ToString("N0"));
+                        AddPlayerRow(body, r.User, i + 1, 1, r.Games.ToString("N0"), r.Score.ToString("N0"));
                     }
                     if (leaders.Count == 0) body.Children.Add(Text("Немає результатів.", 13, "Muted"));
                     Gap(body, 12);

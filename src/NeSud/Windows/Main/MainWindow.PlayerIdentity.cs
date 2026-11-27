@@ -237,7 +237,10 @@ public sealed partial class MainWindow
         return grid;
     }
 
-    private void AddPlayerListHeading(StackPanel parent, params string[] labels)
+    private void AddPlayerListHeading(StackPanel parent, params string[] labels) =>
+        AddPlayerListHeading(parent, -1, labels);
+
+    private void AddPlayerListHeading(StackPanel parent, int activeMetric, params string[] labels)
     {
         var grid = PlayerListGrid(labels.Length);
         var place = Text("№", 12, "Muted", true);
@@ -245,11 +248,14 @@ public sealed partial class MainWindow
         At(grid, place, 0, 0);
         At(grid, Text("Гравець", 12, "Muted", true), 0, 1);
         for (int i = 0; i < labels.Length; i++)
-            At(grid, Text(labels[i], 12, "Muted", true), 0, i + 2);
+            At(grid, Text(labels[i], 12, i == activeMetric ? "Accent" : "Muted", true), 0, i + 2);
         parent.Children.Add(grid);
     }
 
-    private void AddPlayerRow(StackPanel parent, string user, int rank, params string[] values)
+    private void AddPlayerRow(StackPanel parent, string user, int rank, params string[] values) =>
+        AddPlayerRow(parent, user, rank, -1, values);
+
+    private void AddPlayerRow(StackPanel parent, string user, int rank, int activeMetric, params string[] values)
     {
         var grid = PlayerListGrid(values.Length);
         var number = Text(rank.ToString(), 13, "Muted", true);
@@ -284,7 +290,7 @@ public sealed partial class MainWindow
         At(grid, PlayerButton(user), 0, 1);
         for (int i = 0; i < values.Length; i++)
         {
-            var metric = Text(values[i], 14);
+            var metric = Text(values[i], 14, i == activeMetric ? "Accent" : "Text", i == activeMetric);
             metric.Margin = new Thickness(0, 0, 4, 0);
             metric.VerticalAlignment = VerticalAlignment.Center;
             At(grid, metric, 0, i + 2);

@@ -111,7 +111,7 @@ function showResult() {
             retry.type = "button";
             retry.className = "comparison-retry";
             retry.textContent = "↻";
-            const label = "Не вдалося отримати статистику. Повторити запит";
+            const label = online ? "Не вдалося отримати статистику. Повторити запит" : "Порівняння недоступне офлайн";
             retry.title = label;
             retry.setAttribute("aria-label", label);
             retry.disabled = !online;
@@ -120,7 +120,9 @@ function showResult() {
                 void loadComparison();
                 render();
             };
-            c.append(retry);
+            const status = document.createElement("span");
+            status.textContent = online ? "Статистика недоступна." : "Немає з’єднання.";
+            c.append(retry, status);
         }
         return;
     }

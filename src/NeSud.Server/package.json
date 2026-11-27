@@ -5,6 +5,7 @@
     "scripts": {
         "prepare-web": "node prepare-web.mjs",
         "test:realtime": "node --test realtime.test.mjs",
+        "test:presentation": "node --test presentation.test.mjs",
         "test:realtime:live": "node realtime.integration.mjs"
     },
     "dependencies": {
