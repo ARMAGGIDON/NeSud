@@ -98,11 +98,12 @@ public sealed partial class MainWindow
         bool Active() => CanInput() && !working;
         // Input arriving during a heartbeat or a move is serialized, not discarded.
         Task inputTail = Task.CompletedTask;
-        int queuedInputs = 0;
+        int queuedInputs = 0, inputGeneration = 0;
         Task QueueInput(Func<Task> action)
         {
             if (!CanInput()) return Task.CompletedTask;
             var id = game!.Id;
+            int generation = inputGeneration;
             var previous = inputTail;
             queuedInputs++;
             async Task Run()
@@ -112,8 +113,8 @@ public sealed partial class MainWindow
                     // Publish the new tail before executing input, including synchronous focus callbacks.
                     await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.Input);
                     await previous;
-                    while (working && CanInput() && game!.Id == id) await Task.Delay(15);
-                    if (CanInput() && game!.Id == id) await action();
+                    while (working && CanInput() && game!.Id == id && generation == inputGeneration) await Task.Delay(15);
+                    if (CanInput() && game!.Id == id && generation == inputGeneration) await action();
                 }
                 catch (Exception ex) { notice.Text = ex.Message; }
                 finally { queuedInputs--; }
@@ -249,6 +250,8 @@ public sealed partial class MainWindow
         void Accept(OnlineGameView g)
         {
             if (game?.Id != g.Id) focusDigit = paintDigit = 0;
+            if (game?.Id != g.Id || g.Empty || g.OutOfLives || g.Completed || g.Paused || g.Reward is not null)
+                inputGeneration++;
             game = g.Empty?null: g;
             connected = true;
             anchor.Restart();
@@ -309,7 +312,7 @@ public sealed partial class MainWindow
             mainAction.IsEnabled = !working && game?.Reward is null;
             if (connected) notice.Text = game is null ? "Головоломка дня: " + day :
                 game.Completed ? $"Час: {FormatTime(game.Seconds)}\nБали: {game.CurrentScore:N0}\nПомилки: {game.Mistakes}\nПідказки: {game.Hints}" :
-                game.FinalDefeat ? "Усі життя вичерпано. Спробуйте ще раз." : game.Paused ? "Поле приховано, таймер зупинено." : "";
+                game.FinalDefeat ? (game.LifeRestores > 0 ? "Відновлене життя втрачено. Спробуйте ще раз." : "Усі життя вичерпано. Спробуйте ще раз.") : game.Paused ? "Поле приховано, таймер зупинено." : "";
             Clock();
         }
         async Task Load(bool pauseSession = false)
@@ -469,6 +472,8 @@ public sealed partial class MainWindow
             if (game?.Reward is null)return;
             var body = Stack();
             body.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
+            if (kind == "life")
+                body.Children.Add(Text("Відновлюється одне життя. Повторне відновлення в цій спробі недоступне.", 14, "Muted"));
             var remaining = Text("", 24, "Accent", true);
             body.Children.Add(remaining);
             var ad = Modal("Винагорода", body, 360);

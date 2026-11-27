@@ -23,6 +23,14 @@ internal static partial class SmokeTests
         Check(lifeGame.FinishRevive(lossTime.AddSeconds(8)) && lifeGame.Lives == 1 && !lifeGame.OutOfLives &&
             lifeGame.CurrentScore == initialScore - 325, "Life restoration and score penalty");
         Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
+        Check(lifeGame.ReviveDeadline is null && !lifeGame.FinalDefeat(lossTime.AddHours(1)) &&
+            !lifeGame.CanStartRevive(lossTime.AddHours(1)), "Successful revival clears deadline; elapsed time alone cannot defeat");
+        lifeGame.Seconds += 3600;
+        Check(lifeGame.Enter(blanks[3], lifeGame.Puzzle.Solution[blanks[3]]) &&
+            lifeGame.Lives == 1 && !lifeGame.FinalDefeat(lossTime.AddHours(1)), "Correct move after revival preserves life");
+        Check(lifeGame.Enter(blanks[4], lifeGame.Puzzle.Solution[blanks[4]] % 9 + 1) &&
+            lifeGame.Mistakes == 4 && lifeGame.Lives == 0 && lifeGame.FinalDefeat(lossTime.AddHours(1)) &&
+            !lifeGame.CanStartRevive(lossTime.AddHours(1)), "Next mistake after revival causes final defeat");
         var aid = Game.Start(puzzles[0]);
         int blank = blanks[0], correctMask = Sudoku.Candidates(aid.Values, blank);
         int validDigit = BitOperations.TrailingZeroCount((uint) correctMask);

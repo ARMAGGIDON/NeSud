@@ -303,7 +303,9 @@ public sealed partial class MainWindow : Window
         var panel = Stack();
         panel.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
         Gap(panel);
-        panel.Children.Add(Text("Після завершення таймера можна отримати винагороду. Це заглушка, а не справжня реклама.", 14, "Muted"));
+        panel.Children.Add(Text(revival
+            ? "Відновлюється одне життя. Повторне відновлення в цій спробі недоступне."
+            : "Після завершення таймера можна отримати винагороду. Це заглушка, а не справжня реклама.", 14, "Muted"));
         Gap(panel);
         var countdown = Text("", 30, "Accent", true);
         panel.Children.Add(countdown);

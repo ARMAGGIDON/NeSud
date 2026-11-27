@@ -3,6 +3,8 @@
 function accept(data) {
     previousGame = game;
     game = data?.empty ? null : data;
+    if (!game || previousGame?.id !== game.id || game.outOfLives || game.completed || game.paused || game.reward)
+        cancelPaintStroke();
     if (!challengeDay) regularGame = game;
     online = navigator.onLine;
     clockAnchor = performance.now();

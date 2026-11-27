@@ -100,6 +100,7 @@ public sealed partial class MainWindow
             Finish(false);
         };
         board.LostMouseCapture += (_, _) => { if (held) Finish(true); };
+        board.IsVisibleChanged += (_, _) => { if (!board.IsVisible) Finish(true); };
         board.Unloaded += (_, _) => Finish(true);
     }
 

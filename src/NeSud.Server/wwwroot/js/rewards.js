@@ -265,7 +265,9 @@ async function reward(kind) {
     }
     adKind = kind;
     adRemaining = game.reward?.remaining ?? 8;
-    $("ad-kind").textContent = rewardNames[kind];
+    $("ad-kind").textContent = kind === "life"
+        ? "Одне життя. Повторне відновлення в цій спробі недоступне."
+        : rewardNames[kind];
     const deadline = performance.now() + adRemaining * 1000;
     adRender();
     $("ad").showModal();

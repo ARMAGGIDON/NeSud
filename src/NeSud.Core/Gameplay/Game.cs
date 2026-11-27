@@ -87,6 +87,7 @@ public sealed class Game
         if (!OutOfLives || !ReviveAttempted || ReviveReadyAt is not { } ready || ReviveExpiresAt is not { } expiry ||
             now < ready || now >= expiry) return false;
         Lives = 1;
+        ReviveDeadline = null;
         LifeRestores++;
         AdsWatched++;
         CancelRevive();

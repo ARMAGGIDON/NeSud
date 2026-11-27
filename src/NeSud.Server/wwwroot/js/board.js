@@ -37,6 +37,15 @@ for (let i = 0; i < 81; i++) {
 const paintBoard = $("board");
 let stroke = null, drainingStroke = false;
 const strokeQueue = [];
+function cancelPaintStroke() {
+    for (const item of strokeQueue) item.s.cancelled = true;
+    strokeQueue.length = 0;
+    if (!stroke) return;
+    const s = stroke;
+    s.cancelled = true;
+    stroke = null;
+    if (paintBoard.hasPointerCapture(s.pointer)) paintBoard.releasePointerCapture(s.pointer);
+}
 function strokeCell(x, y) {
     const b = document.elementFromPoint(x, y)?.closest(".cell");
     return b ? buttons.indexOf(b) : -1;
