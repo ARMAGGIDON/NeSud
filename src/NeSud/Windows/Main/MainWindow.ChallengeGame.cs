@@ -133,6 +133,7 @@ public sealed partial class MainWindow
         settings.Children.Add(PaintOption(v =>
         {
             state.PaintDigit = v;
+            localPaintDigit = 0;
             paintDigit = v ? (focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0) : 0;
             Draw();
         }));
@@ -148,8 +149,9 @@ public sealed partial class MainWindow
         async Task ClickChallengeCell(int i)
         {
             if (!Active() || game is null) return;
-            int digit = paintDigit;
+            int digit = paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
             bool paint = state.PaintDigit && digit != 0 && game.Values[i] == 0 && game.Givens[i] == 0;
+            if (paint) paintDigit = digit;
             Select(i);
             if (paint) await Move("enter", digit, temporaryNote: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         }

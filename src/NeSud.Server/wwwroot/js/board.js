@@ -11,10 +11,12 @@ const buttons = [];
 for (let i = 0; i < 81; i++) {
     let b = document.createElement("button");
     b.className = "cell";
-    b.onclick = event => {
+    b.onclick = async event => {
+        if (pulse) await pulse;
         if (!game || busy || !online || game.paused || game.completed || game.outOfLives || adPending) return;
-        const digit = paintDigit;
+        const digit = paintDigit || focusDigit || game.values[selected];
         const paint = paintMode && digit && !game.values[i] && !game.givens[i];
+        if (paint) paintDigit = digit;
         selectCell(i);
         b.focus();
         if (paint) void act("enter", { cell: i, digit, note: note || event.shiftKey });

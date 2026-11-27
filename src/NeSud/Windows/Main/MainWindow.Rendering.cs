@@ -37,6 +37,12 @@ public sealed partial class MainWindow : Window
     }
     private void Render()
     {
+        if (localPaintOption is { } option && option.IsChecked != state.PaintDigit)
+        {
+            updatingPaintOption = true;
+            try { option.IsChecked = state.PaintDigit; }
+            finally { updatingPaintOption = false; }
+        }
         var g = G;
         bool active = Playing, visible = g is not null && !g.Paused && !g.OutOfLives && !g.Completed && !Busy;
         heading.Text = g is null ? "Підготовка" : g.Completed ? "Розв’язано" : Level(g.Puzzle.Difficulty);

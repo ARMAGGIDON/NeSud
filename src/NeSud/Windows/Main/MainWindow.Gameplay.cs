@@ -73,7 +73,8 @@ public sealed partial class MainWindow : Window
     }
     private int localFocusDigit, localPaintDigit;
     private Guid paintGameId;
-    private int ActivePaintDigit => paintGameId == state.GameId ? localPaintDigit : 0;
+    private int ActivePaintDigit => paintGameId == state.GameId && localPaintDigit != 0
+        ? localPaintDigit : DigitOnly ? localFocusDigit : G?.Values[G.Selected] ?? 0;
     private void SetPaintDigit(int digit)
     {
         if (digit is < 1 or > 9) return;
@@ -86,6 +87,7 @@ public sealed partial class MainWindow : Window
         if (!Playing || G is not { } g) return;
         int digit = ActivePaintDigit;
         bool paint = state.PaintDigit && digit != 0 && g.Values[i] == 0 && g.Editable(i);
+        if (paint) SetPaintDigit(digit);
         Select(i);
         if (paint) Change(x => x.Enter(i, digit, x.NotesMode || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), state.AutoClean));
     }

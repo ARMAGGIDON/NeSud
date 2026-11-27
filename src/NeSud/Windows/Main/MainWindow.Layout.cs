@@ -313,8 +313,9 @@ public sealed partial class MainWindow : Window
         side.Children.Add(autoFinish);
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
-        side.Children.Add(PaintOption(v =>
+        side.Children.Add(localPaintOption = PaintOption(v =>
         {
+            if (updatingPaintOption) return;
             state.PaintDigit = v;
             if (!v) localPaintDigit = 0;
             else if (G is { } g) SetPaintDigit(DigitOnly ? localFocusDigit : g.Values[g.Selected]);
@@ -451,6 +452,9 @@ public sealed partial class MainWindow : Window
         };
         return c;
     }
+
+    private CheckBox? localPaintOption;
+    private bool updatingPaintOption;
 
     private CheckBox PaintOption(Action<bool> set)
     {
