@@ -199,6 +199,10 @@ public sealed partial class MainWindow
 
             MainWindow.At(layout, body, 1, 0);
             shell = owner.Card(layout, page ? 18 : 14);
+            // A page container is a neutral focus anchor, not a visible interactive control.
+            shell.Focusable = page;
+            shell.FocusVisualStyle = null;
+            KeyboardNavigation.SetIsTabStop(shell, false);
             shell.Margin = page ? new Thickness(24, 0, 24, 14) : new Thickness(12);
             shell.HorizontalAlignment = page ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
             if (page) shell.MaxWidth = PageShellWidth;
@@ -263,7 +267,7 @@ public sealed partial class MainWindow
             {
                 if (!IsVisible) return;
                 if (!page) layer.Focus();
-                else layer.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+                else shell.Focus();
                 Loaded?.Invoke(this, EventArgs.Empty);
             }));
 

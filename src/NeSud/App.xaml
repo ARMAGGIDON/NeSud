@@ -181,7 +181,12 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Style TargetType="ScrollViewer">
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="IsTabStop" Value="False"/>
+  </Style>
   <Style TargetType="ComboBox">
+   <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardButtonFocus}"/>
    <EventSetter Event="PreviewMouseWheel" Handler="OnComboBoxWheel"/>
    <EventSetter Event="MouseLeave" Handler="OnComboBoxMouseLeave"/>
    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
@@ -227,7 +232,6 @@
        </Popup>
       </Grid>
       <ControlTemplate.Triggers>
-       <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="toggle" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
