@@ -84,6 +84,7 @@ public sealed partial class MainWindow
 
     private async Task AnimateQuest(StackPanel body, int from, int to)
     {
+        body.Width = 320;
         var title = Text("Щоденний квест", 26, "Text", true);
         title.TextAlignment = TextAlignment.Center;
         body.Children.Add(title);
@@ -97,12 +98,12 @@ public sealed partial class MainWindow
         track.SetResourceReference(Control.ForegroundProperty, "AccentBrush");
         track.SetResourceReference(Control.BackgroundProperty, "ControlBrush");
         body.Children.Add(track);
-        var labels = new Canvas { Height = 34, Width = 280, HorizontalAlignment = HorizontalAlignment.Center };
+        var labels = new Canvas { Height = 34, Width = 288, HorizontalAlignment = HorizontalAlignment.Center };
         foreach (int milestone in new[] { 1, 3, 7 })
         {
             var label = Text(milestone.ToString(), 14, milestone <= from ? "Accent" : "Muted", true);
             label.Width = 28; label.TextAlignment = TextAlignment.Center;
-            Canvas.SetLeft(label, milestone * 36 - 14); Canvas.SetTop(label, 5);
+            Canvas.SetLeft(label, milestone * 288.0 / 7 - 14); Canvas.SetTop(label, 5);
             labels.Children.Add(label);
         }
         body.Children.Add(labels);

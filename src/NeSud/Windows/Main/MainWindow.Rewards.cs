@@ -150,7 +150,7 @@ public sealed partial class MainWindow : Window
             int to = Math.Clamp(updated.Wins, 0, 7);
             int from = baseline is null ? Math.Max(0, to - 1) :
                 baseline.Day == updated.Day ? Math.Clamp(baseline.Wins, 0, 7) : 0;
-            if (updated.Wins > 7 && from >= 7 || to <= from) return;
+            if ((baseline is null && updated.Wins > 7) || to <= from) return;
             await ShowDaily(automatic: true, progressFrom: from, progressTo: to);
         }
         catch { }
@@ -181,6 +181,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(body);
         var window = GiftOverlay(new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly });
         var notice = Text("", 16, "Accent", true);
+        notice.MaxWidth = 360;
         notice.TextAlignment = TextAlignment.Center;
         panel.Children.Add(notice);
         bool working = false;

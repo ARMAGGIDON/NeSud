@@ -1450,3 +1450,5 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 .quest-marks span { position: absolute; transform: translateX(-50%); }
 .quest-marks .reached { color: var(--accent); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .quest-fill { transition: none; } }
+
+#daily-cards:not(:has(.mystery-card)):not(.quest-animation) { min-height: 0; text-align: center; }

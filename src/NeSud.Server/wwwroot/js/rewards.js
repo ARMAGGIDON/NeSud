@@ -86,7 +86,7 @@ async function showVictoryReward(id, day, e) {
     } else {
         const to = Math.min(7, daily.wins);
         const from = baseline ? (baseline.day === daily.day ? Math.min(7, baseline.wins) : 0) : Math.max(0, to - 1);
-        if (to <= from) return;
+        if ((!baseline && daily.wins > 7) || to <= from) return;
         questRange = { day: daily.day, from, to };
     }
     revealed = false;
@@ -156,30 +156,15 @@ function drawDaily() {
     wallet.replaceChildren();
     cards.replaceChildren();
     if (!daily) return;
-    for (const kind of ["hint", "candidates"]) {
-        const b = document.createElement("button");
-        const label = document.createElement("span"), amount = document.createElement("strong");
-        label.textContent = resourceNames[kind];
-        amount.textContent = balance(kind);
-        b.className = "wallet-resource";
-        b.append(resourceIcon(kind), label, amount);
-        b.title = "Використати ресурс";
-        b.setAttribute("aria-label", resourceNames[kind] + ": " + balance(kind) + ". Використати");
-        const count = kind === "life" ? game?.lives: kind === "hint" ? game?.hintCredits: game?.candidateCredits;
-        b.disabled = !game || game.completed || count >= 3 || !balance(kind) || dailyBusy;
-        b.onclick = async() => {
-            b.disabled = true;
-            await spend(kind);
-            drawDaily()
-        };
-        wallet.append(b)
-    }
     const pack = daily.packs.find(matchesPack);
     $("daily-milestone").textContent = !pack ? "Усі доступні нагороди отримано.": ({ login: "Попередня нагорода за вхід", win1: "Перша перемога", win3: "Третя перемога", win7: "Сьома перемога", win: "Перемога " + (pack.slot + 1), weekly: "Тижневий турнір", challenge: "Щоденна гра" })[pack.milestone] + " (" + pack.day + ")";
     if (!pack) {
         const empty = document.createElement("p");
         empty.textContent = "Немає доступних нагород.";
-        cards.append(empty);
+        const close = document.createElement("button");
+        close.textContent = "Готово";
+        close.onclick = () => $("daily").close();
+        cards.append(empty, close);
         return;
     }
     for (let i = 0; i < 3; i++) {
