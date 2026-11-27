@@ -21,7 +21,7 @@ public sealed partial class ServerStore
         while (rows.Read()) result.Add(new(rows.GetString(3), rows.GetInt32(1), rows.GetInt64(2)));
         return result;
     }
-    public DifficultyComparison Compare(Difficulty level, int score, int seconds, int rules = 3)
+    public DifficultyComparison Compare(Difficulty level, int score, int seconds, int rules = Game.CurrentRulesVersion)
     {
         using var c = db.Open();
         using var cmd = Database.Command(c, """

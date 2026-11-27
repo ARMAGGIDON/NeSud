@@ -10,7 +10,7 @@ internal static partial class Endpoints
         app.MapGet("/api/history", (HttpContext c, ServerStore s) =>
             User(c, s) is { } name ? Results.Ok(s.History(name)) : Results.Unauthorized());
         app.MapGet("/api/comparison", (ServerStore s, Difficulty difficulty, int score, int seconds, int? rules) =>
-            Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 && (rules ?? 3) is >= 0 and <= 3 ? Results.Ok(s.Compare(difficulty, score, seconds, rules ?? 3)) : Results.BadRequest());
+            Enum.IsDefined(difficulty) && score >= 0 && seconds >= 0 && (rules ?? Game.CurrentRulesVersion) is >= 0 and <= Game.CurrentRulesVersion ? Results.Ok(s.Compare(difficulty, score, seconds, rules ?? Game.CurrentRulesVersion)) : Results.BadRequest());
         app.MapGet("/api/history/changes", (HttpContext c, ServerStore s, long? after) => User(c, s) is { } name ? Results.Ok(s.HistorySince(name, Math.Max(0, after ?? 0))) : Results.Unauthorized());
         app.MapGet("/api/challenge/calendar", (HttpContext c, ServerStore s, string? month) => User(c, s) is { } name ? (s.Calendar(name, month) is { } calendar ? Results.Ok(calendar) : Results.BadRequest()) : Results.Unauthorized());
         app.MapGet("/api/profile", (HttpContext c, ServerStore s, string? user, int? page, Difficulty? difficulty) =>

@@ -21,7 +21,7 @@ function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
     $("revive-progress").value = left;
-    $("cover-detail").textContent = game.reward ? "Останній шанс використано.": left > 0 ? "Життя закінчилися. На відновлення: " + left + " с": "Життя закінчилися. Перевіряємо можливість відновлення…";
+    $("cover-detail").textContent = game.reward ? "Очікуємо завершення реклами.": left > 0 ? "На відновлення: " + left + " с. Штраф: −" + (game.nextReviveCost ?? 100).toLocaleString("uk-UA") + " балів": "Життя закінчилися. Перевіряємо можливість відновлення…";
     $("resume").disabled = busy || adPending || left === 0;
     if (tab === "play" && !left && !game.reward && online && !busy && !adPending) act("heartbeat")
 }
@@ -62,7 +62,7 @@ function render() {
     $("score").title = game ? [
         "Час: −" + Math.floor(game.seconds / 3), "Помилки: −" + 75 * game.mistakes,
         "Підказки: −" + 150 * game.hints, "Кандидати: −" + game.effectiveCandidatePenalty,
-        "Життя: −" + 100 * game.lifeRestores, "Автозавершення: −" + game.autoFillPenalty
+        "Життя: −" + (game.lifeRestorePenalty ?? 100 * game.lifeRestores), "Автозавершення: −" + game.autoFillPenalty
     ].join("\n") : "";
     $("hint").textContent = "Підказка (" + (game?.hintCredits || 0) + ")";
     $("candidates").textContent = "Кандидати (" + (game?.candidateCredits || 0) + ")";

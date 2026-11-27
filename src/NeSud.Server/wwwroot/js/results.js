@@ -93,7 +93,7 @@ function showResult() {
     compactMetrics($("result-time"), [["Час", fmt(game.seconds)], ["Помилки", game.mistakes]]);
     const b = $("result-breakdown");
     b.replaceChildren();
-    for (const [label, val] of [["База", game.baseScore], ["Бонус за швидкість", "+" + game.speedBonus], ["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes], ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty], ["Автозавершення (" + game.autoFilled + " клітинок)", "−" + game.autoFillPenalty], ["Відновлення життя", "−" + 100 * game.lifeRestores]]) resultRow(b, label, val);
+    for (const [label, val] of [["База", game.baseScore], ["Бонус за швидкість", "+" + game.speedBonus], ["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes], ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty], ["Автозавершення (" + game.autoFilled + " клітинок)", "−" + game.autoFillPenalty], ["Відновлення життя (" + game.lifeRestores + ")", "−" + (game.lifeRestorePenalty ?? 100 * game.lifeRestores)]]) resultRow(b, label, val);
     const c = $("comparison");
     const view = [epoch, game.id, done, comparison, online];
     if (comparisonView?.every((value, i) => value === view[i])) return;

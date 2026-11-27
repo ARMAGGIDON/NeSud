@@ -251,6 +251,7 @@ internal static partial class Endpoints
         session.Game.Seconds, clockFraction = session.Fraction, session.Game.Mistakes, session.Game.Hints, session.Game.Selected,
         session.Game.Paused, session.Game.Completed, session.Game.Lives, session.Game.OutOfLives,
         session.Game.HintCredits, session.Game.CandidateCredits, session.Game.CandidateUses, session.Game.LifeRestores,
+        session.Game.LifeRestorePenalty, session.Game.NextReviveCost,
         session.Game.CurrentScore, session.Game.RulesVersion, session.Game.BaseScore, session.Game.SpeedBonus, session.Game.AutoFinish, session.Game.AutoFilled, session.Game.AutoFillPenalty,
         reviveSeconds = session.Game.ReviveSeconds(DateTimeOffset.UtcNow),
         reviveRemainingMs = session.Game.CanStartRevive(DateTimeOffset.UtcNow) ? Math.Max(0, (session.Game.ReviveDeadline!.Value - DateTimeOffset.UtcNow).TotalMilliseconds) : 0,

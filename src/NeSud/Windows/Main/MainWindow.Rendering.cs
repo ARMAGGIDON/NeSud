@@ -136,8 +136,8 @@ public sealed partial class MainWindow : Window
     {
         if (G is not { OutOfLives: true } g || Busy) return;
         int left = g.ReviveSeconds(DateTimeOffset.UtcNow);
-        coverDetail.Text = g.ReviveReadyAt is not null ? "Останній шанс використано. Очікуємо рекламу." :
-            left > 0 ? $"Життя закінчилися. На відновлення: {left} с" : "Усі життя вичерпано.";
+        coverDetail.Text = g.ReviveReadyAt is not null ? "Очікуємо завершення реклами." :
+            left > 0 ? $"На відновлення: {left} с\nШтраф: −{g.NextReviveCost:N0} балів" : "Усі життя вичерпано.";
         coverButton.IsEnabled = left > 0 && !watchingReward;
     }
 
@@ -150,7 +150,7 @@ public sealed partial class MainWindow : Window
         SetDetailRows(resultBreakdown, ("База", g.BaseScore.ToString("N0")), ("Бонус швидкості", $"+{g.SpeedBonus:N0}"),
             ("Час", $"−{g.Seconds / 3}"), ($"Помилки ({g.Mistakes})", $"−{75L * g.Mistakes}"),
             ($"Підказки ({g.Hints})", $"−{150L * g.Hints}"), ($"Кандидати ({g.CandidateChanges})", $"−{g.EffectiveCandidatePenalty}"),
-            ($"Автозавершення ({g.AutoFilled})", $"−{g.AutoFillPenalty}"), ("Відновлення життя", $"−{100L * g.LifeRestores}"));
+            ($"Автозавершення ({g.AutoFilled})", $"−{g.AutoFillPenalty}"), ($"Відновлення життя ({g.LifeRestores})", $"−{g.LifeRestorePenalty:N0}"));
         if (win) SetDetailLoading(resultComparison, "Завантаження статистики…");
         else SetDetailMessage(resultComparison, "Порівняння доступне для завершених ігор.");
         Fade(resultCard);

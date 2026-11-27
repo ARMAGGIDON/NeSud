@@ -304,7 +304,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
         Gap(panel);
         panel.Children.Add(Text(revival
-            ? "Відновлюється одне життя. Повторне відновлення в цій спробі недоступне."
+            ? $"Відновлюється одне життя. Штраф: −{game.NextReviveCost:N0} балів. Наступне відновлення коштуватиме дорожче."
             : "Після завершення таймера можна отримати винагороду. Це заглушка, а не справжня реклама.", 14, "Muted"));
         Gap(panel);
         var countdown = Text("", 30, "Accent", true);

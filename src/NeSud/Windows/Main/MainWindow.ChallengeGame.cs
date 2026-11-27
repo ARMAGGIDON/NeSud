@@ -241,7 +241,7 @@ public sealed partial class MainWindow
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
-                notice.Text = left > 0 ? $"Життя закінчилися. На відновлення: {left} с" :
+                notice.Text = left > 0 ? $"На відновлення: {left} с\nШтраф: −{game.NextReviveCost:N0} балів" :
                     "Життя закінчилися. Перевіряємо можливість відновлення…";
                 mainAction.IsEnabled = connected && !working && left > 0;
                 if (left == 0 && !working && connected)_ = Load();
@@ -312,7 +312,7 @@ public sealed partial class MainWindow
             mainAction.IsEnabled = !working && game?.Reward is null;
             if (connected) notice.Text = game is null ? "Головоломка дня: " + day :
                 game.Completed ? $"Час: {FormatTime(game.Seconds)}\nБали: {game.CurrentScore:N0}\nПомилки: {game.Mistakes}\nПідказки: {game.Hints}" :
-                game.FinalDefeat ? (game.LifeRestores > 0 ? "Відновлене життя втрачено. Спробуйте ще раз." : "Усі життя вичерпано. Спробуйте ще раз.") : game.Paused ? "Поле приховано, таймер зупинено." : "";
+                game.FinalDefeat ? "Усі життя вичерпано. Спробуйте ще раз." : game.Paused ? "Поле приховано, таймер зупинено." : "";
             Clock();
         }
         async Task Load(bool pauseSession = false)
@@ -473,7 +473,7 @@ public sealed partial class MainWindow
             var body = Stack();
             body.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
             if (kind == "life")
-                body.Children.Add(Text("Відновлюється одне життя. Повторне відновлення в цій спробі недоступне.", 14, "Muted"));
+                body.Children.Add(Text($"Відновлюється одне життя. Штраф: −{game.NextReviveCost:N0} балів. Наступне відновлення коштуватиме дорожче.", 14, "Muted"));
             var remaining = Text("", 24, "Accent", true);
             body.Children.Add(remaining);
             var ad = Modal("Винагорода", body, 360);

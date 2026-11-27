@@ -266,7 +266,7 @@ async function reward(kind) {
     adKind = kind;
     adRemaining = game.reward?.remaining ?? 8;
     $("ad-kind").textContent = kind === "life"
-        ? "Одне життя. Повторне відновлення в цій спробі недоступне."
+        ? "Одне життя. Штраф: −" + (game.nextReviveCost ?? 100).toLocaleString("uk-UA") + " балів. Наступне відновлення дорожче."
         : rewardNames[kind];
     const deadline = performance.now() + adRemaining * 1000;
     adRender();
