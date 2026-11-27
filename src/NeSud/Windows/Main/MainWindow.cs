@@ -53,7 +53,7 @@ public sealed partial class MainWindow : Window
     private bool defeatSaved;
     private CheckBox autoFinish = null!;
     private TextBlock time = null!, errors = null!, heading = null!, status = null!,
-        coverTitle = null!, coverDetail = null!, stats = null!, saveStatus = null!;
+        coverTitle = null!, coverDetail = null!, saveStatus = null!;
     private ProgressBar progressBar = null!;
     private Button coverButton = null!;
     private Difficulty nextDifficulty;
@@ -99,6 +99,7 @@ public sealed partial class MainWindow : Window
         Build();
         if (state.Maximized) WindowState = WindowState.Maximized;
         PreviewKeyDown += OnKey;
+        PreviewMouseDown += OnNavigationMouse;
         timer.Tick += (_, _) =>
         {
             ReadClock();

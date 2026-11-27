@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
                 catch (System.Text.Json.JsonException) { }
             throw new HttpRequestException(error ?? (response.StatusCode == HttpStatusCode.TooManyRequests ? "Забагато спроб. Спробуйте пізніше." : "Сервіс тимчасово недоступний."), null, response.StatusCode);
         }
+        lastConnectionResponse = DateTimeOffset.Now;
         return await response.Content.ReadFromJsonAsync<T > () ?? throw new InvalidDataException("Порожня відповідь сервера.");
     }
 
@@ -159,11 +160,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateConnection()
     {
-        if (stats is null) return;
         RefreshAccountAvatar();
-        stats.Text = account is not null ? (reachable ? "Онлайн: " : "Офлайн: ") + (account.Username ?? account.User) :
-            Scope.Length > 0 ? "Потрібен повторний вхід. Локальні дані збережено." :
-            reachable ? "Онлайн: гість" : "Офлайн: гість";
+        if (connectionIndicator is not null) SetConnectionIndicator(connectionIndicator, reachable, lastConnectionResponse,
+            Scope.Length > 0 && account is null ? "Потрібен повторний вхід. Локальні дані збережено." : null);
     }
 
     private async Task Probe()

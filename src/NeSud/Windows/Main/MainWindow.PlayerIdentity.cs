@@ -161,7 +161,7 @@ public sealed partial class MainWindow
         string? user = account is null ? null : account.Username ?? account.User;
         if (!force && headerAvatarUser == user) return;
         headerAvatarUser = user;
-        accountNavigation.Content = user is null ? "Увійти" : PlayerIdentity(user, 26, "Мій профіль", refresh: true);
+        accountNavigation.Content = user is null ? "Мій профіль" : PlayerIdentity(user, 26, "Мій профіль", refresh: true);
     }
 
     private FrameworkElement VerifiedMark()

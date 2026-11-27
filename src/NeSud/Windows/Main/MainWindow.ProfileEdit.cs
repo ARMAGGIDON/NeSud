@@ -108,6 +108,7 @@ public sealed partial class MainWindow
         verification.Children.Add(Text("Зміна нікнейму, аватара та друзі доступні після підтвердження пошти.", 13, "Muted"));
         panel.Children.Add(verification);
         panel.Children.Add(notice);
+        panel.Children.Add(Action("Акаунт", () => { ShowAccount(); if (account?.Token != sessionToken) window.Close(); }));
         Apply(settings);
         if (sendVerification && !settings.Verified)
         {

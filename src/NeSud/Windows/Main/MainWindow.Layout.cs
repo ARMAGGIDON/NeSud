@@ -113,12 +113,17 @@ public sealed partial class MainWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        headerBack = Action("‹", () => { if (surfaces.Count > 0) surfaces[^1].Close(); }, "Повернутися до попередньої сторінки");
-        headerBack.Visibility = Visibility.Collapsed;
-        headerBack.Margin = new Thickness(0, 0, 10, 0);
-        brand.Children.Add(headerBack);
         var home = Action("NeSud", NavigateHome, "Головне меню");
         var homeContent = new StackPanel { Orientation = Orientation.Horizontal };
+        var cat = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M3,4 L8,8 Q12,6 16,8 L21,4 L21,14 A9,9 0 0 1 3,14 Z M8,13 L8.1,13 M16,13 L16.1,13 M10,16 L12,17 L14,16 M12,17 L12,19 M8,19 L5,18 M16,19 L19,18"),
+            Width = 30, Height = 30, Stretch = Stretch.Uniform, StrokeThickness = 1.7,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round, Margin = new Thickness(0,0,8,0), VerticalAlignment = VerticalAlignment.Center
+        };
+        cat.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
+        homeContent.Children.Add(cat);
         homeContent.Children.Add(Text("NeSud", 30, "Text", true));
         homeCue = new System.Windows.Shapes.Path
         {
@@ -139,6 +144,13 @@ public sealed partial class MainWindow : Window
         home.Margin = new Thickness(0);
         System.Windows.Automation.AutomationProperties.SetName(home, "NeSud: головне меню");
         brand.Children.Add(home);
+        headerBack = Action("‹", NavigateBack, "Попередня сторінка");
+        headerBack.Width = 34;
+        headerBack.MinWidth = 0;
+        headerBack.Padding = new Thickness(0);
+        headerBack.Margin = new Thickness(5,0,0,0);
+        headerBack.Visibility = Visibility.Hidden;
+        brand.Children.Add(headerBack);
         At(header, brand, 0, 0);
         theme = Action("Тема", () => {
             state.Dark = !state.Dark;
@@ -149,7 +161,9 @@ public sealed partial class MainWindow : Window
         theme.VerticalAlignment = VerticalAlignment.Center;
         theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        accountNavigation = Action("Увійти", async () => await NavigateHeader(() => { if (account is null) ShowAccount(); else _ = ShowProfile(null); }));
+        accountNavigation = Action("Мій профіль", async () => await NavigateHeader(() => _ = ShowProfile(null)));
+        connectionIndicator = ConnectionIndicator();
+        headerActions.Children.Add(connectionIndicator);
         foreach (var b in new[] { Action("Довідка", async () => await NavigateHeader(ShowHelp)), accountNavigation, theme })
         {
             b.Margin = new Thickness(5, 0, 0, 0);
@@ -297,8 +311,7 @@ public sealed partial class MainWindow : Window
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
         Gap(side, 9);
-        stats = Text("", 12, "Muted");
-        side.Children.Add(stats);
+
         var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         sideCard = Card(scroll, 13);
@@ -375,14 +388,14 @@ public sealed partial class MainWindow : Window
         var menuActions = new Grid();
         menuActions.ColumnDefinitions.Add(new ColumnDefinition());
         menuActions.ColumnDefinitions.Add(new ColumnDefinition());
-        for (int i = 0; i < 3; i++) menuActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int i = 0; i < 2; i++) menuActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         int menuIndex = 0;
         menu.Children.Add(menuActions);
         foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Тижневий турнір", () => _ = ShowWeekly()),
-            Action("Рейтинг", () => _ = ShowRanking()), Action("Історія та статистика", ShowHistory),
+            Action("Рейтинг", () => _ = ShowRanking()),
             Action("Друзі та пошук", () => _ = ShowFriends()) })
         { b.Margin = new Thickness(3);
-        At(menuActions, b, menuIndex / 2, menuIndex % 2, menuIndex == 4 ? 2 : 1);
+        At(menuActions, b, menuIndex / 2, menuIndex % 2, 1);
             menuIndex++; }
         menuCard = Card(new ScrollViewer { Content = menu, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         At(root, menuCard, 1, 0, 3);

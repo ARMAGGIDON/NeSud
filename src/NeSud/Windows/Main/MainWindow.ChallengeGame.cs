@@ -352,6 +352,8 @@ public sealed partial class MainWindow
             timer.Stop();
             heartbeat.Stop();
         };
+        window.MouseHistory = forward => { if (!Active()) return false; _ = Move(forward ? "redo" : "undo"); return true; };
+        window.Reopen = () => _ = ShowChallengeGame(day);
         window.PreviewKeyDown += (_, e) =>
         {
             if (!Active())return;

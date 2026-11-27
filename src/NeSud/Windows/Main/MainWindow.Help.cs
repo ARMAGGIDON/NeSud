@@ -28,6 +28,7 @@ public sealed partial class MainWindow
         };
         At(root, scroll, 2, 0);
         var window = Page("Довідка", root, 790, Math.Min(760, SystemParameters.WorkArea.Height - 40));
+        window.Reopen = ShowHelp;
 
         string[] titles = ["Поле", "Керування", "Ресурси й бали", "Нагороди", "Щоденні ігри"];
         var buttons = new List<Button>();

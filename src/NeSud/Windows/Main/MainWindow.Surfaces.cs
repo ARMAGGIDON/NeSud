@@ -49,7 +49,7 @@ public sealed partial class MainWindow
         headerBar.IsEnabled = top is null || top.IsPage;
         UpdateHomeCue();
         headerBack.Visibility = top is { IsPage: true } &&
-            (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Collapsed;
+            (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Hidden;
     }
 
     private void NavigateHome()
@@ -114,6 +114,8 @@ public sealed partial class MainWindow
 
         public bool IsVisible => frame is not null && !closed;
         public bool IsPage => page;
+        public Action? Reopen { get; set; }
+        public Func<bool, bool>? MouseHistory { get; set; }
         public bool IsClosingPending { get; set; }
         public string Title { get; }
 
@@ -225,6 +227,7 @@ public sealed partial class MainWindow
 
             frame = new DispatcherFrame();
             owner.homeRequested = false;
+            owner.forwardRoute = null;
             owner.surfaces.Add(this);
             owner.surfaceHost.Children.Add(layer);
             owner.UpdateHeaderNavigation();

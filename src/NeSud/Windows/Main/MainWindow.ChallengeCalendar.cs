@@ -45,6 +45,7 @@ public sealed partial class MainWindow
             var notice = Text("", 13, "Muted");
             panel.Children.Add(notice);
             var window = Page("Щоденні ігри", panel, 560, 760);
+            window.Reopen = () => _ = ShowChallenges();
             var reward = Action("Отримати нагороду", () => {
                 claim = true;
                 window.Close();

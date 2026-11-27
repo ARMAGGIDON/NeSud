@@ -64,6 +64,7 @@ public sealed partial class MainWindow
         var body = Stack();
         panel.Children.Add(body);
         var window = Page("Друзі", panel, 570);
+        window.Reopen = () => _ = ShowFriends();
         async Task Load()
         {
             body.Children.Clear();

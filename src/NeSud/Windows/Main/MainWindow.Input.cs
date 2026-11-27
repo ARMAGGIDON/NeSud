@@ -92,4 +92,54 @@ public sealed partial class MainWindow : Window
         else return;
         e.Handled = true;
     }
+    private Action? forwardRoute;
+    private void NavigateBack()
+    {
+        if (surfaces.LastOrDefault() is { } top)
+        {
+            var reopen = top.IsPage ? top.Reopen : null;
+            EventHandler? closed = null;
+            closed = (_, _) => { top.Closed -= closed; forwardRoute = reopen; };
+            top.Closed += closed;
+            top.Close();
+            if (top.IsVisible && !top.IsClosingPending) top.Closed -= closed;
+        }
+        else if (!inMenu && !Busy && !watchingReward)
+        {
+            OpenMenu();
+            if (inMenu) forwardRoute = ResumeLocalGame;
+        }
+    }
+
+    private void ResumeLocalGame()
+    {
+        if (G is null || G.Completed || G.FinalDefeat(DateTimeOffset.UtcNow) || Busy) return;
+        inMenu = false;
+        Render();
+        FocusCell();
+    }
+
+    private void OnNavigationMouse(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton is not (MouseButton.XButton1 or MouseButton.XButton2)) return;
+        e.Handled = true;
+        bool forward = e.ChangedButton == MouseButton.XButton2;
+        if (surfaces.LastOrDefault() is { } top)
+        {
+            if (!top.IsPage) { if (!forward) top.Close(); return; }
+            if (top.MouseHistory?.Invoke(forward) == true) return;
+        }
+        else if (Playing)
+        {
+            Change(g => forward ? g.Redo() : g.Undo());
+            return;
+        }
+        if (!forward) NavigateBack();
+        else if (forwardRoute is { } route)
+        {
+            forwardRoute = null;
+            route();
+        }
+        else if (surfaces.Count == 0 && inMenu) ResumeLocalGame();
+    }
 }
