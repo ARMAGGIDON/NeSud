@@ -20,7 +20,8 @@ public sealed partial class MainWindow
             return;
         }
         string? month = null;
-        while (account is not null && !closing)
+        int navigation = homeNavigationVersion;
+        while (account is not null && !closing && navigation == homeNavigationVersion)
         {
             string? selectedDay = null;
             bool claim = false;
@@ -120,6 +121,7 @@ public sealed partial class MainWindow
             }
             window.Loaded += async (_, _) => await Load();
             window.ShowDialog();
+            if (navigation != homeNavigationVersion) break;
             if (claim)
             {
                 challengeRewards = true;

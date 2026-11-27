@@ -28,7 +28,7 @@ public sealed partial class MainWindow : Window
         {
             if (e.Key == Key.F1 && surfaces[^1].IsPage)
             {
-                ShowHelp();
+                _ = NavigateHeader(ShowHelp);
                 e.Handled = true;
                 return;
             }

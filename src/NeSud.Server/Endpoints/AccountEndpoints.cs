@@ -77,8 +77,15 @@ internal static partial class Endpoints
         });
         app.MapGet("/api/avatar", (HttpContext c, ServerStore s, string user) =>
         {
+            if (s.GetAvatar(user) is not { } png)
+            {
+                c.Response.Headers.CacheControl = "public, max-age=5";
+                return Results.NotFound();
+            }
             c.Response.Headers.CacheControl = "public, max-age=60";
-            return s.GetAvatar(user) is { } png ? Results.File(png, "image/png") : Results.NotFound();
+            var tag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue(
+                "\"" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)) + "\"");
+            return Results.File(png, "image/png", entityTag: tag);
         });
         app.MapGet("/api/health", () => Results.Ok(new SyncAck(true)));
         app.MapPost("/api/logout", (HttpContext c, ServerStore s) =>

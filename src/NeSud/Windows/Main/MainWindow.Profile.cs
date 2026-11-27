@@ -90,7 +90,7 @@ public sealed partial class MainWindow
                         if (window.IsVisible) await Load();
                     }
                     catch (Exception ex) { if (window.IsVisible) Dialog("Аватар", ex.Message, false); }
-                } : null));
+                } : null, refresh: true));
                 tools.Children.Clear();
                 if (own)
                 {

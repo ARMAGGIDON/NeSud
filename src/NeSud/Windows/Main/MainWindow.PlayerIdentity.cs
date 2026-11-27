@@ -15,29 +15,41 @@ public sealed partial class MainWindow
     private readonly Dictionary<string, (BitmapSource? Image, DateTimeOffset Expires)> avatarCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<BitmapSource?>> avatarRequests = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim avatarSlots = new(4);
+    private readonly Dictionary<string, System.Net.Http.Headers.EntityTagHeaderValue> avatarTags = new(StringComparer.OrdinalIgnoreCase);
     private string? headerAvatarUser;
     private DateTimeOffset nextHeaderAvatar;
 
-    private void InvalidatePlayerAvatar(string user) => avatarCache.Remove(user);
+    private void InvalidatePlayerAvatar(string user)
+    {
+        avatarCache.Remove(user);
+        avatarTags.Remove(user);
+    }
 
     private async Task<BitmapSource?> FetchPlayerAvatar(string user)
     {
         await avatarSlots.WaitAsync();
         try
         {
-            using var response = await http.GetAsync(serverUrl.TrimEnd('/') + "/api/avatar?user=" + Uri.EscapeDataString(user));
+            using var request = new HttpRequestMessage(HttpMethod.Get, serverUrl.TrimEnd('/') + "/api/avatar?user=" + Uri.EscapeDataString(user));
+            if (avatarCache.ContainsKey(user) && avatarTags.TryGetValue(user, out var tag))
+                request.Headers.IfNoneMatch.Add(tag);
+            using var response = await http.SendAsync(request);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified && avatarCache.TryGetValue(user, out var previous))
+                return previous.Image;
             if (!response.IsSuccessStatusCode) return null;
             if (response.Content.Headers.ContentLength > 5 * 1024 * 1024) return null;
-            return ReadAvatar(await response.Content.ReadAsByteArrayAsync());
+            var image = ReadAvatar(await response.Content.ReadAsByteArrayAsync());
+            if (response.Headers.ETag is { } current) avatarTags[user] = current;
+            return image;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException or NotSupportedException or FormatException)
         { return null; }
         finally { avatarSlots.Release(); }
     }
 
-    private async Task<BitmapSource?> PlayerAvatarImage(string user)
+    private async Task<BitmapSource?> PlayerAvatarImage(string user, bool fresh = false)
     {
-        if (avatarCache.TryGetValue(user, out var cached) && cached.Expires > DateTimeOffset.UtcNow)
+        if (!fresh && avatarCache.TryGetValue(user, out var cached) && cached.Expires > DateTimeOffset.UtcNow)
             return cached.Image;
         if (avatarRequests.TryGetValue(user, out var pending)) return await pending;
         var request = FetchPlayerAvatar(user);
@@ -45,14 +57,14 @@ public sealed partial class MainWindow
         try
         {
             var image = await request;
-            if (avatarCache.Count >= 256) avatarCache.Clear();
-            avatarCache[user] = (image, DateTimeOffset.UtcNow.AddSeconds(60));
+            if (avatarCache.Count >= 256) { avatarCache.Clear(); avatarTags.Clear(); }
+            avatarCache[user] = (image, DateTimeOffset.UtcNow.AddSeconds(image is null ? 5 : 60));
             return image;
         }
         finally { avatarRequests.Remove(user); }
     }
 
-    private FrameworkElement PlayerAvatar(string user, double size, Func<Task>? edit = null)
+    private FrameworkElement PlayerAvatar(string user, double size, Func<Task>? edit = null, bool refresh = false)
     {
         var grid = new Grid { Width = size, Height = size, ClipToBounds = true };
         var background = new Border { CornerRadius = new CornerRadius(size / 6), BorderThickness = new Thickness(1) };
@@ -66,18 +78,30 @@ public sealed partial class MainWindow
         var image = new Image { Stretch = Stretch.Uniform, Margin = new Thickness(1), Visibility = Visibility.Collapsed };
         grid.Children.Add(image);
         grid.SizeChanged += (_, _) => grid.Clip = new RectangleGeometry(new Rect(0, 0, size, size), size / 6, size / 6);
-        grid.Loaded += async (_, _) =>
+        bool loading = false;
+        async Task Load(bool fresh)
         {
+            if (loading) return;
+            loading = true;
             try
             {
-                var source = await PlayerAvatarImage(user);
+                var source = await PlayerAvatarImage(user, fresh);
                 if (!grid.IsLoaded || source is null) return;
                 image.Source = source;
                 image.Visibility = Visibility.Visible;
                 initial.Visibility = Visibility.Collapsed;
             }
             catch { }
+            finally { loading = false; }
+        }
+        var timer = refresh ? new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) } : null;
+        if (timer is not null) timer.Tick += async (_, _) => { if (grid.IsVisible) await Load(true); };
+        grid.Loaded += async (_, _) =>
+        {
+            timer?.Start();
+            await Load(refresh);
         };
+        grid.Unloaded += (_, _) => timer?.Stop();
         if (edit is not null)
         {
             var button = Action("✎", tip: "Змінити аватар");
@@ -104,12 +128,12 @@ public sealed partial class MainWindow
         return grid;
     }
 
-    private FrameworkElement PlayerIdentity(string user, double size, string? label = null)
+    private FrameworkElement PlayerIdentity(string user, double size, string? label = null, bool refresh = false)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
-        At(grid, PlayerAvatar(user, size), 0, 0);
+        At(grid, PlayerAvatar(user, size, refresh: refresh), 0, 0);
         var name = Text(label ?? user, 14, "Text", true);
         name.VerticalAlignment = VerticalAlignment.Center;
         name.Margin = new Thickness(8, 0, 0, 0);
@@ -134,7 +158,7 @@ public sealed partial class MainWindow
         if (!force && headerAvatarUser == user && nextHeaderAvatar > DateTimeOffset.UtcNow) return;
         headerAvatarUser = user;
         nextHeaderAvatar = DateTimeOffset.UtcNow.AddSeconds(60);
-        accountNavigation.Content = user is null ? "Увійти" : PlayerIdentity(user, 26, "Мій профіль");
+        accountNavigation.Content = user is null ? "Увійти" : PlayerIdentity(user, 26, "Мій профіль", refresh: true);
     }
 
     private FrameworkElement VerifiedMark()

@@ -332,7 +332,16 @@ public sealed partial class MainWindow
                 window.Close();
             }
         };
+        Func<Task<bool>> pauseForHeader = async () =>
+        {
+            if (working) return false;
+            if (game is { Paused: false, Completed: false, OutOfLives: false, Reward: null })
+                return connected && await Move("pause");
+            return game?.Reward is null;
+        };
+        beforePageNavigation = pauseForHeader;
         window.Closed += (_, _) => {
+            if (beforePageNavigation == pauseForHeader) beforePageNavigation = null;
             timer.Stop();
             heartbeat.Stop();
         };

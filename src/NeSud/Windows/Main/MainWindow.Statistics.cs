@@ -40,9 +40,16 @@ public sealed partial class MainWindow : Window
             else streak = 0;
         }
         int perfect = wins.Count(r => r.Game.Mistakes == 0 && r.Game.Hints == 0 && r.Game.CandidateUses == 0 && r.Game.AutoFilled == 0 && r.Game.LifeRestores == 0);
-        panel.Children.Add(Text($"Ідеальні перемоги: {perfect} • серія: {streak} • рекорд серії: {bestStreak}", 14, "Accent"));
-        panel.Children.Add(Text($"Ігор: {records.Count}   Перемог: {wins.Count}   Балів: {wins.Sum(r => (long)r.Score)}", 16));
-        panel.Children.Add(Text($"Час: {FormatTime(records.Sum(r => r.Game.Seconds))} • Помилки: {records.Sum(r => (long)r.Game.Mistakes)} • Підказки: {records.Sum(r => (long)r.Game.Hints)}", 13, "Muted"));
+        panel.Children.Add(ProfileMetrics(
+            ("Ігор", records.Count.ToString("N0")), ("Перемог", wins.Count.ToString("N0")),
+            ("Ідеальних", perfect.ToString("N0")), ("Балів", wins.Sum(r => (long)r.Score).ToString("N0")),
+            ("Серія / рекорд", $"{streak} / {bestStreak}"), ("Час", FormatTime(records.Sum(r => r.Game.Seconds))),
+            ("Помилок", records.Sum(r => (long)r.Game.Mistakes).ToString("N0")),
+            ("Підказок", records.Sum(r => (long)r.Game.Hints).ToString("N0")),
+            ("Щоденних перемог", wins.Count(r => r.ChallengeDay is not null).ToString("N0"))));
+        panel.Children.Add(Text("За складностями", 18, "Text", true));
+        var levelsTable = ProfileTable(1.15, 1.1, .8, 1.1, 1, 1);
+        AddProfileRow(levelsTable, true, "Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали", "Найкращий час");
         foreach (var d in Enum.GetValues<Difficulty > ())
         {
             var games = records.Where(r => r.Game.Puzzle.Difficulty == d).ToList();
@@ -55,23 +62,26 @@ public sealed partial class MainWindow : Window
                 record = Math.Max(record, run);
             }
             int clean = done.Count(r => r.Game.Mistakes == 0 && r.Game.Hints == 0 && r.Game.CandidateUses == 0 && r.Game.AutoFilled == 0 && r.Game.LifeRestores == 0);
-            panel.Children.Add(Text($"{Level(d)}: {done.Count}/{games.Count} перемог • ідеальні {clean} • серія {run}/{record} • бали {done.Sum(r=>(long)r.Score)} • найкращий час: {best}", 13, "Muted"));
+            AddProfileRow(levelsTable, false, Level(d), $"{done.Count} / {games.Count}", clean.ToString("N0"),
+                $"{run} / {record}", done.Sum(r => (long)r.Score).ToString("N0"), best);
         }
-        Gap(panel, 12);
+        panel.Children.Add(levelsTable);
+        Gap(panel, 18);
+        panel.Children.Add(Text("Історія ігор", 18, "Text", true));
+        Gap(panel, 6);
         if (G is { Completed: false } && !G.FinalDefeat(DateTimeOffset.UtcNow) && (state.GameScope ?? "") == Scope)
             panel.Children.Add(Text($"Поточна гра: {Level(G.Puzzle.Difficulty)} • {FormatTime(G.Seconds)} • у процесі", 14, "Accent", true));
-        var list = Stack();
+        var list = ProfileTable(1.5, .9, 1.1, .7, 1.1);
+        AddProfileRow(list, true, "Дата / режим", "Складність", "Результат / час", "Бали", "Помилки / підказки");
         foreach (var r in records)
         {
-            var item = Stack();
-            item.Children.Add(Text($"{Level(r.Game.Puzzle.Difficulty)} • {(r.Outcome == "completed" ? "Перемога" : r.Outcome == "defeated" ? "Поразка" : "Перервано")} • {r.Score} балів", 15, "Text", true));
-            item.Children.Add(Text($"{r.Ended.ToLocalTime():g} • {(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)} • {FormatTime(r.Game.Seconds)} • помилки: {r.Game.Mistakes} • підказки: {r.Game.Hints} • кандидати: {r.Game.CandidateUses} • відновлення життів: {r.Game.LifeRestores}", 12, "Muted"));
-            var card = Card(item, 10);
-            card.Margin = new Thickness(0, 0, 0, 6);
-            list.Children.Add(card);
+            string outcome = r.Outcome == "completed" ? "Перемога" : r.Outcome == "defeated" ? "Поразка" : "Перервано";
+            AddProfileRow(list, false, $"{r.Ended.ToLocalTime():g}\n{(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)}",
+                Level(r.Game.Puzzle.Difficulty), outcome + " · " + FormatTime(r.Game.Seconds), r.Score.ToString("N0"),
+                $"{r.Game.Mistakes} / {r.Game.Hints} · кандидати {r.Game.CandidateUses} · життя {r.Game.LifeRestores}");
         }
-        if (records.Count == 0) list.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
         panel.Children.Add(list);
+        if (records.Count == 0) panel.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
         Gap(panel);
         var window = Page("Історія", panel, 680, 720);
         window.ShowDialog();

@@ -136,8 +136,8 @@ public sealed partial class MainWindow : Window
         theme.VerticalAlignment = VerticalAlignment.Center;
         theme.MinWidth = 130;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        accountNavigation = Action("Увійти", () => { if (account is null) ShowAccount(); else _ = ShowProfile(null); });
-        foreach (var b in new[] { Action("Довідка", ShowHelp), accountNavigation, theme })
+        accountNavigation = Action("Увійти", async () => await NavigateHeader(() => { if (account is null) ShowAccount(); else _ = ShowProfile(null); }));
+        foreach (var b in new[] { Action("Довідка", async () => await NavigateHeader(ShowHelp)), accountNavigation, theme })
         { b.Margin = new Thickness(5, 0, 0, 0);
         headerActions.Children.Add(b); }
         At(header, headerActions, 0, 1);

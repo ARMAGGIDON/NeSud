@@ -14,6 +14,16 @@ public sealed partial class MainWindow
     private Grid headerBar = null!;
     private Button headerBack = null!;
     private bool homeRequested;
+    private int homeNavigationVersion;
+
+    private Func<Task<bool>>? beforePageNavigation;
+
+    private async Task NavigateHeader(Action action)
+    {
+        if (surfaces.LastOrDefault() is { IsPage: false }) return;
+        if (beforePageNavigation is not null && !await beforePageNavigation()) return;
+        action();
+    }
 
     private void UpdateHeaderNavigation()
     {
@@ -26,6 +36,7 @@ public sealed partial class MainWindow
     private void NavigateHome()
     {
         if (closing || surfaces.LastOrDefault() is { IsPage: false }) return;
+        homeNavigationVersion++;
         homeRequested = true;
         ContinueHome();
     }
