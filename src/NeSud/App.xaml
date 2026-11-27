@@ -235,8 +235,36 @@
   <Style TargetType="CheckBox">
    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
    <Setter Property="FontSize" Value="14"/>
-   <Setter Property="Margin" Value="0,5"/>
+   <Setter Property="Margin" Value="0,3"/>
    <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardButtonFocus}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="CheckBox">
+      <Grid Background="Transparent">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <Border x:Name="box" Width="18" Height="18" CornerRadius="4" BorderThickness="1"
+        BorderBrush="{DynamicResource StrongLineBrush}" Background="{DynamicResource ControlBrush}"
+        VerticalAlignment="Center">
+        <Path x:Name="tick" Data="M 4,9 L 7,12 L 13,5" Stroke="{DynamicResource AccentTextBrush}"
+         StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"/>
+       </Border>
+       <ContentPresenter Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+      </Grid>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="box" Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter TargetName="box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter TargetName="tick" Property="Visibility" Value="Visible"/>
+       </Trigger>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
  </Application.Resources>
 </Application>

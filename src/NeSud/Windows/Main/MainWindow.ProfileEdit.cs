@@ -133,17 +133,8 @@ public sealed partial class MainWindow
         var separator = new Border { Height = 1, Margin = new Thickness(0, 0, 0, 12) };
         separator.SetResourceReference(Border.BackgroundProperty, "LineBrush");
         panel.Children.Add(separator);
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        var indicator = ConnectionIndicator();
-        statusRow.Children.Add(indicator);
-        var statusText = Text("", 13, "Muted");
-        statusText.VerticalAlignment = VerticalAlignment.Center;
-        statusRow.Children.Add(statusText);
-        panel.Children.Add(statusRow);
         void UpdateStatus()
         {
-            SetConnectionIndicator(indicator, reachable, lastConnectionResponse, "Автоматична синхронізація після відновлення зв’язку.");
-            statusText.Text = syncing ? "Синхронізація…" : reachable ? "Онлайн" : "Офлайн";
             notice.Visibility = notice.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         }
         var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 };
@@ -174,10 +165,6 @@ public sealed partial class MainWindow
         actions.Children.Add(sync);
         actions.Children.Add(signOut);
         panel.Children.Add(actions);
-        var statusTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        statusTimer.Tick += (_, _) => UpdateStatus();
-        window.Loaded += (_, _) => { UpdateStatus(); statusTimer.Start(); };
-        window.Closed += (_, _) => statusTimer.Stop();
         if (settings is not null) Apply(settings);
         UpdateStatus();
         if (sendVerification && settings is { Verified: false })

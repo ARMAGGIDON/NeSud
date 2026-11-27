@@ -6,6 +6,7 @@ let regularGame = null;
 let verifiedAccount = false;
 let challengeDay = null, calendarMonth = null, profileUser = null, profilePage = 0;
 let autoFinish = localStorage.getItem("autoFinish") === "1";
+let highlightPeers = localStorage.getItem("highlightPeers") !== "0", autoClean = localStorage.getItem("autoClean") !== "0";
 let adPending = false, adClock = null, adKind = "", adRemaining = 8, adBusy = false, nextGuest = 0;
 let token = sessionStorage.getItem("token") || "", guestMode = sessionStorage.getItem("guest") === "1", registration = false, authBusy = false, game = null, selected = 0, note = false, online = false, busy = false, tab = "menu", epoch = 0;
 const message = s => $("status").textContent = s;

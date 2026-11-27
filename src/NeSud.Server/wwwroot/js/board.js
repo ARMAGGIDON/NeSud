@@ -34,3 +34,16 @@ function tool(action) {
     return act(action)
 }
 document.querySelectorAll("[data-action]").forEach(b => b.onclick = () => b.dataset.action === "erase" ? enter(0): tool(b.dataset.action));
+
+for (const [id, key, apply] of [
+    ["highlight-peers", "highlightPeers", value => { highlightPeers = value; }],
+    ["auto-clean", "autoClean", value => { autoClean = value; }]
+]) {
+    $(id).checked = localStorage.getItem(key) !== "0";
+    $(id).onchange = () => {
+        const value = $(id).checked;
+        localStorage.setItem(key, value ? "1" : "0");
+        apply(value);
+        render();
+    };
+}

@@ -108,7 +108,7 @@
                             </div>
                         </div>
                         <div id="progress" class="compact-metrics"></div>
-                        <div id="penalties" class="compact-metrics penalties"></div>
+                        <progress id="game-progress" max="81" value="0" aria-label="Заповнені клітинки"></progress>
                     </article>
                     <aside class="panel" id="game-tools">
                         <h2 id="game-mode">Нова гра</h2>
@@ -125,10 +125,12 @@
                             <button data-action="candidates" id="candidates">Кандидати (0)</button>
                             <button data-action="pause">Пауза</button>
                         </div>
-                        <label class="switch-row">
-                            <input id="auto-finish" type="checkbox">
-                            <span>Автозавершення ≤9 клітинок</span>
-                        </label>
+                        <section class="game-settings">
+                            <h2>Налаштування</h2>
+                            <label class="switch-row"><input id="auto-finish" type="checkbox"><span>Автозавершення ≤9 клітинок</span></label>
+                            <label class="switch-row"><input id="highlight-peers" type="checkbox"><span>Підсвічувати пов’язані клітинки</span></label>
+                            <label class="switch-row"><input id="auto-clean" type="checkbox"><span>Автоматично очищати нотатки</span></label>
+                        </section>
                         <section class="rewards" id="rewards" hidden>
                             <h2>Поповнення</h2>
                             <button id="daily-open" hidden>Нагороди</button>
