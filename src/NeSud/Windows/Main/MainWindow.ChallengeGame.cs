@@ -16,13 +16,8 @@ public sealed partial class MainWindow
     {
         // The online session remains authoritative; only its presentation mirrors the local game.
         var root = new Grid();
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
-        var play = new Grid();
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        play.RowDefinitions.Add(new RowDefinition());
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AddGameColumns(root);
+        var play = BuildPlayGrid();
         var info = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
         var level = Text("Підготовка", 19, "Text", true);
@@ -36,7 +31,8 @@ public sealed partial class MainWindow
         At(play, info, 0, 0);
 
         var boardCells = new Button[81];
-        var grid = BuildBoard(boardCells, i => Select(i));
+        Action<int>? selectCell = null;
+        var grid = BuildBoard(boardCells, i => selectCell?.Invoke(i), i => selectCell?.Invoke(i));
         var boardArea = new Grid();
         boardArea.Children.Add(BoardView(grid));
         var cover = new Grid();
@@ -98,6 +94,7 @@ public sealed partial class MainWindow
         bool Active() => connected && !working && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
         void Select(int i)
         {
+            if (!Active() || selected == i) return;
             selected = i;
             Draw();
         }
@@ -138,6 +135,7 @@ public sealed partial class MainWindow
             Save();
             if (game is not null && game.AutoFinish != enabled) await Move("auto-finish");
         }
+        selectCell = Select;
         for (int i = 0; i < padCells.Length; i++)
         {
             int digit = i + 1;
@@ -161,7 +159,7 @@ public sealed partial class MainWindow
             elapsed.Text = FormatTime(seconds);
             life.Text = string.Join(" ", Enumerable.Range(0, Game.MaxLives).Select(i => i < game.Lives ? "♥" : "♡"));
             points.Text = Math.Max(0, game.CurrentScore - seconds / 3 + game.Seconds / 3).ToString("N0");
-            life.ToolTip = $"Життя: {game.Lives}/{Game.MaxLives}\\nПомилки: {game.Mistakes}";
+            life.ToolTip = $"Життя: {game.Lives}/{Game.MaxLives}\nПомилки: {game.Mistakes}";
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
@@ -194,8 +192,9 @@ public sealed partial class MainWindow
                     visible && i == selected, visible && game!.Wrong[i],
                     visible && value != 0 && value == game!.Values[selected],
                     visible && state.HighlightPeers && Sudoku.Peers[selected].Contains(i));
-                b.IsEnabled = active;
-                b.IsTabStop = active && i == selected;
+                // Keep keyboard focus through an in-flight server move. Active() guards input.
+                b.IsEnabled = visible && game?.Reward is null;
+                b.IsTabStop = visible && i == selected;
             }
             for (int i = 0; i < 9; i++)
             {
@@ -213,7 +212,7 @@ public sealed partial class MainWindow
             redo.IsEnabled = active && game!.CanRedo;
             hint.Content = $"Підказка ({game?.HintCredits ?? 0})";
             candidates.Content = $"Кандидати ({game?.CandidateCredits ?? 0})";
-            candidates.ToolTip = game is null ? null : $"Зміниться {game.CandidateDelta} кандидатів\\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
+            candidates.ToolTip = game is null ? null : $"Зміниться {game.CandidateDelta} кандидатів\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
             notes.Content = note ? "Нотатки: увімк." : "Нотатки";
             notes.Background = B(note ? "Same" : "Control");
             updatingOptions = true;
@@ -228,7 +227,7 @@ public sealed partial class MainWindow
                 game.Completed ? "До календаря" : game.FinalDefeat ? "Повторити" : game.OutOfLives ? "Відновити життя за рекламу" : "Продовжити";
             mainAction.IsEnabled = !working && game?.Reward is null;
             if (connected) notice.Text = game is null ? "Головоломка дня: " + day :
-                game.Completed ? $"Час: {FormatTime(game.Seconds)}\\nБали: {game.CurrentScore:N0}\\nПомилки: {game.Mistakes}\\nПідказки: {game.Hints}" :
+                game.Completed ? $"Час: {FormatTime(game.Seconds)}\nБали: {game.CurrentScore:N0}\nПомилки: {game.Mistakes}\nПідказки: {game.Hints}" :
                 game.FinalDefeat ? "Час вичерпано." : game.Paused ? "Поле приховано, таймер зупинено." : "";
             Clock();
         }
@@ -431,6 +430,12 @@ public sealed partial class MainWindow
         window.MouseHistory = forward => { if (!Active()) return false; _ = Move(forward ? "redo" : "undo"); return true; };
         window.Reopen = () => _ = ShowChallengeGame(day, resumeOnly: true);
         window.RefreshPresentation = Draw;
+        window.EscapeAction = () =>
+        {
+            if (game is not { Completed: false, OutOfLives: false, Reward: null } || !connected) return false;
+            if (!working) _ = Move(game.Paused ? "resume" : "pause");
+            return true;
+        };
         window.PreviewKeyDown += (_, e) =>
         {
             var mods = Keyboard.Modifiers;

@@ -122,6 +122,7 @@ public sealed partial class MainWindow
         public bool IsPage => page;
         public Action? Reopen { get; set; }
         public Action? RefreshPresentation { get; set; }
+        public Func<bool>? EscapeAction { get; set; }
         public Func<bool, bool>? MouseHistory { get; set; }
         public bool IsClosingPending { get; set; }
         public string Title { get; }

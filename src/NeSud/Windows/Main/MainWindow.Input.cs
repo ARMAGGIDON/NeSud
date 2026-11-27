@@ -51,7 +51,8 @@ public sealed partial class MainWindow : Window
             }
             if (e.Key == Key.Escape && Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true })
             {
-                surfaces[^1].Close();
+                var top = surfaces[^1];
+                if (top.EscapeAction?.Invoke() != true) top.Close();
                 e.Handled = true;
             }
             return;

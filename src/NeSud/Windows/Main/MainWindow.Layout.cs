@@ -107,9 +107,7 @@ public sealed partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
+        AddGameColumns(root);
 
         var header = new Grid { Margin = new Thickness(24, 18, 24, 14), MaxWidth = PageShellWidth };
         headerBar = header;
@@ -184,10 +182,7 @@ public sealed partial class MainWindow : Window
         At(header, headerActions, 0, 1);
 
 
-        var play = new Grid();
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        play.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var play = BuildPlayGrid();
         var info = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
         heading = Text("", 19, "Text", true);
@@ -449,6 +444,22 @@ public sealed partial class MainWindow : Window
             Save();
         };
         return c;
+    }
+
+    private static void AddGameColumns(Grid root)
+    {
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
+    }
+
+    private static Grid BuildPlayGrid()
+    {
+        var play = new Grid();
+        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        play.RowDefinitions.Add(new RowDefinition());
+        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        return play;
     }
 
     private static Viewbox BoardView(Grid board) => new()
