@@ -1,6 +1,14 @@
 "use strict";
 
 let focusDigit = 0, paintDigit = 0;
+function canNote(i, digit) {
+    if (!game || game.values[i]) return false;
+    if (game.notes[i] & (1 << digit)) return true;
+    const row = Math.floor(i / 9), col = i % 9;
+    return !game.values.some((v, k) => v === digit && k !== i &&
+        (Math.floor(k / 9) === row || k % 9 === col ||
+         (Math.floor(k / 27) === Math.floor(i / 27) && Math.floor(k % 9 / 3) === Math.floor(col / 3))));
+}
 function selectCell(i) {
     focusDigit = 0;
     selected = i;
@@ -20,7 +28,7 @@ for (let i = 0; i < 81; i++) {
         if (paint) paintDigit = digit;
         selectCell(i);
         b.focus();
-        if (paint) void act("enter", { cell: i, digit, note: note || event.shiftKey });
+        if (paint && (!(note || event.shiftKey) || canNote(i, digit))) void act("enter", { cell: i, digit, note: note || event.shiftKey });
     };
     $("board").append(b);
     buttons.push(b)
@@ -67,7 +75,8 @@ async function drainStroke() {
                 selectCell(i);
                 buttons[i].focus();
             }
-            if (!s.digit || !game.remaining[s.digit - 1] || game.values[i] || game.givens[i]) continue;
+            if (!s.digit || !game.remaining[s.digit - 1] || game.values[i] || game.givens[i] ||
+                (s.note && !canNote(i, s.digit))) continue;
             paintDigit = s.digit;
             selectCell(i);
             buttons[i].focus();
@@ -160,6 +169,7 @@ function enter(d, temp = false) {
         return;
     }
     if (paintMode) render();
+    if (d > 0 && (temp || note) && !canNote(selected, d)) return;
     act("enter", { cell: selected, digit: d, note: temp || note });
 }
 $("notes").onclick = () => {

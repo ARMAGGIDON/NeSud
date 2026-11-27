@@ -88,8 +88,8 @@ public sealed partial class MainWindow : Window
         int digit = ActivePaintDigit;
         bool paint = state.PaintDigit && digit != 0 && g.Remaining(digit) > 0 && g.Values[i] == 0 && g.Editable(i);
         if (paint) SetPaintDigit(digit);
-        Select(i);
-        if (paint) Change(x => x.Enter(i, digit, x.NotesMode || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), state.AutoClean));
+        if (!paint) { Select(i); return; }
+        PaintLocalCell(i, digit, g.NotesMode || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
     }
 
     private Guid focusGameId;
@@ -106,9 +106,25 @@ public sealed partial class MainWindow : Window
         G!.Selected = i;
         if (state.PaintDigit) SetPaintDigit(G.Values[i]);
         Render();
-        Save();
+        // Selection is UI state; the periodic save and pause/close persist it.
         if (focus) FocusCell();
     }
+
+    private void PaintLocalCell(int i, int digit, bool note)
+    {
+        var g = G!;
+        localFocusDigit = 0;
+        g.Selected = i;
+        SetPaintDigit(digit);
+        if (note && (g.Notes[i] & (1 << digit)) == 0 && (Sudoku.Candidates(g.Values, i) & (1 << digit)) == 0)
+        {
+            Render();
+            FocusCell();
+            return;
+        }
+        Change(x => x.Enter(i, digit, note, state.AutoClean));
+    }
+
     private void Change(Func<Game, bool> action, string? message = null)
     {
         if (!Playing) return;
@@ -145,7 +161,9 @@ public sealed partial class MainWindow : Window
         }
         else status.Text = "";
         Render();
-        Save();
+        // Avoid a FULL synchronous SQLite transaction for each mouse sample.
+        // Terminal results remain immediately durable; the existing five-second autosave handles active games.
+        if (G.Completed || G.OutOfLives) Save();
         if (G.Completed && account is not null && (state.GameScope ?? "") == Scope)
         {
             pendingWinReward = state.GameId;
@@ -192,8 +210,9 @@ public sealed partial class MainWindow : Window
             }
             return;
         }
-        Change(x => x.Enter(x.Selected, d, temporaryNote || x.NotesMode, state.AutoClean));
-        if (state.PaintDigit) Render();
+        if (state.PaintDigit && d > 0)
+            PaintLocalCell(g.Selected, d, temporaryNote || g.NotesMode);
+        else Change(x => x.Enter(x.Selected, d, temporaryNote || x.NotesMode, state.AutoClean));
     }
     private void ToggleNotes()
     {

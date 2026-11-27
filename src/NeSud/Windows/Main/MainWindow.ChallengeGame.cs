@@ -94,14 +94,38 @@ public sealed partial class MainWindow
         double reviveDeadline = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         var heartbeat = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-        bool Active() => connected && !working && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
-        void Select(int i)
+        bool CanInput() => connected && window.IsVisible && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
+        bool Active() => CanInput() && !working;
+        // Input arriving during a heartbeat or a move is serialized, not discarded.
+        Task inputTail = Task.CompletedTask;
+        int queuedInputs = 0;
+        Task QueueInput(Func<Task> action)
+        {
+            if (!CanInput()) return Task.CompletedTask;
+            var id = game!.Id;
+            var previous = inputTail;
+            queuedInputs++;
+            async Task Run()
+            {
+                try
+                {
+                    await previous;
+                    while (working && CanInput() && game!.Id == id) await Task.Delay(15);
+                    if (CanInput() && game!.Id == id) await action();
+                }
+                finally { queuedInputs--; }
+            }
+            return inputTail = Run();
+        }
+        bool CanNote(int i, int digit) => game is not null && game.Values[i] == 0 &&
+            ((game.Notes[i] & (1 << digit)) != 0 || (Sudoku.Candidates(game.Values, i) & (1 << digit)) != 0);
+        void Select(int i, bool redraw = true)
         {
             if (!Active()) return;
             focusDigit = 0;
             selected = i;
             if (state.PaintDigit && game!.Values[i] != 0) paintDigit = game.Values[i];
-            Draw();
+            if (redraw) Draw();
         }
         for (int d = 1; d <= 9; d++)
         {
@@ -147,13 +171,13 @@ public sealed partial class MainWindow
             Save();
             if (game is not null && game.AutoFinish != enabled) await Move("auto-finish");
         }
-        selectCell = Select;
-        clickCell = i => _ = ClickChallengeCell(i);
+        selectCell = i => { if (selected != i || focusDigit != 0) _ = QueueInput(() => { Select(i); return Task.CompletedTask; }); };
+        clickCell = i => _ = QueueInput(() => ClickChallengeCell(i));
         Guid strokeGame = Guid.Empty;
         int strokeDigit = 0;
         bool strokeNote = false;
-        canPaint = Active;
-        paintCell = async (i, first) =>
+        canPaint = CanInput;
+        paintCell = (i, first) => QueueInput(async () =>
         {
             if (!Active() || game is null || !window.IsVisible) return;
             if (first)
@@ -168,24 +192,30 @@ public sealed partial class MainWindow
             if (strokeGame != game.Id || strokeDigit == 0 || game.Remaining[strokeDigit - 1] == 0 ||
                 game.Values[i] != 0 || game.Givens[i] != 0) return;
             paintDigit = strokeDigit;
-            Select(i);
+            Select(i, redraw: false);
+            if (strokeNote && !CanNote(i, strokeDigit)) { Draw(); return; }
             await Move("enter", strokeDigit, noteOverride: strokeNote);
-        };
+        });
         async Task ClickChallengeCell(int i)
         {
             if (!Active() || game is null) return;
             int digit = paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
             bool paint = state.PaintDigit && digit != 0 && game.Remaining[digit - 1] > 0 && game.Values[i] == 0 && game.Givens[i] == 0;
             if (paint) paintDigit = digit;
-            Select(i);
-            if (paint) await Move("enter", digit, temporaryNote: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            Select(i, redraw: !paint);
+            if (paint)
+            {
+                bool asNote = note || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                if (asNote && !CanNote(i, digit)) { Draw(); return; }
+                await Move("enter", digit, noteOverride: asNote);
+            }
         }
         for (int i = 0; i < padCells.Length; i++)
         {
             int digit = i + 1;
-            padCells[i].Click += async (_, _) => await EnterDigit(digit);
+            padCells[i].Click += async (_, _) => await QueueInput(() => EnterDigit(digit));
         }
-        erase.Click += async (_, _) => await EnterDigit(0);
+        erase.Click += async (_, _) => await QueueInput(() => EnterDigit(0));
         undo.Click += async (_, _) => await Move("undo");
         redo.Click += async (_, _) => await Move("redo");
         notes.Click += (_, _) => {
@@ -246,7 +276,7 @@ public sealed partial class MainWindow
             for (int i = 0; i < 9; i++)
             {
                 int remaining = game?.Remaining[i] ?? 9;
-                DrawGameDigit(padCells[i], i + 1, remaining, active, i + 1 == highlighted);
+                DrawGameDigit(padCells[i], i + 1, remaining, CanInput(), i + 1 == highlighted);
             }
             int filled = game?.Values.Count(v => v != 0) ?? 0;
             int givens = game?.Givens.Count(v => v != 0) ?? 0;
@@ -334,6 +364,7 @@ public sealed partial class MainWindow
                 else { focusDigit = digit; padCells[digit - 1].Focus(); Draw(); }
                 return;
             }
+            if (digit > 0 && (note || temporaryNote) && !CanNote(selected, digit)) { Draw(); return; }
             await Move("enter", digit, temporaryNote: temporaryNote);
         }
 
@@ -481,7 +512,7 @@ public sealed partial class MainWindow
         }
         timer.Tick += (_, _) => Clock();
         heartbeat.Tick += async (_, _) => {
-            if (game is { Paused: false, Completed: false, OutOfLives: false, Reward: null } && !working && connected)await Load();
+            if (game is { Paused: false, Completed: false, OutOfLives: false, Reward: null } && !working && queuedInputs == 0 && connected) await Load();
         };
         window.Loaded += async (_, _) => {
             await Load(true);
@@ -545,7 +576,7 @@ public sealed partial class MainWindow
             if (mods.HasFlag(ModifierKeys.Alt) || mods.HasFlag(ModifierKeys.Windows)) return;
             if (e.Key == Key.P && connected && !working && game is { Completed: false, OutOfLives: false, Reward: null })
                 _ = Move(game.Paused ? "resume" : "pause");
-            else if (!Active()) return;
+            else if (!CanInput()) return;
             else if (mods.HasFlag(ModifierKeys.Control))
             {
                 if (e.Key == Key.Z) _ = Move(mods.HasFlag(ModifierKeys.Shift) ? "redo" : "undo");
@@ -556,8 +587,8 @@ public sealed partial class MainWindow
             {
                 int digit = e.Key >= Key.D0 && e.Key <= Key.D9 ? (int)e.Key - (int)Key.D0 :
                     e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9 ? (int)e.Key - (int)Key.NumPad0 : -1;
-                if (digit >= 0) _ = EnterDigit(digit, temporaryNote: mods.HasFlag(ModifierKeys.Shift));
-                else if (e.Key is Key.Delete or Key.Back) _ = EnterDigit(0);
+                if (digit >= 0) _ = QueueInput(() => EnterDigit(digit, temporaryNote: mods.HasFlag(ModifierKeys.Shift)));
+                else if (e.Key is Key.Delete or Key.Back) _ = QueueInput(() => EnterDigit(0));
                 else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
                 {
                     int row = selected / 9, col = selected % 9;
@@ -565,8 +596,8 @@ public sealed partial class MainWindow
                     if (e.Key == Key.Right) col++;
                     if (e.Key == Key.Up) row--;
                     if (e.Key == Key.Down) row++;
-                    Select(Math.Clamp(row, 0, 8) * 9 + Math.Clamp(col, 0, 8));
-                    boardCells[selected].Focus();
+                    int target = Math.Clamp(row, 0, 8) * 9 + Math.Clamp(col, 0, 8);
+                    _ = QueueInput(() => { Select(target); boardCells[selected].Focus(); return Task.CompletedTask; });
                 }
                 else if (e.Key == Key.N || e.Key == Key.Space && Keyboard.FocusedElement is Button button && boardCells.Contains(button))
                 {

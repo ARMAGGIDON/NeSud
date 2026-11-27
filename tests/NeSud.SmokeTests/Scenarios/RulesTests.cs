@@ -27,7 +27,13 @@ internal static partial class SmokeTests
         int blank = blanks[0], correctMask = Sudoku.Candidates(aid.Values, blank);
         int validDigit = BitOperations.TrailingZeroCount((uint) correctMask);
         int invalidDigit = BitOperations.TrailingZeroCount((uint)(Sudoku.All & ~correctMask));
-        Check(aid.Enter(blank, validDigit, note: true) && aid.Enter(blank, invalidDigit, note: true), "Manual notes setup");
+        Check(aid.Enter(blank, validDigit, note: true), "Manual notes setup");
+        int undoCount = aid.UndoStack.Count;
+        Check(!aid.Enter(blank, invalidDigit, note: true) && aid.UndoStack.Count == undoCount &&
+            aid.Mistakes == 0 && aid.Lives == Game.MaxLives, "Conflicting note rejected without side effects");
+        aid.Notes[blank] |= 1 << invalidDigit; // Legacy/stale note may still be removed.
+        Check(aid.Enter(blank, invalidDigit, note: true) && (aid.Notes[blank] & (1 << invalidDigit)) == 0,
+            "Conflicting existing note can be erased");
         int expected = Enumerable.Range(0, 81).Sum(j => aid.Values[j] == 0
             ? BitOperations.PopCount((uint)(aid.Notes[j] ^ Sudoku.Candidates(aid.Values, j))) : 0);
         Check(aid.CandidateDelta() == expected && aid.FillNotes() && aid.CandidateCredits == 0 &&

@@ -197,34 +197,61 @@ public sealed partial class MainWindow : Window
         transform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
+    private sealed class CellVisual
+    {
+        public int Value = -1, Mask = -1, Focus = -1;
+        public string? Name;
+    }
+    private sealed record DigitVisual(TextBlock Count);
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Button, CellVisual> cellVisuals = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Button, DigitVisual> digitVisuals = new();
+
     private void DrawGameCell(Button b, int i, int value, int mask, bool given, bool selected, bool wrong, bool same, bool peer, int focusDigit)
     {
         b.Background = B(selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel");
         b.Foreground = B(wrong ? "Wrong" : given ? "Given" : "Accent");
         b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
-        b.Content = value != 0 ? value.ToString() : mask != 0 ? NoteGrid(mask, focusDigit) : null;
-        AutomationProperties.SetName(b, $"Рядок {i / 9 + 1}, стовпець {i % 9 + 1}, " +
+        var visual = cellVisuals.GetOrCreateValue(b);
+        int effectiveFocus = value == 0 && (mask & (1 << focusDigit)) != 0 ? focusDigit : 0;
+        if (visual.Value != value || visual.Mask != mask || visual.Focus != effectiveFocus ||
+            (b.Content is null && (value != 0 || mask != 0)))
+        {
+            b.Content = value != 0 ? value.ToString() : mask != 0 ? NoteGrid(mask, effectiveFocus) : null;
+            visual.Value = value; visual.Mask = mask; visual.Focus = effectiveFocus;
+        }
+        string name = $"Рядок {i / 9 + 1}, стовпець {i % 9 + 1}, " +
             (value == 0 ? "порожньо" : value.ToString()) + (given ? ", задано" : "") +
-            (wrong ? ", помилка" : "") + (selected ? ", вибрано" : ""));
+            (wrong ? ", помилка" : "") + (selected ? ", вибрано" : "");
+        if (visual.Name != name) { AutomationProperties.SetName(b, name); visual.Name = name; }
     }
 
     private void DrawGameDigit(Button button, int digit, int remaining, bool enabled, bool focused)
     {
+        if (!digitVisuals.TryGetValue(button, out var visual))
+        {
         var grid = new Grid { MinHeight = 35 };
         var number = Text(digit.ToString(), 21, "Text", true);
         number.HorizontalAlignment = HorizontalAlignment.Center;
         number.VerticalAlignment = VerticalAlignment.Center;
-        var count = Text(remaining.ToString(), 10, "Muted");
+        var count = Text("", 10, "Muted");
         count.HorizontalAlignment = HorizontalAlignment.Right;
         count.VerticalAlignment = VerticalAlignment.Bottom;
         grid.Children.Add(number);
         grid.Children.Add(count);
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Content = grid;
+        visual = new DigitVisual(count);
+        digitVisuals.Add(button, visual);
+        }
+        string remainingText = remaining.ToString();
+        if (visual.Count.Text != remainingText)
+        {
+            visual.Count.Text = remainingText;
+            AutomationProperties.SetName(button, $"Цифра {digit}, залишилось {remaining}");
+        }
         button.IsEnabled = enabled && remaining > 0;
         button.Background = B(focused && remaining > 0 ? "Same" : "Control");
         button.Opacity = remaining == 0 ? 0.55 : 1;
-        AutomationProperties.SetName(button, $"Цифра {digit}, залишилось {remaining}");
     }
 
     private UniformGrid NoteGrid(int mask, int focusDigit)

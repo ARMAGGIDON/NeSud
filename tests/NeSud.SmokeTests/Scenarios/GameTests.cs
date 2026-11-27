@@ -67,10 +67,11 @@ internal static partial class SmokeTests
         }
         var paint = Game.Start(puzzles[0]);
         var emptyCells = Enumerable.Range(0, 81).Where(i => paint.Values[i] == 0).Take(2).ToArray();
-        Check(paint.Enter(emptyCells[0], 5, note: true) && paint.Enter(emptyCells[1], 5, note: true) &&
-            paint.Notes[emptyCells[0]] == 1 << 5 && paint.Notes[emptyCells[1]] == 1 << 5 &&
-            paint.Enter(emptyCells[0], 5, note: true) && paint.Notes[emptyCells[0]] == 0 &&
-            paint.Notes[emptyCells[1]] == 1 << 5 && paint.Mistakes == 0, "Repeated digit note painting toggles independently");
+        int aDigit = paint.Puzzle.Solution[emptyCells[0]], bDigit = paint.Puzzle.Solution[emptyCells[1]];
+        Check(paint.Enter(emptyCells[0], aDigit, note: true) && paint.Enter(emptyCells[1], bDigit, note: true) &&
+            paint.Notes[emptyCells[0]] == 1 << aDigit && paint.Notes[emptyCells[1]] == 1 << bDigit &&
+            paint.Enter(emptyCells[0], aDigit, note: true) && paint.Notes[emptyCells[0]] == 0 &&
+            paint.Notes[emptyCells[1]] == 1 << bDigit && paint.Mistakes == 0, "Note painting toggles independently");
         g.Restart();
         Check(g.Values.SequenceEqual(g.Puzzle.Givens) && g.Seconds == 0 && g.UndoStack.Count == 0, "Restart");
         for (int i = 0; i < 81; i++) if (g.Puzzle.Givens[i] == 0) g.Enter(i, g.Puzzle.Solution[i]);

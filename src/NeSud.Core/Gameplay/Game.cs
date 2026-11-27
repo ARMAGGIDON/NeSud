@@ -199,8 +199,11 @@ public sealed class Game
         if (note && digit != 0)
         {
             if (Values[i] != 0) return false;
+            int bit = 1 << digit;
+            // Existing stale notes can always be erased. New notes must agree with visible peers.
+            if ((Notes[i] & bit) == 0 && (Sudoku.Candidates(Values, i) & bit) == 0) return false;
             Remember();
-            Notes[i] ^= 1 << digit;
+            Notes[i] ^= bit;
             return true;
         }
         if (Values[i] == digit && Notes[i] == 0) return false;

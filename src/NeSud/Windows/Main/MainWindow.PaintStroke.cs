@@ -26,6 +26,8 @@ public sealed partial class MainWindow
                     if (!board.IsVisible || !state.PaintDigit) { pending.Clear(); break; }
                     var item = pending.Dequeue();
                     await apply(item.Cell, item.First);
+                    // Let WPF dispatch pending keyboard/mouse events between cell updates.
+                    if (pending.Count > 0) await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Input);
                 }
             }
             finally { draining = false; }
@@ -69,7 +71,8 @@ public sealed partial class MainWindow
         {
             if (!state.PaintDigit) return;
             e.Handled = true;
-            if (draining || !canStart()) return;
+            if (!canStart()) return;
+            if (held) Finish(false);
             visited.Clear();
             previous = null;
             if (!board.CaptureMouse()) return;
@@ -112,8 +115,6 @@ public sealed partial class MainWindow
         int digit = localStrokeDigit;
         if (localStrokeGame != state.GameId || digit == 0 || g.Remaining(digit) == 0 ||
             g.Values[i] != 0 || !g.Editable(i)) return;
-        SetPaintDigit(digit);
-        Select(i);
-        Change(x => x.Enter(i, digit, localStrokeNote, state.AutoClean));
+        PaintLocalCell(i, digit, localStrokeNote);
     }
 }
