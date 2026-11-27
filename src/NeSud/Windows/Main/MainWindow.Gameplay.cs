@@ -37,8 +37,8 @@ public sealed partial class MainWindow : Window
         time.Text = FormatTime(G?.Seconds ?? 0);
         lives.Text = G is null ? "♡ ♡ ♡" : string.Join(" ", Enumerable.Range(0, Game.MaxLives).Select(i => i < G.Lives ? "♥" : "♡"));
         score.Text = G is null ? "0" : G.CurrentScore.ToString("N0");
-        lives.ToolTip = G is null ? null : $"Життя: {G.Lives}/{Game.MaxLives} • Помилки: {G.Mistakes} • Відновлено: {G.LifeRestores}";
-        score.ToolTip = G is null ? null : $"Бонус: +{G.SpeedBonus} • Автозавершення: −{G.AutoFillPenalty} • Час: −{G.Seconds / 3} • Помилки: −{75L * G.Mistakes} • Підказки: −{150L * G.Hints} • Кандидати: −{G.EffectiveCandidatePenalty} • Відновлення: −{100L * G.LifeRestores}";
+        lives.ToolTip = G is null ? null : $"Життя: {G.Lives}/{Game.MaxLives}\nПомилки: {G.Mistakes}\nВідновлено: {G.LifeRestores}";
+        score.ToolTip = G is null ? null : $"Бонус: +{G.SpeedBonus}\nАвтозавершення: −{G.AutoFillPenalty}\nЧас: −{G.Seconds / 3}\nПомилки: −{75L * G.Mistakes}\nПідказки: −{150L * G.Hints}\nКандидати: −{G.EffectiveCandidatePenalty}\nВідновлення: −{100L * G.LifeRestores}";
     }
     private void SyncClock()
     {
@@ -152,6 +152,6 @@ public sealed partial class MainWindow : Window
         }
         int delta = G.CandidateDelta();
         if (delta == 0) return;
-        Change(g => g.FillNotes(), $"Кандидати: {delta} змін • −{delta * Game.CandidatePointCost} балів.");
+        Change(g => g.FillNotes(), $"Змін кандидатів: {delta}. Штраф: −{delta * Game.CandidatePointCost} балів.");
     }
 }

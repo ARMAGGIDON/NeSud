@@ -15,8 +15,8 @@ public sealed partial class MainWindow
     private async Task ShowChallengeGame(string day)
     {
         var panel = Stack();
-        panel.Children.Add(Text("Щоденна гра • " + day, 22, "Text", true));
-        var summary = Text("", 16, "Text", true);
+        panel.Children.Add(Text("Щоденна гра (" + day + ")", 22, "Text", true));
+        var summary = new UniformGrid { Columns = 5, Margin = new Thickness(0, 8, 0, 8) };
         panel.Children.Add(summary);
         var notice = Text("", 13, "Muted");
         panel.Children.Add(notice);
@@ -99,11 +99,13 @@ public sealed partial class MainWindow
         {
             if (game is null)return;
             int seconds = game.Seconds + (connected && !game.Paused && !game.Completed && !game.OutOfLives && game.Reward is null?(int)Math.Min(12, anchor.Elapsed.TotalSeconds): 0);
-            summary.Text = $"{Level(game.Difficulty)} • {FormatTime(seconds)} • {new string('♥',Math.Clamp(game.Lives,0,3))} • {game.CurrentScore} балів • помилки {game.Mistakes}";
+            SetCompactMetrics(summary, [("Складність", Level(game.Difficulty)), ("Час", FormatTime(seconds)),
+                ("Життя", new string('♥', Math.Clamp(game.Lives, 0, 3))), ("Бали", game.CurrentScore.ToString("N0")),
+                ("Помилки", game.Mistakes.ToString())]);
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
-                notice.Text = $"Поразка • останній шанс: {left} с";
+                notice.Text = $"Останній шанс: {left} с";
                 mainAction.IsEnabled = connected && !working && left > 0;
                 if (left == 0 && !working && connected)_ = Load();
             }

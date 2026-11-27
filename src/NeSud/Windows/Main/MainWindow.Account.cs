@@ -78,7 +78,7 @@ public sealed partial class MainWindow : Window
         {
             panel.Children.Add(PlayerIdentity(account.Username ?? account.User, 48));
             
-            panel.Children.Add(Text(reachable ? "● Онлайн • автоматична синхронізація" : "○ Офлайн • синхронізація після відновлення зв’язку", 13, "Muted"));
+            panel.Children.Add(Text(reachable ? "Онлайн: автоматична синхронізація" : "Офлайн: синхронізація після відновлення зв’язку", 13, "Muted"));
             Gap(panel, 18);
             panel.Children.Add(Action("Синхронізувати зараз", () => {
                 window.Close();

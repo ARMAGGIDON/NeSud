@@ -181,7 +181,7 @@ public sealed partial class MainWindow
                     var calendar = new UniformGrid { Columns = 7, Margin = new Thickness(0, 10, 0, 6) };
                     for (int d = 1; d <= 31; d++)
                     {
-                        var cell = Text(d + (d <= 8 ? " ✓" : d > 20 ? " ·" : ""), 14, d <= 8 ? "Accent" : d > 20 ? "Muted" : "Text", true);
+                        var cell = Text(d + (d <= 8 ? " ✓" : ""), 14, d <= 8 ? "Accent" : d > 20 ? "Muted" : "Text", true);
                         cell.TextAlignment = TextAlignment.Center;
                         calendar.Children.Add(new Border { Background = B(d <= 8 ? "Same" : "Control"), CornerRadius = new CornerRadius(5),
                             Margin = new Thickness(2), Padding = new Thickness(5), Child = cell });

@@ -75,7 +75,7 @@ public sealed partial class MainWindow
         background.SetResourceReference(Border.BackgroundProperty, "ControlBrush");
         background.SetResourceReference(Border.BorderBrushProperty, "LineBrush");
         grid.Children.Add(background);
-        var initial = Text(string.IsNullOrEmpty(user) ? "•" : user[..1].ToUpperInvariant(), size * .4, "Muted", true);
+        var initial = Text(string.IsNullOrEmpty(user) ? "?" : user[..1].ToUpperInvariant(), size * .4, "Muted", true);
         initial.HorizontalAlignment = HorizontalAlignment.Center;
         initial.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(initial);

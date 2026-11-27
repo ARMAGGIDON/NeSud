@@ -46,11 +46,13 @@ public sealed partial class MainWindow : Window
     private Border resultCard = null!, playCard = null!, sideCard = null!, menuCard = null!;
     private bool inMenu = true;
     private Button continueMenu = null!, accountNavigation = null!;
-    private TextBlock resultTitle = null!, resultSummary = null!, resultBreakdown = null!, resultComparison = null!;
+    private TextBlock resultTitle = null!;
+    private UniformGrid resultSummary = null!, progress = null!;
+    private StackPanel resultBreakdown = null!, resultComparison = null!;
     private Guid shownResult;
     private bool defeatSaved;
     private CheckBox autoFinish = null!;
-    private TextBlock time = null!, errors = null!, progress = null!, heading = null!, status = null!,
+    private TextBlock time = null!, errors = null!, heading = null!, status = null!,
         coverTitle = null!, coverDetail = null!, stats = null!, saveStatus = null!;
     private ProgressBar progressBar = null!;
     private Button coverButton = null!;
@@ -85,7 +87,7 @@ public sealed partial class MainWindow : Window
             state.Started = DateTimeOffset.UtcNow;
         }
         nextDifficulty = state.NextDifficulty ?? G?.Puzzle.Difficulty ?? Difficulty.Medium;
-        Title = "NeSud • Судоку";
+        Title = "NeSud: Судоку";
         MinWidth = 790;
         MinHeight = 620;
         Width = Math.Clamp(state.Width, MinWidth, Math.Max(MinWidth, SystemParameters.WorkArea.Width));

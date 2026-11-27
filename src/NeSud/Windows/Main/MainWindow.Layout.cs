@@ -118,6 +118,19 @@ public sealed partial class MainWindow : Window
         headerBack.Margin = new Thickness(0, 0, 10, 0);
         brand.Children.Add(headerBack);
         var home = Action("NeSud", NavigateHome, "Головне меню");
+        var homeContent = new StackPanel { Orientation = Orientation.Horizontal };
+        homeContent.Children.Add(Text("NeSud", 30, "Text", true));
+        homeCue = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M9,7 L4,12 L9,17 M4,12 L14,12 Q20,12 20,18"),
+            Width = 22, Height = 22, Stretch = Stretch.Uniform, StrokeThickness = 1.8,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8,0,0,0), Opacity = 0
+        };
+        homeCue.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
+        homeContent.Children.Add(homeCue);
+        home.Content = homeContent;
         home.FontSize = 30;
         home.FontWeight = FontWeights.SemiBold;
         home.Background = Brushes.Transparent;
@@ -204,7 +217,7 @@ public sealed partial class MainWindow : Window
 
         var bottom = Stack();
         bottom.Margin = new Thickness(0, 14, 0, 0);
-        progress = Text("", 13, "Muted");
+        progress = new UniformGrid { Columns = 3 };
         progressBar = new ProgressBar { Minimum = 0, Maximum = 81, Height = 5, Margin = new Thickness(0, 7, 0, 0),
             BorderThickness = new Thickness(0) };
         progressBar.SetResourceReference(Control.ForegroundProperty, "AccentBrush");
@@ -265,7 +278,7 @@ public sealed partial class MainWindow : Window
         side.Children.Add(actions);
         Gap(side, 10);
         quest = Text("", 12, "Muted");
-        rewardLife = Action("+1 життя · 8 с", () => Reward("life"));
+        rewardLife = Action("Відновити життя (8 с)", () => Reward("life"));
         rewardHint = Action("+1 підказка", () => _ = ChooseResource("hint"));
         rewardCandidates = Action("+1 кандидати", () => _ = ChooseResource("candidates"));
         foreach (var b in new[] { rewardHint, rewardCandidates }) side.Children.Add(b);
@@ -294,10 +307,9 @@ public sealed partial class MainWindow : Window
         result.MaxWidth = 680;
         resultTitle = Text("", 30, "Accent", true);
         resultTitle.TextAlignment = TextAlignment.Center;
-        resultSummary = Text("", 19, "Text", true);
-        resultSummary.TextAlignment = TextAlignment.Center;
-        resultBreakdown = Text("", 15);
-        resultComparison = Text("", 14, "Muted");
+        resultSummary = new UniformGrid { Columns = 3 };
+        resultBreakdown = Stack();
+        resultComparison = Stack();
         result.Children.Add(resultTitle);
         Gap(result);
         result.Children.Add(resultSummary);
@@ -345,14 +357,17 @@ public sealed partial class MainWindow : Window
             FocusCell();
         }, primary: true);
         menu.Children.Add(continueMenu);
+        menu.Children.Add(Text("Нова гра", 14, "Muted", true));
+        Gap(menu, 4);
         var menuLevels = new UniformGrid { Columns = 2 };
         menu.Children.Add(menuLevels);
         foreach (var d in Enum.GetValues<Difficulty > ())
         {
-            var b = Action("Нова гра · " + Level(d), () => {
+            var b = Action(Level(d), () => {
                 state.NextDifficulty = nextDifficulty = d;
                 _ = Generate(true);
-            });
+            }, "Почати нову гру: " + Level(d));
+            System.Windows.Automation.AutomationProperties.SetName(b, "Нова гра: " + Level(d));
             b.Margin = new Thickness(3);
             menuLevels.Children.Add(b);
         }

@@ -70,15 +70,15 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(Text("Історія ігор", 18, "Text", true));
         Gap(panel, 6);
         if (G is { Completed: false } && !G.FinalDefeat(DateTimeOffset.UtcNow) && (state.GameScope ?? "") == Scope)
-            panel.Children.Add(Text($"Поточна гра: {Level(G.Puzzle.Difficulty)} • {FormatTime(G.Seconds)} • у процесі", 14, "Accent", true));
+            panel.Children.Add(Text($"Поточна гра: {Level(G.Puzzle.Difficulty)} ({FormatTime(G.Seconds)}, у процесі)", 14, "Accent", true));
         var list = ProfileTable(1.5, .9, 1.1, .7, 1.1);
         AddProfileRow(list, true, "Дата / режим", "Складність", "Результат / час", "Бали", "Помилки / підказки");
         foreach (var r in records)
         {
             string outcome = r.Outcome == "completed" ? "Перемога" : r.Outcome == "defeated" ? "Поразка" : "Перервано";
             AddProfileRow(list, false, $"{r.Ended.ToLocalTime():g}\n{(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)}",
-                Level(r.Game.Puzzle.Difficulty), outcome + " · " + FormatTime(r.Game.Seconds), r.Score.ToString("N0"),
-                $"{r.Game.Mistakes} / {r.Game.Hints} · кандидати {r.Game.CandidateUses} · життя {r.Game.LifeRestores}");
+                Level(r.Game.Puzzle.Difficulty), outcome + "\n" + FormatTime(r.Game.Seconds), r.Score.ToString("N0"),
+                $"{r.Game.Mistakes} / {r.Game.Hints}\nКандидати: {r.Game.CandidateUses}\nЖиття: {r.Game.LifeRestores}");
         }
         panel.Children.Add(list);
         if (records.Count == 0) panel.Children.Add(Text("Завершених або перерваних ігор ще немає.", 14, "Muted"));
@@ -151,11 +151,11 @@ public sealed partial class MainWindow : Window
                     Gap(rows, 16);
                 }
                 Table(selectedMode == 1 ? "Загальний рейтинг" : "Серверний рейтинг", ranks);
-                indicator.Text = "● Онлайн • оновлено " + DateTime.Now.ToString("HH:mm:ss");
+                indicator.Text = "Онлайн. Оновлено: " + DateTime.Now.ToString("HH:mm:ss");
             }
             catch
             {
-                if (window.IsVisible) indicator.Text = "○ Офлайн • очікуємо відновлення зв’язку. Показані дані можуть бути застарілими.";
+                if (window.IsVisible) indicator.Text = "Офлайн. Очікуємо відновлення зв’язку. Показані дані можуть бути застарілими.";
             }
             finally
             {

@@ -161,9 +161,9 @@ public sealed partial class MainWindow : Window
     {
         if (stats is null) return;
         RefreshAccountAvatar();
-        stats.Text = account is not null ? (reachable ? "● Онлайн • " : "○ Офлайн • ") + (account.Username ?? account.User) :
-            Scope.Length > 0 ? "Потрібен повторний вхід • локальні дані збережено" :
-            reachable ? "● Онлайн • гість" : "○ Офлайн • гість";
+        stats.Text = account is not null ? (reachable ? "Онлайн: " : "Офлайн: ") + (account.Username ?? account.User) :
+            Scope.Length > 0 ? "Потрібен повторний вхід. Локальні дані збережено." :
+            reachable ? "Онлайн: гість" : "Офлайн: гість";
     }
 
     private async Task Probe()

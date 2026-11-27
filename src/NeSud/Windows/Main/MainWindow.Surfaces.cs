@@ -13,6 +13,22 @@ public sealed partial class MainWindow
     private readonly List<InAppSurface> surfaces = new();
     private Grid headerBar = null!;
     private Button headerBack = null!;
+    private System.Windows.Shapes.Path homeCue = null!;
+
+    private void UpdateHomeCue()
+    {
+        if (homeCue is null) return;
+        double opacity = !inMenu || surfaces.Count > 0 ? 1 : 0;
+        if (SystemParameters.ClientAreaAnimation)
+        {
+            // Avoid restarting the animation during timer-driven Render calls.
+            if (homeCue.Tag is double old && old == opacity) return;
+            homeCue.Tag = opacity;
+            homeCue.BeginAnimation(UIElement.OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(180)));
+        }
+        else homeCue.Opacity = opacity;
+    }
     private bool homeRequested;
     private int homeNavigationVersion;
 
@@ -31,6 +47,7 @@ public sealed partial class MainWindow
     {
         var top = surfaces.LastOrDefault();
         headerBar.IsEnabled = top is null || top.IsPage;
+        UpdateHomeCue();
         headerBack.Visibility = top is { IsPage: true } &&
             (surfaces.Count > 1 || top.Title == "Довідка") ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -205,6 +222,7 @@ public sealed partial class MainWindow
             owner.surfaceHost.Children.Add(layer);
             owner.UpdateHeaderNavigation();
             Fit();
+            Fade(shell);
 
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {

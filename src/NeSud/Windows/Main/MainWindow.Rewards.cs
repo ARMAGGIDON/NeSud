@@ -145,8 +145,8 @@ public sealed partial class MainWindow : Window
         {
             body.Children.Clear();
             if (daily is not { } d) return;
-            body.Children.Add(Text((weeklyRewards || challengeRewards ? "" : $"Сьогодні: {Math.Min(7,d.Wins)}/7 перемог • ") + $"доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"))}", 15, "Accent", true));
-            body.Children.Add(Text($"Сховище: підказки {d.Hints} • кандидати {d.Candidates}", 14));
+            body.Children.Add(Text((weeklyRewards || challengeRewards ? "" : $"Сьогодні: {Math.Min(7,d.Wins)}/7 перемог\n") + $"доступно наборів: {d.Packs.Count(p => weeklyRewards ? p.Milestone == "weekly" : challengeRewards ? p.Milestone == "challenge" : p.Milestone is not ("weekly" or "challenge"))}", 15, "Accent", true));
+            body.Children.Add(Text($"Сховище: підказки {d.Hints}\nКандидати: {d.Candidates}", 14));
             Gap(body);
             foreach (var kind in new[] { "hint", "candidates" })
             {
@@ -164,7 +164,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
             string milestone = pack.Milestone switch { "login" => "Щоденний вхід", "win1" => "Перша перемога",
-                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "challenge" => $"Щоденна гра • {pack.Day}", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
+                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "challenge" => $"Щоденна гра ({pack.Day})", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
             Gap(body);
             body.Children.Add(Text(milestone, 17, "Text", true));
             var cards = new UniformGrid { Columns = 3 };

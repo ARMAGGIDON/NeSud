@@ -139,7 +139,7 @@ public sealed partial class MainWindow
                 {
                     string outcome = r.Outcome switch { "completed" => "Перемога", "defeated" => "Поразка", _ => "Перервано" };
                     AddProfileRow(games, false, $"{r.Ended.ToLocalTime():g}\n{(r.ChallengeDay is null ? r.Source : "Щоденна " + r.ChallengeDay)}",
-                        Level(r.Difficulty), outcome + " · " + FormatTime(r.Seconds), r.Score.ToString("N0"));
+                        Level(r.Difficulty), outcome + "\n" + FormatTime(r.Seconds), r.Score.ToString("N0"));
                 }
                 history.Children.Add(games);
                 if (p.History.Count == 0) history.Children.Add(Text("Ігор ще немає.", 13, "Muted"));

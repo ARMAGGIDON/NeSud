@@ -97,7 +97,8 @@ public sealed partial class MainWindow : Window
         }
         int filled = g?.Values.Count(v => v != 0) ?? 0;
         int givens = g?.Puzzle.Givens.Count(v => v != 0) ?? 0;
-        progress.Text = g is null ? "Підготовка поля" : g.Completed ? $"✓ Судоку розв’язано!  •  Час: {FormatTime(g.Seconds)}  •  Підказки: {g.Hints}" : $"Заповнено {filled}/81  •  Ваші клітинки: {filled - givens}/{81 - givens}  •  Підказки: {g.Hints}";
+        SetCompactMetrics(progress, g is null ? [("Стан", "Підготовка поля")] :
+            [("Заповнено", $"{filled} / 81"), ("Ваші клітинки", $"{filled - givens} / {81 - givens}"), ("Підказки", g.Hints.ToString())]);
         progressBar.Value = filled;
         undo.IsEnabled = active && g!.UndoStack.Count > 0;
         redo.IsEnabled = active && g!.RedoStack.Count > 0;
@@ -105,8 +106,8 @@ public sealed partial class MainWindow : Window
         hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
         hint.Content = $"Підказка ({g?.HintCredits ?? 0})";
         fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
-        fill.ToolTip = g is null ? null : $"Зміниться {g.CandidateDelta()} кандидатів • −{(long)Game.CandidatePointCost * g.CandidateDelta()} балів";
-        quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди • онлайн" : $"Сьогодні: {daily.Wins}/7 перемог • наборів: {daily.Packs.Count}";
+        fill.ToolTip = g is null ? null : $"Зміниться {g.CandidateDelta()} кандидатів\nШтраф: −{(long)Game.CandidatePointCost * g.CandidateDelta()} балів";
+        quest.Text = account is null ? "Щоденні нагороди доступні в акаунті." : daily is null ? "Щоденні нагороди доступні онлайн" : $"Сьогодні: {daily.Wins}/7 перемог\nНаборів: {daily.Packs.Count}";
         rewardLife.IsEnabled = false;
         autoFinish.IsEnabled = !Busy && g is { Completed: false, OutOfLives: false };
         rewardHint.Visibility = g?.CanAdReward("hint") == true && WalletCount("hint") == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -125,10 +126,10 @@ public sealed partial class MainWindow : Window
         coverTitle.Text = Busy ? "Генеруємо поле…" : g?.Completed == true ? "Судоку розв’язано!" :
             g?.OutOfLives == true ? "Поразка" : g?.Paused == true ? "Гра на паузі" : "Почнімо гру";
         coverDetail.Text = Busy ? "Перевіряємо єдиність розв’язку." : g?.Completed == true ?
-            $"Час: {FormatTime(g.Seconds)} • Помилки: {g.Mistakes} • Підказки: {g.Hints}" :
+            $"Час: {FormatTime(g.Seconds)}\nПомилки: {g.Mistakes}\nПідказки: {g.Hints}" :
             g?.OutOfLives == true ? "Останній шанс відновити життя." :
             g?.Paused == true ? "Поле приховано, таймер зупинено." : "Оберіть складність і створіть головоломку.";
-        coverButton.Content = Busy ? "Скасувати" : g?.OutOfLives == true ? "Реклама · останній шанс" : g?.Paused == true ? "Продовжити" : "Нова гра";
+        coverButton.Content = Busy ? "Скасувати" : g?.OutOfLives == true ? "Відновити життя за рекламу" : g?.Paused == true ? "Продовжити" : "Нова гра";
         coverButton.IsEnabled = true;
         if (g?.OutOfLives == true && !Busy) UpdateDefeat();
         bool showResult = !inMenu && !Busy && !watchingReward && g is not null && (g.Completed || g.FinalDefeat(DateTimeOffset.UtcNow));
@@ -144,6 +145,7 @@ public sealed partial class MainWindow : Window
             _ = ShowResult(g!);
         }
         UpdateConnection();
+        UpdateHomeCue();
     }
 
     private void UpdateDefeat()
@@ -159,12 +161,13 @@ public sealed partial class MainWindow : Window
     {
         bool win = g.Completed;
         resultTitle.Text = win ? "Головоломку розв’язано!" : "Поразка";
-        resultSummary.Text = $"{Level(g.Puzzle.Difficulty)} • {FormatTime(g.Seconds)} • {(win ? g.CurrentScore : 0):N0} балів";
-        resultBreakdown.Text = $"База: {g.BaseScore:N0}   •   Бонус швидкості: +{g.SpeedBonus:N0}\n" +
-            $"Час: −{g.Seconds / 3}   •   Помилки ({g.Mistakes}): −{75L * g.Mistakes}\n" +
-            $"Підказки ({g.Hints}): −{150L * g.Hints}   •   Кандидати ({g.CandidateChanges}): −{g.EffectiveCandidatePenalty}\n" +
-            $"Автозавершення ({g.AutoFilled}): −{g.AutoFillPenalty}   •   Відновлення: −{100L * g.LifeRestores}";
-        resultComparison.Text = win ? "Завантаження статистики…" : "Порівняння доступне для завершених ігор.";
+        SetCompactMetrics(resultSummary, [("Складність", Level(g.Puzzle.Difficulty)), ("Час", FormatTime(g.Seconds)),
+            ("Бали", (win ? g.CurrentScore : 0).ToString("N0"))]);
+        SetDetailRows(resultBreakdown, ("База", g.BaseScore.ToString("N0")), ("Бонус швидкості", $"+{g.SpeedBonus:N0}"),
+            ("Час", $"−{g.Seconds / 3}"), ($"Помилки ({g.Mistakes})", $"−{75L * g.Mistakes}"),
+            ($"Підказки ({g.Hints})", $"−{150L * g.Hints}"), ($"Кандидати ({g.CandidateChanges})", $"−{g.EffectiveCandidatePenalty}"),
+            ($"Автозавершення ({g.AutoFilled})", $"−{g.AutoFillPenalty}"), ("Відновлення життя", $"−{100L * g.LifeRestores}"));
+        SetDetailMessage(resultComparison, win ? "Завантаження статистики…" : "Порівняння доступне для завершених ігор.");
         Fade(resultCard);
         if (!win) return;
         var id = state.GameId;
@@ -172,15 +175,16 @@ public sealed partial class MainWindow : Window
         {
             var c = await Request<DifficultyComparison > ($"comparison?difficulty={g.Puzzle.Difficulty}&score={g.CurrentScore}&seconds={g.Seconds}&rules={g.RulesVersion}", token: "");
             if (closing || id != state.GameId) return;
-            resultComparison.Text = c.Games == 0 ? "Поки недостатньо результатів." :
-                $"Ігор: {c.Games} • гравців: {c.Players}\n" +
-                $"Середній час: {FormatTime((int)c.AverageSeconds)} • медіана: {FormatTime((int)c.MedianSeconds)} • найкращий: {FormatTime(c.BestSeconds)}\n" +
-                $"Середній бал: {c.AverageScore:N0} • помилки: {c.AverageMistakes:F1} • підказки: {c.AverageHints:F1}\n" +
-                $"Ваш бал не нижче ніж у {c.ScorePercentile}% ігор; час не довше ніж у {c.TimePercentile}% ігор.";
+            if (c.Games == 0) SetDetailMessage(resultComparison, "Поки недостатньо результатів.");
+            else SetDetailRows(resultComparison, ("Ігор", c.Games.ToString()), ("Гравців", c.Players.ToString()),
+                ("Середній час", FormatTime((int)c.AverageSeconds)), ("Медіана", FormatTime((int)c.MedianSeconds)),
+                ("Найкращий час", FormatTime(c.BestSeconds)), ("Середній бал", c.AverageScore.ToString("N0")),
+                ("Середні помилки", c.AverageMistakes.ToString("F1")), ("Середні підказки", c.AverageHints.ToString("F1")),
+                ("Ваш бал не нижче ніж у", $"{c.ScorePercentile}% ігор"), ("Ваш час не довше ніж у", $"{c.TimePercentile}% ігор"));
         }
         catch
         {
-            if (!closing && id == state.GameId) resultComparison.Text = "Порівняння тимчасово недоступне офлайн.";
+            if (!closing && id == state.GameId) SetDetailMessage(resultComparison, "Порівняння тимчасово недоступне офлайн.");
         }
     }
 
