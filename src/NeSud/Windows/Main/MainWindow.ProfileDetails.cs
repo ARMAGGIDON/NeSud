@@ -11,7 +11,7 @@ namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private Button connectionIndicator = null!;
+    private FrameworkElement connectionIndicator = null!;
     private DateTimeOffset? lastConnectionResponse;
 
     private sealed record ConnectionStatusView(Ellipse Dot, Ellipse Ring, TextBlock Heading,
@@ -21,7 +21,7 @@ public sealed partial class MainWindow
         public string? Message { get; set; }
     }
 
-    private Button ConnectionIndicator()
+    private FrameworkElement ConnectionIndicator()
     {
         var scale = new ScaleTransform(1, 1);
         var ring = new Ellipse
@@ -32,20 +32,21 @@ public sealed partial class MainWindow
         var dot = new Ellipse { Width = 9, Height = 9 };
         ring.SetResourceReference(Shape.StrokeProperty, "MutedBrush");
         dot.SetResourceReference(Shape.FillProperty, "MutedBrush");
-        var content = new Grid { Width = 28, Height = 28, IsHitTestVisible = false };
+        // Transparent hit area only: no button template, border or resting/hover background.
+        var host = new Grid
+        {
+            Width = 38, Height = 46, Background = Brushes.Transparent,
+            VerticalAlignment = VerticalAlignment.Center, Focusable = true
+        };
+        KeyboardNavigation.SetIsTabStop(host, true);
+        ToolTipService.SetIsEnabled(host, false);
         foreach (var element in new FrameworkElement[] { ring, dot })
         {
             element.HorizontalAlignment = HorizontalAlignment.Center;
             element.VerticalAlignment = VerticalAlignment.Center;
-            content.Children.Add(element);
+            element.IsHitTestVisible = false;
+            host.Children.Add(element);
         }
-        var button = Action("", tip: "Стан з’єднання");
-        button.Content = content;
-        button.Width = 46;
-        button.MinHeight = 46;
-        button.Padding = new Thickness(0);
-        button.Margin = new Thickness(0);
-        button.VerticalAlignment = VerticalAlignment.Center;
 
         var title = Text("Підключення", 15, "Text", true);
         var detail = Text("Очікуємо відповідь сервера.", 13, "Muted");
@@ -56,47 +57,22 @@ public sealed partial class MainWindow
         var card = Card(body, 12);
         card.MinWidth = 210;
         card.MaxWidth = 300;
-        card.Focusable = true;
+        card.IsHitTestVisible = false;
         var popup = new Popup
         {
-            PlacementTarget = button, Placement = PlacementMode.Custom,
+            PlacementTarget = host, Placement = PlacementMode.Custom,
             CustomPopupPlacementCallback = (size, target, _) =>
             [
-                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, target.Height + 8), PopupPrimaryAxis.Horizontal),
-                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, -size.Height - 8), PopupPrimaryAxis.Horizontal)
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, target.Height + 5), PopupPrimaryAxis.Horizontal),
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, -size.Height - 5), PopupPrimaryAxis.Horizontal)
             ],
-            Child = card, StaysOpen = false, AllowsTransparency = true,
+            Child = card, StaysOpen = true, AllowsTransparency = true, IsHitTestVisible = false,
             PopupAnimation = SystemParameters.ClientAreaAnimation ? PopupAnimation.Fade : PopupAnimation.None
         };
-        button.Tag = new ConnectionStatusView(dot, ring, title, detail, popup);
-        button.Click += (_, _) => popup.IsOpen = true;
-        popup.Opened += (_, _) =>
-        {
-            ToolTipService.SetIsEnabled(button, false);
-            button.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
-            Hover();
-            card.Focus();
-        };
-        popup.Closed += (_, _) =>
-        {
-            button.SetResourceReference(Control.BorderBrushProperty, "LineBrush");
-            ToolTipService.SetIsEnabled(button, true);
-            Hover();
-        };
-        card.PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-            popup.IsOpen = false;
-            button.Focus();
-            e.Handled = true;
-        };
-        button.Unloaded += (_, _) => popup.IsOpen = false;
-        button.IsEnabledChanged += (_, _) => { if (!button.IsEnabled) popup.IsOpen = false; };
+        host.Tag = new ConnectionStatusView(dot, ring, title, detail, popup);
 
-        void Hover()
+        void Animate(bool active)
         {
-            bool active = button.IsMouseOver || button.IsKeyboardFocused || popup.IsOpen;
-            button.SetResourceReference(Control.BackgroundProperty, active ? "PeerBrush" : "ControlBrush");
             double opacity = active ? .8 : .32;
             double size = active ? 1.13 : 1;
             if (SystemParameters.ClientAreaAnimation)
@@ -115,10 +91,40 @@ public sealed partial class MainWindow
                 ring.Opacity = opacity;
             }
         }
-        button.MouseEnter += (_, _) => Hover();
-        button.MouseLeave += (_, _) => Hover();
-        button.IsKeyboardFocusedChanged += (_, _) => Hover();
-        return button;
+
+        void RefreshPopup()
+        {
+            bool open = IsActive && host.IsEnabled && host.IsVisible &&
+                (host.IsMouseOver || host.IsKeyboardFocused);
+            popup.IsOpen = open;
+        }
+        void HidePopup() => popup.IsOpen = false;
+        void OnDeactivated(object? sender, EventArgs e) => HidePopup();
+        void OnLocationChanged(object? sender, EventArgs e) => HidePopup();
+        void OnSizeChanged(object sender, SizeChangedEventArgs e) => HidePopup();
+
+        popup.Opened += (_, _) => Animate(true);
+        popup.Closed += (_, _) => Animate(false);
+        host.MouseEnter += (_, _) => RefreshPopup();
+        host.MouseLeave += (_, _) => RefreshPopup();
+        host.IsKeyboardFocusedChanged += (_, _) => RefreshPopup();
+        host.IsEnabledChanged += (_, _) => { if (!host.IsEnabled) HidePopup(); };
+        host.IsVisibleChanged += (_, _) => { if (!host.IsVisible) HidePopup(); };
+        host.Loaded += (_, _) =>
+        {
+            Deactivated += OnDeactivated;
+            LocationChanged += OnLocationChanged;
+            SizeChanged += OnSizeChanged;
+        };
+        host.Unloaded += (_, _) =>
+        {
+            HidePopup();
+            Deactivated -= OnDeactivated;
+            LocationChanged -= OnLocationChanged;
+            SizeChanged -= OnSizeChanged;
+        };
+        System.Windows.Automation.AutomationProperties.SetName(host, "Стан з’єднання");
+        return host;
     }
 
     private void CloseConnectionPopup()
@@ -126,9 +132,9 @@ public sealed partial class MainWindow
         if (connectionIndicator?.Tag is ConnectionStatusView view) view.Popup.IsOpen = false;
     }
 
-    private void SetConnectionIndicator(Button button, bool online, DateTimeOffset? updated, string? extra = null)
+    private void SetConnectionIndicator(FrameworkElement host, bool online, DateTimeOffset? updated, string? extra = null)
     {
-        if (button.Tag is not ConnectionStatusView view) return;
+        if (host.Tag is not ConnectionStatusView view) return;
         string title = online ? "Онлайн" : "Офлайн";
         string detail = updated is { } at ? "Остання відповідь: " + at.ToLocalTime().ToString("g")
             : "Ще немає відповіді сервера.";
@@ -146,9 +152,8 @@ public sealed partial class MainWindow
         if (view.Message == message) return;
         view.Message = message;
         view.Detail.Text = detail;
-        button.ToolTip = "Стан з’єднання: " + title + ". Натисніть для деталей.";
-        System.Windows.Automation.AutomationProperties.SetName(button, "Стан з’єднання: " + title);
-        System.Windows.Automation.AutomationProperties.SetHelpText(button, detail);
+        System.Windows.Automation.AutomationProperties.SetName(host, "Стан з’єднання: " + title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(host, detail);
     }
 
     private static string ProfileTime(long seconds) => $"{seconds / 60:00}:{seconds % 60:00}";
