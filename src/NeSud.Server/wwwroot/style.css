@@ -1410,3 +1410,16 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 html { scrollbar-gutter: stable both-edges; background: var(--bg); }
 dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 @supports not (scrollbar-gutter: stable) { html { overflow-y: scroll; } }
+
+/* Ranking filters are outside the result scrollport. Its extent cannot resize the page. */
+@media (min-height: 400px) {
+    body:has(#app:not([hidden]) > #ranking:not([hidden])) { height: 100dvh; display: flex; flex-direction: column; }
+    body:has(#app:not([hidden]) > #ranking:not([hidden])) > header { flex: none; }
+    body:has(#app:not([hidden]) > #ranking:not([hidden])) > main,
+    body:has(#app:not([hidden]) > #ranking:not([hidden])) #app { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    #ranking:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    #ranking > h2, #ranking > .rank-filters { flex: none; }
+    #rankrows { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; overflow-anchor: none; }
+}
+#profile-history { height: 320px; overflow: auto; scrollbar-gutter: stable; overflow-anchor: none; }
+#profile-level { width: 100%; min-width: 0; }

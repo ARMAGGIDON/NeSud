@@ -80,14 +80,16 @@ $("challenge-rewards").onclick = () => {
 $("profile-level").onchange = () => {
     profilePage = 0;
     saveRoute();
-    loadProfile().catch (e => message(e.message))
+    loadProfile(false).catch (e => message(e.message))
 };
 $("profile-prev").onclick = () => {
     profilePage = Math.max(0, profilePage - 1);
-    navigate("profile")
+    saveRoute();
+    loadProfile(false).catch(e => message(e.message))
 };
 $("profile-next").onclick = () => {
     profilePage++;
-    navigate("profile")
+    saveRoute();
+    loadProfile(false).catch(e => message(e.message))
 };
 $("calendar-login").onclick = showAuth;

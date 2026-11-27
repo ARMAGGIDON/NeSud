@@ -52,17 +52,30 @@ public sealed partial class MainWindow : Window
         var tableHeader = Stack();
         panel.Children.Add(tableHeader);
         var rows = Stack();
-        panel.Children.Add(rows);
-        Gap(panel);
-        var window = Page("Рейтинг", panel, 560);
+        var status = Stack();
+        var resultBody = Stack();
+        resultBody.Children.Add(status);
+        resultBody.Children.Add(rows);
+        var resultsScroll = new ScrollViewer
+        {
+            Content = resultBody, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        // Only result rows scroll; the filter controls never depend on result count.
+        var layout = new Grid();
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        At(layout, panel, 0, 0);
+        At(layout, resultsScroll, 1, 0);
+        panel.Margin = new Thickness(0, 0, 10, 0);
+        var window = Page("Рейтинг", layout, 560);
         window.Reopen = () => _ = ShowRanking();
         var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         int requestVersion = 0;
         var filterDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
         bool loading = false;
         string? shownFilter = null, shownSignature = null;
-        var status = Stack();
-        panel.Children.Insert(panel.Children.IndexOf(rows), status);
+
         int ActiveMetric() => metric.SelectedIndex == 0 ? 2 : metric.SelectedIndex is 1 or 2 ? 0 : 1;
         void UpdateHeading()
         {
@@ -77,6 +90,7 @@ public sealed partial class MainWindow : Window
             shownFilter = null;
             shownSignature = null;
             UpdateHeading();
+            resultsScroll.ScrollToTop();
             rows.Children.Clear();
             status.Children.Clear();
             status.Children.Add(TableState("Завантаження рейтингу…", loading: true));
