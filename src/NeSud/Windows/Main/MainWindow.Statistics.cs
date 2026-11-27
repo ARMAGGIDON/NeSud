@@ -25,14 +25,7 @@ public sealed partial class MainWindow : Window
     private async Task ShowRanking()
     {
         var panel = Stack();
-        var heading = new StackPanel { Orientation = Orientation.Horizontal };
-        heading.Children.Add(Text("Рейтинг", 24, "Text", true));
-        var indicator = ConnectionIndicator();
-        indicator.Margin = new Thickness(8,0,0,0);
-        heading.Children.Add(indicator);
-        panel.Children.Add(heading);
-        panel.Children.Add(Text("Серверні результати та загальні бали з офлайн-іграми.", 13, "Muted"));
-        DateTimeOffset? updatedAt = null;
+        panel.Children.Add(Text("Рейтинг", 24, "Text", true));
         Gap(panel);
         var metric = new ComboBox { Background = B("Control"), Foreground = B("Text"), BorderBrush = B("Line"), ItemsSource = new[] { "Бали", "Перемоги", "Ідеальні перемоги", "Поточна серія", "Найдовша серія" }, SelectedIndex = 0, Margin = new Thickness(0, 0, 0, 8) };
         var mode = new ComboBox
@@ -62,24 +55,38 @@ public sealed partial class MainWindow : Window
         var window = Page("Рейтинг", panel, 560);
         window.Reopen = () => _ = ShowRanking();
         var refresh = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        int requestVersion = 0;
         bool loading = false;
+        string? shownFilter = null, shownSignature = null;
+        var status = Stack();
+        panel.Children.Insert(panel.Children.IndexOf(rows), status);
         async Task Reload()
         {
-            if (loading || !window.IsVisible) return;
+            if (!window.IsVisible) return;
+            int version = ++requestVersion;
             loading = true;
+            SetDetailLoading(status, "Завантаження рейтингу…");
             try
             {
                 string key = new[] { "score", "wins", "perfect", "current", "streak" }[Math.Max(0, metric.SelectedIndex)];
                 string filter = levelFilter.SelectedIndex > 0?"&difficulty=" + (Difficulty)(levelFilter.SelectedIndex - 1): "";
                 int selectedMode = mode.SelectedIndex;
+                string currentFilter = $"{selectedMode}:{key}:{filter}";
+                if (shownFilter != currentFilter)
+                {
+                    rows.Children.Clear();
+                    shownFilter = currentFilter;
+                    shownSignature = null;
+                }
                 var ranks = await Request<List<AccumulatedRank>>("accumulated?metric=" + key + filter +
                     (selectedMode == 1 ? "&all=true" : ""), token: "");
-                if (!window.IsVisible) return;
+                if (!window.IsVisible || version != requestVersion) return;
+                string signature = System.Text.Json.JsonSerializer.Serialize(ranks);
+                if (signature == shownSignature) return;
+                shownSignature = signature;
                 rows.Children.Clear();
-                void Table(string title, List<AccumulatedRank> data)
+                void Table(List<AccumulatedRank> data)
                 {
-                    rows.Children.Add(Text(title, 18, "Text", true));
-                    Gap(rows, 8);
                     AddPlayerListHeading(rows, "Перемоги / ідеальні", "Серія / рекорд", "Бали");
                     for (int i = 0; i < data.Count; i++)
                     {
@@ -90,28 +97,34 @@ public sealed partial class MainWindow : Window
                     if (data.Count == 0) rows.Children.Add(Text("Ще немає результатів.", 13, "Muted"));
                     Gap(rows, 16);
                 }
-                Table(selectedMode == 1 ? "Загальний рейтинг" : "Серверний рейтинг", ranks);
-                updatedAt = DateTimeOffset.Now;
-                SetConnectionIndicator(indicator, true, updatedAt);
+                Table(ranks);
             }
             catch
             {
-                if (window.IsVisible) SetConnectionIndicator(indicator, false, updatedAt, "Показані дані можуть бути застарілими.");
+                if (window.IsVisible && version == requestVersion)
+                {
+                    SetDetailMessage(status, rows.Children.Count == 0 ? "Не вдалося завантажити рейтинг." : "Не вдалося оновити рейтинг.");
+                    return;
+                }
             }
             finally
             {
-                loading = false;
+                if (version == requestVersion)
+                {
+                    loading = false;
+                    if (status.Children.Count > 0 && status.Children[0] is Border) status.Children.Clear();
+                }
             }
         }
         mode.SelectionChanged += async (_, _) => await Reload();
         metric.SelectionChanged += async (_, _) => await Reload();
         levelFilter.SelectionChanged += async (_, _) => await Reload();
-        refresh.Tick += async (_, _) => await Reload();
+        refresh.Tick += async (_, _) => { if (!loading) await Reload(); };
         window.Loaded += async (_, _) => {
             refresh.Start();
             await Reload();
         };
-        window.Closed += (_, _) => refresh.Stop();
+        window.Closed += (_, _) => { requestVersion++; refresh.Stop(); };
         window.ShowDialog();
         await Task.CompletedTask;
     }
@@ -134,10 +147,12 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(prizes);
         window.Loaded += async (_, _) =>
         {
+            SetDetailLoading(body, "Завантаження турніру…");
             try
             {
                 var w = await Request<WeeklyRanking > ("weekly", token: "");
                 if (!window.IsVisible) return;
+                body.Children.Clear();
                 void Table(string title, List<RankEntry> leaders)
                 {
                     body.Children.Add(Text(title, 18, "Text", true));
@@ -151,8 +166,8 @@ public sealed partial class MainWindow : Window
                     if (leaders.Count == 0) body.Children.Add(Text("Немає результатів.", 13, "Muted"));
                     Gap(body, 12);
                 }
-                Table(w.Week, w.Leaders);
-                Table(w.PreviousWeek ?? "Попередній тиждень", w.PreviousLeaders);
+                Table("Тиждень від " + w.Week, w.Leaders);
+                Table(w.PreviousWeek is null ? "Попередній тиждень" : "Тиждень від " + w.PreviousWeek, w.PreviousLeaders);
                 if (account is not null)
                 {
                     daily = await Request<DailyStatus > ("daily");
@@ -161,7 +176,11 @@ public sealed partial class MainWindow : Window
             }
             catch
             {
-                body.Children.Add(Text("Сервіс недоступний.", 14, "Wrong"));
+                if (window.IsVisible)
+                {
+                    if (body.Children.Count == 1 && body.Children[0] is Border) body.Children.Clear();
+                    body.Children.Add(Text("Сервіс недоступний.", 14, "Wrong"));
+                }
             }
         };
         window.ShowDialog();

@@ -167,7 +167,8 @@ public sealed partial class MainWindow : Window
             ("Час", $"−{g.Seconds / 3}"), ($"Помилки ({g.Mistakes})", $"−{75L * g.Mistakes}"),
             ($"Підказки ({g.Hints})", $"−{150L * g.Hints}"), ($"Кандидати ({g.CandidateChanges})", $"−{g.EffectiveCandidatePenalty}"),
             ($"Автозавершення ({g.AutoFilled})", $"−{g.AutoFillPenalty}"), ("Відновлення життя", $"−{100L * g.LifeRestores}"));
-        SetDetailMessage(resultComparison, win ? "Завантаження статистики…" : "Порівняння доступне для завершених ігор.");
+        if (win) SetDetailLoading(resultComparison, "Завантаження статистики…");
+        else SetDetailMessage(resultComparison, "Порівняння доступне для завершених ігор.");
         Fade(resultCard);
         if (!win) return;
         var id = state.GameId;

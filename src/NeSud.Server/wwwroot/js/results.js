@@ -40,20 +40,23 @@ $("weekly-rewards").onclick = () => {
     $("daily-open").onclick()
 };
 async function loadComparison() {
-    if (!game?.completed || resultKey === game.id) return;
-    const id = game.id, e = epoch;
-    resultKey = id;
+    if (!game?.completed) return;
+    const id = game.id, e = epoch, key = e + ":" + id;
+    if (resultKey === key) return;
+    resultKey = key;
+    comparison = null;
     try {
         const data = await api("comparison?difficulty=" + levelsEnum[game.difficulty] + "&score=" + game.currentScore + "&seconds=" + game.seconds + "&rules=" + game.rulesVersion);
-        if (e === epoch && game?.id === id) {
+        if (!data) throw Error("Порожня відповідь сервера.");
+        if (e === epoch && game?.id === id && resultKey === key) {
             comparison = data;
-            render()
+            render();
         }
     }
     catch {
-        if (game?.id === id) {
-            resultKey = "";
-            $("comparison").textContent = "Не вдалося завантажити порівняння."
+        if (e === epoch && game?.id === id && resultKey === key) {
+            comparison = { failed: true };
+            render();
         }
     }
 }
@@ -65,6 +68,16 @@ function resultRow(parent, label, value) {
     r.append(l, v);
     parent.append(r)
 }
+function loadingIcon(label) {
+    const icon = document.createElement("span");
+    icon.className = "loading-indicator";
+    icon.tabIndex = 0;
+    icon.setAttribute("role", "status");
+    icon.setAttribute("aria-label", label);
+    icon.dataset.tooltip = label;
+    return icon;
+}
+let comparisonView = null;
 function showResult() {
     const done = !!game?.completed, lost = !!game?.finalDefeat && !adPending;
     $("result").hidden = !(done || lost);
@@ -82,12 +95,38 @@ function showResult() {
     b.replaceChildren();
     for (const [label, val] of [["База", game.baseScore], ["Бонус за швидкість", "+" + game.speedBonus], ["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes], ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty], ["Автозавершення (" + game.autoFilled + " клітинок)", "−" + game.autoFillPenalty], ["Відновлення життя", "−" + 100 * game.lifeRestores]]) resultRow(b, label, val);
     const c = $("comparison");
+    const view = [epoch, game.id, done, comparison, online];
+    if (comparisonView?.every((value, i) => value === view[i])) return;
+    comparisonView = view;
     c.replaceChildren();
-    $("comparison-heading").hidden = false;
-    c.hidden = false;
-    if (!done || !comparison?.games) {
-        c.textContent = done ? (comparison ? "Поки недостатньо результатів.": online ? "Завантаження статистики…": "Порівняння недоступне офлайн."): "Порівняння доступне для завершених ігор.";
-        return
+    $("comparison-heading").hidden = !done;
+    c.hidden = !done;
+    c.setAttribute("aria-busy", String(done && !comparison && online));
+    if (!done) return;
+    if (!comparison || comparison.failed) {
+        if (!comparison && online) {
+            c.append(loadingIcon("Завантаження статистики…"));
+        } else {
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.className = "comparison-retry";
+            retry.textContent = "↻";
+            const label = "Не вдалося отримати статистику. Повторити запит";
+            retry.title = label;
+            retry.setAttribute("aria-label", label);
+            retry.disabled = !online;
+            retry.onclick = () => {
+                resultKey = "";
+                void loadComparison();
+                render();
+            };
+            c.append(retry);
+        }
+        return;
+    }
+    if (!comparison.games) {
+        c.textContent = "Поки недостатньо результатів.";
+        return;
     }
     for (const [label, val] of [["Ігор / гравців", comparison.games + " / " + comparison.players], ["Середній час", fmt(Math.round(comparison.averageSeconds))], ["Медіанний час", fmt(Math.round(comparison.medianSeconds))], ["Найкращий час", fmt(comparison.bestSeconds)], ["Середній бал", Math.round(comparison.averageScore)], ["Середні помилки", comparison.averageMistakes.toFixed(1)], ["Середні підказки", comparison.averageHints.toFixed(1)], ["Середні зміни кандидатів", comparison.averageCandidates.toFixed(1)], ["Ваш бал не нижче ніж у", comparison.scorePercentile + "% ігор"], ["Ваш час не довше ніж у", comparison.timePercentile + "% ігор"]]) resultRow(c, label, val)
 }

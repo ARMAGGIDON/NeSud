@@ -1338,8 +1338,6 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 @media (max-width: 560px) { .compact-metrics.penalties { grid-template-columns: repeat(2,minmax(0,1fr)); } #history-level-stats { overflow-x: auto; } #history-level-stats .record { min-width: 540px; } }
 
 .brand-cat { flex: 0 0 auto; color: var(--accent); }
-.connection-indicator { width: 32px; height: 32px; display: inline-grid; place-items: center; color: var(--muted); cursor: help; flex: 0 0 auto; }
-.connection-indicator.connected { color: #4cb884; }
 #profile .profile-tools { align-items: center; }
 #profile-level-stats .record { grid-template-columns: 1.15fr 1.1fr .8fr 1.1fr 1fr 1fr; }
 #profile-active-rows .record { grid-template-columns: 1.5fr 1fr 1fr 1fr; }
@@ -1347,3 +1345,25 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 #profile-level-stats, #profile-active-rows, #profile-history { overflow-x: auto; }
 @media(max-width:650px) { #profile-level-stats .record, #profile-active-rows .record, #profile-history .record { min-width: 540px; } .brand-cat { width: 26px; height: 26px; } }
 #menu .menu-actions > :last-child { grid-column: auto; }
+
+/* Ranking and asynchronous comparison */
+.rank-row { grid-template-columns: 36px minmax(0, 1.6fr) repeat(3,minmax(0,1fr)); align-items: center; padding: 8px 0; }
+#weekly .rank-row { grid-template-columns: 36px minmax(0,2fr) repeat(2,minmax(0,1fr)); }
+.rank-heading { font-size: 12px; color: var(--muted); }
+.rank-row > span:first-child { text-align: center; }
+.rank-place { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 3px; border-radius: 7px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--muted); background: var(--control); }
+.rank-place-1 { background: #f2ce72; color: #473405; }
+.rank-place-2 { background: #d2dbe8; color: #28384c; }
+.rank-place-3 { background: #dca37e; color: #4b291b; }
+.rank-place-top { background: var(--same); color: var(--text); }
+.rank-row .profile-link { max-width: 100%; color: var(--text); font-weight: 600; }
+.rank-row .profile-link:hover, .rank-row .profile-link:focus-visible { color: var(--accent); }
+.rank-row .rank-metric { font-weight: 700; color: var(--accent); }
+.rank-row.own-rank { background: var(--peer); border-radius: 7px; }
+#weekly h3 { margin: 16px 0 8px; }
+.loading-indicator { display: inline-grid; place-items: center; position: relative; width: 28px; height: 28px; color: var(--accent); cursor: help; justify-self: start; margin: 4px; }
+.loading-indicator::before { content: ""; box-sizing: border-box; width: 19px; height: 19px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: loading-spin .8s linear infinite; }
+.loading-indicator:hover::after, .loading-indicator:focus-visible::after { content: attr(data-tooltip); position: absolute; top: calc(100% + 4px); left: 0; z-index: 12; padding: 6px 9px; white-space: nowrap; border: 1px solid var(--line); background: var(--control); color: var(--text); border-radius: 6px; font-size: 12px; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+.comparison-retry { width: 32px; height: 32px; padding: 0; color: var(--accent); font-size: 20px; justify-self: start; }
+@media (max-width: 600px) { .rank-row { grid-template-columns: 28px minmax(0,1.5fr) repeat(3,minmax(0,1fr)); gap: 5px; } #weekly .rank-row { grid-template-columns: 28px minmax(0,2fr) repeat(2,minmax(0,1fr)); } .rank-row .profile-link { gap: 4px; flex-wrap: wrap; } .rank-row .player-avatar { width: 26px; height: 26px; } }

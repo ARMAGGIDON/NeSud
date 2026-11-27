@@ -23,8 +23,36 @@ function emptyList(target, message) {
     empty.textContent = message;
     target.append(empty);
 }
+let rankingRequest = 0;
+function rankList(target, headers, players, metrics, selectedMetric = -1) {
+    const rows = players.map(player => [player.user, ...metrics(player)]);
+    const signature = JSON.stringify([headers, rows, selectedMetric, ownUsername]);
+    if (target.dataset.signature === signature) return;
+    target.dataset.signature = signature;
+    const fragment = document.createDocumentFragment();
+    row(fragment, ["№", "Гравець", ...headers]);
+    fragment.lastElementChild.classList.add("rank-row", "rank-heading");
+    if (selectedMetric >= 0) fragment.lastElementChild.children[selectedMetric + 2].classList.add("rank-metric");
+    if (!rows.length) emptyList(fragment, "Ще немає результатів.");
+    rows.forEach(([user, ...values], i) => {
+        const rank = i + 1;
+        row(fragment, ["", user, ...values]);
+        const line = fragment.lastElementChild;
+        line.classList.add("rank-row");
+        if (ownUsername && user.toLowerCase() === ownUsername.toLowerCase()) line.classList.add("own-rank");
+        const badge = document.createElement("span");
+        badge.className = "rank-place " + (rank <= 3 ? "rank-place-" + rank : rank <= 10 ? "rank-place-top" : "");
+        badge.textContent = rank;
+        badge.title = rank + " місце";
+        line.firstElementChild.append(badge);
+        profileLink(line.children[1], user);
+        if (selectedMetric >= 0) line.children[selectedMetric + 2].classList.add("rank-metric");
+    });
+    target.replaceChildren(fragment);
+}
 function setTab(t) {
     const changed = tab !== t;
+    if (changed) rankingRequest++;
     tab = t;
     $("home-brand").classList.toggle("can-return", t !== "menu");
     watchRankings(t === "ranking" || t === "weekly");
@@ -44,6 +72,7 @@ async function navigate(t) {
     }
     if (t !== tab && t !== "play" && !await pauseForNavigation()) return;
     setTab(t);
+    const request = ++rankingRequest, session = epoch;
     try {
         if (t === "friends") {
             await loadFriends();
@@ -59,40 +88,48 @@ async function navigate(t) {
         }
         if (t === "ranking") {
             const mode = $("rankmode").value, metric = $("rankmetric").value, level = $("ranklevel").value;
-            let ranks = await api("accumulated?all=" + (mode === "all") + "&metric=" + metric + (level ? "&difficulty=" + level: "")), target = $("rankrows");
-            if (tab !== "ranking" || $("rankmode").value !== mode || $("rankmetric").value !== metric || $("ranklevel").value !== level) return;
-            target.replaceChildren();
-            row(target, ["Місце / гравець", "Перемоги / ідеальні", "Серія / рекорд", "Бали"]);
-            if (!ranks.length) emptyList(target, "Ще немає результатів.");
-            ranks.forEach((r, i) => {
-                row(target, [(i + 1) + ". " + r.user, r.wins + " / " + r.perfectWins, r.currentStreak + " / " + r.bestStreak, r.score]);
-                profileLink(target.lastElementChild.firstElementChild, r.user)
-            });
+            const target = $("rankrows"), filter = JSON.stringify([mode, metric, level]);
+            if (target.dataset.filter !== filter) {
+                target.replaceChildren();
+                delete target.dataset.signature;
+                target.dataset.filter = filter;
+            }
+            if (!target.childElementCount) target.append(loadingIcon("Завантаження рейтингу…"));
+            target.setAttribute("aria-busy", "true");
+            const ranks = await api("accumulated?all=" + (mode === "all") + "&metric=" + metric + (level ? "&difficulty=" + level : ""));
+            if (request !== rankingRequest || session !== epoch || tab !== "ranking") return;
+            const active = metric === "score" ? 2 : metric === "wins" || metric === "perfect" ? 0 : 1;
+            rankList(target, ["Перемоги / ідеальні", "Серія / рекорд", "Бали"], ranks,
+                r => [r.wins + " / " + r.perfectWins, r.currentStreak + " / " + r.bestStreak, r.score.toLocaleString("uk-UA")], active);
+            target.setAttribute("aria-busy", "false");
         }
         if (t === "weekly") {
+            const target = $("weeklyrows"), old = $("previous-week");
+            if (!target.childElementCount) target.append(loadingIcon("Завантаження турніру…"));
+            target.setAttribute("aria-busy", "true");
             const w = await api("weekly");
-            if (tab !== "weekly") return;
+            if (request !== rankingRequest || session !== epoch || tab !== "weekly") return;
             $("weekly-title").textContent = "Тиждень від " + w.week;
-            const target = $("weeklyrows");
-            target.replaceChildren();
-            row(target, ["Місце", "Гравець", "Перемоги", "Бали"]);
-            if (!w.leaders.length) emptyList(target, "Ще немає результатів.");
-            w.leaders.forEach((r, i) => {
-                row(target, [i + 1, r.user, r.games, r.score]);
-                profileLink(target.lastElementChild.children[1], r.user)
-            });
-            const old = $("previous-week");
-            old.replaceChildren();
-            row(old, ["Місце", "Гравець", "Перемоги", "Бали"]);
-            if (!w.previousLeaders.length) emptyList(old, "Немає результатів попереднього тижня.");
-            w.previousLeaders.forEach((r, i) => {
-                row(old, [i + 1, r.user, r.games, r.score]);
-                profileLink(old.lastElementChild.children[1], r.user)
-            });
+            $("previous-week-title").textContent = w.previousWeek ? "Тиждень від " + w.previousWeek : "Попередній тиждень";
+            const metrics = r => [r.games.toLocaleString("uk-UA"), r.score.toLocaleString("uk-UA")];
+            rankList(target, ["Перемоги", "Бали"], w.leaders, metrics, 1);
+            rankList(old, ["Перемоги", "Бали"], w.previousLeaders, metrics, 1);
+            target.setAttribute("aria-busy", "false");
             await refreshDaily();
         }
     }catch (e) {
-        message(e.message)
+        if (request !== rankingRequest || session !== epoch || tab !== t) return;
+        if (t === "ranking" || t === "weekly") {
+            const target = $(t === "ranking" ? "rankrows" : "weeklyrows");
+            target.setAttribute("aria-busy", "false");
+            target.querySelector(".loading-indicator")?.remove();
+            target.querySelector(".rank-error")?.remove();
+            const error = document.createElement("p");
+            error.className = "rank-error empty-list";
+            error.textContent = target.childElementCount ? "Не вдалося оновити дані." : "Не вдалося завантажити результати.";
+            target.append(error);
+            delete target.dataset.signature;
+        } else message(e.message);
     }
 }
 $("rankmode").onchange = $("rankmetric").onchange = $("ranklevel").onchange = () => navigate("ranking");

@@ -5,7 +5,6 @@ function accept(data) {
     game = data?.empty ? null : data;
     if (!challengeDay) regularGame = game;
     online = navigator.onLine;
-    if (online) lastConnectionUpdate = new Date();
     clockAnchor = performance.now();
     if (game) {
         selected = Math.max(0, Math.min(80, selected));

@@ -17,14 +17,6 @@ function compactMetrics(target, entries) {
         if (item.lastElementChild.textContent !== String(value)) item.lastElementChild.textContent = value;
     });
 }
-let lastConnectionUpdate = null;
-function updateConnectionIndicator() {
-    const indicator = $("connection-indicator");
-    indicator.classList.toggle("connected", online);
-    const detail = (online ? "Онлайн" : "Офлайн") + (lastConnectionUpdate ? "\nОстання відповідь: " + lastConnectionUpdate.toLocaleString("uk-UA") : "");
-    indicator.title = detail;
-    indicator.setAttribute("aria-label", detail);
-}
 function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
@@ -42,7 +34,6 @@ function updateClock() {
 }
 setInterval(updateClock, 200);
 function render() {
-    updateConnectionIndicator();
     const active = online && game && !game.paused && !game.completed && !game.outOfLives && (!busy || !!pulse) && !adPending;
     $("cover").hidden = !!(online && game && !game.paused && !game.outOfLives);
     $("covertext").textContent = !online ? "Немає з’єднання": game?.outOfLives ? "Поразка": game?.paused ? "Гра на паузі": busy ? "Генеруємо поле…": "Створіть головоломку";
