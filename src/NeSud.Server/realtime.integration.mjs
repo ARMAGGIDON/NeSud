@@ -65,9 +65,26 @@ try {
     await restPush;
     assert.equal((await first.invoke("Snapshot", null, false)).data.paused, true);
     assert.equal(unrelated, 0);
+
+    // The server must preserve other cells' notes when auto-clean is disabled.
+    const fresh = await isolated.invoke("New", 0, null, 0, false, null);
+    assert.equal(fresh.status, 200);
+    const initial = fresh.data;
+    const fill = await isolated.invoke("Move", initial.id, initial.revision, "candidates", 0, 0, false, null, null);
+    assert.equal(fill.status, 200);
+    const before = (await isolated.invoke("Observe", null)).data;
+    assert.ok(before.notes.some(Boolean));
+    const hint = await isolated.invoke("Move", initial.id, before.revision, "hint-keep-notes", 0, 0, false, null, null);
+    assert.equal(hint.status, 200);
+    const after = (await isolated.invoke("Observe", null)).data;
+    assert.equal(after.hints, before.hints + 1);
+    assert.equal(after.notes[after.selected], 0);
+    for (let i = 0; i < 81; i++) {
+        if (i !== after.selected) assert.equal(after.notes[i], before.notes[i], "unexpected note cleanup at " + i);
+    }
     await post("logout", {}, a);
     assert.equal((await first.invoke("Snapshot", null, false)).status, 401);
-    console.log("PASS binary SignalR, guest authorization, isolation, deltas, stale revision, REST push, logout");
+    console.log("PASS binary SignalR, guest authorization, isolation, deltas, stale revision, REST push, keep-notes, logout");
 } finally {
     await Promise.allSettled(connections.map(hub => hub.stop()));
     await Promise.allSettled(tokens.map(token => post("logout", {}, token)));
