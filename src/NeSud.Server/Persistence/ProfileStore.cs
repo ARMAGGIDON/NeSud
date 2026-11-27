@@ -33,10 +33,8 @@ public sealed partial class ServerStore
         long score = 0;
         var perLevel = Enum.GetValues<Difficulty > ().Select(d => new LevelStats(d, 0, 0, 0, 0, 0, 0)).ToArray();
         using (var cmd = Database.Command(c, """
-            SELECT outcome,score,CASE WHEN outcome='completed' AND coalesce(json_extract(payload,'$.game.mistakes'),0)=0
-              AND coalesce(json_extract(payload,'$.game.hints'),0)=0 AND coalesce(json_extract(payload,'$.game.candidateUses'),0)=0
-              AND coalesce(json_extract(payload,'$.game.autoFilled'),0)=0 AND coalesce(json_extract(payload,'$.game.lifeRestores'),0)=0
-              THEN 1 ELSE 0 END,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.seconds'),0) FROM history WHERE name=$n ORDER BY julianday(json_extract(payload,'$.ended')),id
+            SELECT outcome,score,perfect,p.difficulty,seconds FROM history h
+            JOIN history_puzzles p USING(puzzle_id) WHERE name=$n ORDER BY ended_jd,id
             """, ("$n", name)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
@@ -61,9 +59,10 @@ public sealed partial class ServerStore
         using (var cmd = Database.Command(c, "SELECT COUNT(*) FROM challenge_wins WHERE name=$n", ("$n", name))) dailyWins = Convert.ToInt32(cmd.ExecuteScalar());
         var history = new List<PublicGame > ();
         using (var cmd = Database.Command(c, """
-            SELECT payload FROM history
-            WHERE name=$n AND ($d IS NULL OR json_extract(payload,'$.game.puzzle.difficulty')=$d)
-            ORDER BY julianday(json_extract(payload,'$.ended')) DESC,id LIMIT 51 OFFSET $offset
+            SELECT r.payload FROM history h JOIN history_puzzles p USING(puzzle_id)
+            JOIN history_records r ON r.cursor=h.cursor
+            WHERE h.name=$n AND ($d IS NULL OR p.difficulty=$d)
+            ORDER BY h.ended_jd DESC,h.id LIMIT 51 OFFSET $offset
             """, ("$n", name), ("$offset", page * 50), ("$d", difficulty is null?null: (int)difficulty.Value)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
@@ -81,9 +80,7 @@ public sealed partial class ServerStore
         using var c = db.Open();
         long seconds, mistakes, hints;
         using (var cmd = Database.Command(c, """
-            SELECT coalesce(sum(json_extract(payload,'$.game.seconds')),0),
-                coalesce(sum(json_extract(payload,'$.game.mistakes')),0),
-                coalesce(sum(json_extract(payload,'$.game.hints')),0)
+            SELECT coalesce(sum(seconds),0),coalesce(sum(mistakes),0),coalesce(sum(hints),0)
             FROM history WHERE name=$n
             """, ("$n", name)))
         using (var rows = cmd.ExecuteReader())

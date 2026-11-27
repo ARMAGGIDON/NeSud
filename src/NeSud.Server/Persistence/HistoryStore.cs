@@ -11,7 +11,7 @@ public sealed partial class ServerStore
     {
         using var c = db.Open();
         using var cmd = Database.Command(c,
-            "SELECT payload FROM history WHERE name=$n", ("$n", name));
+            "SELECT payload FROM history_records WHERE name=$n", ("$n", name));
         using var rows = cmd.ExecuteReader();
         var result = new List<GameRecord > ();
         while (rows.Read()) result.Add(Database.Decode<GameRecord > (rows.GetString(0)));
@@ -20,7 +20,7 @@ public sealed partial class ServerStore
     public HistoryPage HistorySince(string name, long cursor)
     {
         using var c = db.Open();
-        using var cmd = Database.Command(c, "SELECT rowid,payload FROM history WHERE name=$n AND rowid>$r ORDER BY rowid LIMIT 100", ("$n", name), ("$r", cursor));
+        using var cmd = Database.Command(c, "SELECT cursor,payload FROM history_records WHERE name=$n AND cursor>$r ORDER BY cursor LIMIT 100", ("$n", name), ("$r", cursor));
         using var rows = cmd.ExecuteReader();
         var records = new List<GameRecord > ();
         while (rows.Read())
@@ -36,7 +36,7 @@ public sealed partial class ServerStore
         var result = new List<GameRecord > ();
         foreach (var r in records)
         {
-            using var cmd = Database.Command(c, "SELECT payload FROM history WHERE name=$n AND id=$id", ("$n", name), ("$id", r.Id.ToString()));
+            using var cmd = Database.Command(c, "SELECT payload FROM history_records WHERE name=$n AND id=$id", ("$n", name), ("$id", r.Id.ToString()));
             if (cmd.ExecuteScalar() is string value) result.Add(Database.Decode<GameRecord > (value));
         }
         return result;
@@ -44,10 +44,25 @@ public sealed partial class ServerStore
     private static bool Insert(Microsoft.Data.Sqlite.SqliteConnection c, Microsoft.Data.Sqlite.SqliteTransaction tx,
         string name, GameRecord record)
     {
-        using var cmd = Database.Command(c, "INSERT OR IGNORE INTO history VALUES($n,$id,$src,$score,$o,$p)",
-            ("$n", name), ("$id", record.Id.ToString()), ("$src", record.Source),
-            ("$score", record.Score), ("$o", record.Outcome), ("$p", Database.Encode(record)));
-        cmd.Transaction = tx;
+        using (var existing = Tx(c, tx, "SELECT 1 FROM history WHERE name=$n AND id=$id",
+            ("$n", name), ("$id", record.Id.ToString())))
+            if (existing.ExecuteScalar() is not null) return false;
+        var puzzle = record.Game.Puzzle;
+        string givens = Database.Encode(puzzle.Givens), solution = Database.Encode(puzzle.Solution);
+        using (var add = Tx(c, tx, """
+            INSERT INTO history_puzzles(givens,solution,difficulty) VALUES($g,$s,$d)
+            ON CONFLICT(givens,solution,difficulty) DO NOTHING
+            """, ("$g", givens), ("$s", solution), ("$d", (int)puzzle.Difficulty))) add.ExecuteNonQuery();
+        using var cmd = Tx(c, tx, """
+            INSERT INTO history(name,id,source,score,outcome,started,ended,challenge_day,puzzle_id,game)
+            VALUES($n,$id,$src,$score,$o,$started,$ended,$day,
+                (SELECT puzzle_id FROM history_puzzles WHERE givens=$g AND solution=$s AND difficulty=$d),
+                json_remove($game,'$.puzzle'))
+            ON CONFLICT(name,id) DO NOTHING
+            """, ("$n", name), ("$id", record.Id.ToString()), ("$src", record.Source),
+            ("$score", record.Score), ("$o", record.Outcome), ("$started", record.Started.ToString("O")),
+            ("$ended", record.Ended.ToString("O")), ("$day", record.ChallengeDay),
+            ("$g", givens), ("$s", solution), ("$d", (int)puzzle.Difficulty), ("$game", Database.Encode(record.Game)));
         return cmd.ExecuteNonQuery() == 1;
     }
     public void Upload(string name, List<GameRecord> records)

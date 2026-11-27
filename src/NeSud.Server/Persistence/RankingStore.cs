@@ -12,10 +12,10 @@ public sealed partial class ServerStore
         using var c = db.Open();
         using var cmd = Database.Command(c, """
             SELECT h.name,COUNT(*),SUM(h.score),a.username FROM history h JOIN account_profiles a ON a.name=h.name
-            WHERE ($all=1 OR h.source='web') AND h.outcome='completed'
+            WHERE h.outcome='completed' AND ($all=1 OR h.source='web')
             AND NOT EXISTS(SELECT 1 FROM speed_audit v WHERE v.name=h.name AND v.id=h.id AND v.flagged=1)
             GROUP BY h.name,a.username ORDER BY SUM(h.score) DESC,h.name LIMIT 100
-            """, ("$all", all ? 1 : 0));
+            """.Replace("($all=1 OR h.source='web')", all ? "1=1" : "h.source='web'"));
         using var rows = cmd.ExecuteReader();
         var result = new List<RankEntry > ();
         while (rows.Read()) result.Add(new(rows.GetString(3), rows.GetInt32(1), rows.GetInt64(2)));
@@ -25,26 +25,26 @@ public sealed partial class ServerStore
     {
         using var c = db.Open();
         using var cmd = Database.Command(c, """
-            SELECT h.name,h.score,json_extract(h.payload,'$.game.seconds'),json_extract(h.payload,'$.game.mistakes'),json_extract(h.payload,'$.game.hints'),coalesce(json_extract(h.payload,'$.game.candidateChanges'),0) FROM history h WHERE h.source='web' AND h.outcome='completed'
-            AND json_extract(h.payload,'$.game.puzzle.difficulty')=$d
-            AND coalesce(json_extract(h.payload,'$.game.rulesVersion'),0)=$r
-            AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=h.name AND a.id=h.id AND a.flagged=1)
-            """, ("$d", (int)level), ("$r", rules));
+            WITH eligible AS (
+                SELECT h.name,h.score,h.seconds,h.mistakes,h.hints,h.candidate_changes
+                FROM history h JOIN history_puzzles p USING(puzzle_id)
+                WHERE h.source='web' AND h.outcome='completed' AND p.difficulty=$d AND h.rules=$r
+                AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=h.name AND a.id=h.id AND a.flagged=1)
+            ), ordered AS (
+                SELECT *,row_number() OVER (ORDER BY seconds) AS pos,count(*) OVER () AS n FROM eligible
+            )
+            SELECT count(*),count(DISTINCT name),avg(seconds),
+                avg(CASE WHEN pos IN ((n+1)/2,(n+2)/2) THEN seconds END),
+                min(seconds),avg(score),avg(mistakes),avg(hints),avg(candidate_changes),
+                sum(score<=$score),sum(seconds>=$seconds)
+            FROM ordered
+            """, ("$d", (int)level), ("$r", rules), ("$score", score), ("$seconds", seconds));
         using var rows = cmd.ExecuteReader();
-        var records = new List < (int Score, int Seconds, int Mistakes, int Hints, long CandidateChanges) > ();
-        var users = new HashSet<string > ();
-        while (rows.Read())
-        {
-            users.Add(rows.GetString(0));
-            records.Add((rows.GetInt32(1), rows.GetInt32(2), rows.GetInt32(3), rows.GetInt32(4), rows.GetInt64(5)));
-        }
-        if (records.Count == 0) return new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        var times = records.Select(r => r.Seconds).Order().ToArray();
-        int n = times.Length;
-        double median = ((long)times[(n - 1) / 2] + times[n / 2]) / 2.0;
-        return new(n, users.Count, times.Average(), median, times[0], records.Average(r => r.Score),
-            records.Average(r => r.Mistakes), records.Average(r => r.Hints), records.Average(r => r.CandidateChanges),
-            (int)Math.Round(100.0 * records.Count(r => r.Score <= score) / n),
-            (int)Math.Round(100.0 * times.Count(t => t >= seconds) / n));
+        rows.Read();
+        int n = rows.GetInt32(0);
+        if (n == 0) return new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new(n, rows.GetInt32(1), rows.GetDouble(2), rows.GetDouble(3), rows.GetInt32(4),
+            rows.GetDouble(5), rows.GetDouble(6), rows.GetDouble(7), rows.GetDouble(8),
+            (int)Math.Round(100.0 * rows.GetInt64(9) / n), (int)Math.Round(100.0 * rows.GetInt64(10) / n));
     }
 }

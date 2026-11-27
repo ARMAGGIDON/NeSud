@@ -70,7 +70,7 @@ public sealed partial class ServerStore
         using var c = db.Open();
         using var cmd = Database.Command(c, """
             SELECT username,email,verified,invite,avatar IS NOT NULL,
-                (SELECT count(*) FROM referral_rewards WHERE inviter=$n)
+                (SELECT count(*) FROM referral_rewards r JOIN account_profiles p ON p.name=r.invited WHERE p.referred_by=$n)
             FROM account_profiles WHERE name=$n
             """, ("$n", name));
         using var rows = cmd.ExecuteReader();
@@ -144,8 +144,8 @@ public sealed partial class ServerStore
                 if (verify.ExecuteNonQuery() != 1) return false;
 
             using var reward = Tx(c, tx, """
-                INSERT OR IGNORE INTO referral_rewards(invited,inviter,rewarded_at)
-                SELECT p.name,p.referred_by,$t FROM account_profiles p
+                INSERT OR IGNORE INTO referral_rewards(invited,rewarded_at)
+                SELECT p.name,$t FROM account_profiles p
                 JOIN account_profiles inviter ON inviter.name=p.referred_by
                 WHERE p.name=$n AND p.name<>inviter.name AND inviter.verified=1
                 """, ("$n", name), ("$t", now));
@@ -153,8 +153,8 @@ public sealed partial class ServerStore
             {
                 using var credit = Tx(c, tx, """
                     INSERT INTO wallet(name,kind,amount)
-                    SELECT inviter,'hint',3 FROM referral_rewards WHERE invited=$n
-                    UNION ALL SELECT inviter,'candidates',3 FROM referral_rewards WHERE invited=$n
+                    SELECT referred_by,'hint',3 FROM account_profiles WHERE name=$n
+                    UNION ALL SELECT referred_by,'candidates',3 FROM account_profiles WHERE name=$n
                     ON CONFLICT(name,kind) DO UPDATE SET amount=amount+excluded.amount
                     """, ("$n", name));
                 credit.ExecuteNonQuery();
@@ -167,7 +167,7 @@ public sealed partial class ServerStore
     public string? RewardedInviter(string invited)
     {
         using var c = db.Open();
-        using var cmd = Database.Command(c, "SELECT inviter FROM referral_rewards WHERE invited=$n", ("$n", invited));
+        using var cmd = Database.Command(c, "SELECT p.referred_by FROM referral_rewards r JOIN account_profiles p ON p.name=r.invited WHERE r.invited=$n", ("$n", invited));
         return cmd.ExecuteScalar() as string;
     }
 
