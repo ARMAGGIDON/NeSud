@@ -1386,13 +1386,15 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 #game-progress::-moz-progress-bar { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .game-settings .switch-row input::after { transition: none; } }
 
-/* Search results have their own bounded region, independent of friend sections. */
-#player-form { display: grid; grid-template-columns: minmax(0,1fr) auto; max-width: 520px; align-items: stretch; gap: 8px; }
+/* Floating search results do not participate in page layout. */
+#player-form { display: grid; grid-template-columns: minmax(0,1fr) auto; max-width: 520px; align-items: stretch; gap: 8px; margin-bottom: 18px; }
+.player-search-anchor { position: relative; min-width: 0; }
 #player-search { min-width: 0; width: 100%; box-sizing: border-box; }
-.player-search-area { margin: 10px 0 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-#player-search-status { display: block; color: var(--muted); line-height: 18px; }
-#player-results { height: 84px; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-top: 5px; box-sizing: border-box; }
-#player-results .profile-link { flex: 0 0 auto; margin: 0; }
+.player-search-area { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--control); box-shadow: 0 8px 24px #0004; }
+#player-search-status { display: block; color: var(--muted); line-height: 18px; padding: 2px 4px; }
+#player-results { max-height: 240px; overflow-y: auto; display: grid; gap: 3px; }
+#player-results .profile-link { width: 100%; margin: 0; padding: 6px; text-align: left; border-radius: 6px; }
+#player-results .profile-link:hover, #player-results .profile-link:focus-visible { background: var(--peer); }
 .friends-section { margin: 0 0 16px; }
 .friends-section h3 { margin: 0 0 6px; }
 .friends-empty { color: var(--muted); }

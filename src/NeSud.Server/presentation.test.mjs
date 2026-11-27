@@ -102,42 +102,46 @@ test("ranking keeps separate places before player identities and reuses unchange
     assert.equal(target.children[1], rows[0]);
 });
 
-test("friend search ignores a stale response and excludes the current user", async () => {
+test("floating search ignores stale results and does not alter friend sections", async () => {
     const elements = new Map(), requests = [];
     const $ = id => {
-        if (!elements.has(id)) elements.set(id, Object.assign(new Element(), { value: "", addEventListener() {} }));
+        if (!elements.has(id)) elements.set(id, Object.assign(new Element(), { value: "", addEventListener() {}, setAttribute() {} }));
         return elements.get(id);
     };
     const document = {
         createElement: () => new Element(),
         createTextNode: text => ({ textContent: text }),
-        createDocumentFragment: () => Object.assign(new Element(), { fragment: true })
+        createDocumentFragment: () => Object.assign(new Element(), { fragment: true }),
+        addEventListener() {}
     };
-    const api = path => {
-        const request = deferred();
-        requests.push({ path, ...request });
-        return request.promise;
-    };
-    const load = new Function("$", "document", "api", `
+    const api = path => { const request = deferred(); requests.push({ path, ...request }); return request.promise; };
+    const app = new Function("$", "document", "api", "clearTimeout", `
         let tab = "friends", epoch = 0, guestMode = false, verifiedAccount = true, ownUsername = "self";
         const playerAvatar = () => document.createElement("span");
         const message = () => {};
         ${read("friends.js")}
-        return loadFriends;
-    `)($, document, api);
-    $("player-search").value = "old";
-    const old = load();
-    $("player-search").value = "new";
-    const latest = load();
-    requests[2].resolve([]);
-    requests[3].resolve(["SELF", "new-player"]);
-    await latest;
+        return { searchPlayers, loadFriends, closePlayerSearch };
+    `)($, document, api, () => {});
+    const friends = app.loadFriends();
     requests[0].resolve([]);
+    await friends;
+    const sections = $("friend-list").children;
+    $("player-search").value = "old";
+    const old = app.searchPlayers();
+    $("player-search").value = "new";
+    const latest = app.searchPlayers();
+    requests[2].resolve(["SELF", "new-player"]);
+    await latest;
     requests[1].resolve(["old-player"]);
     await old;
-    const rows = $("player-results").children;
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].children[1].textContent, "new-player");
-    assert.equal($("player-search-status").textContent, "Знайдено: 1");
-    assert.equal($("friend-list").children.length, 3);
+    assert.equal($("player-results").children.length, 1);
+    assert.equal($("player-results").children[0].children[1].textContent, "new-player");
+    assert.equal($("friend-list").children, sections);
+    assert.equal($("player-search-popup").hidden, false);
+    const pending = app.searchPlayers();
+    app.closePlayerSearch();
+    requests[3].resolve(["late-player"]);
+    await pending;
+    assert.equal($("player-search-popup").hidden, true);
+    assert.equal($("player-results").children.length, 0);
 });

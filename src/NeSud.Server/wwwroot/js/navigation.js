@@ -64,6 +64,7 @@ function setTab(t) {
 }
 
 async function navigate(t) {
+    if (t !== "friends") closePlayerSearch();
     if (guestMode && (t === "challenge" || t === "friends")) return;
     if (t === "friends") {
         try {

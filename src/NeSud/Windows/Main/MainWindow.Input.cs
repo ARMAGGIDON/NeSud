@@ -26,6 +26,11 @@ public sealed partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
+            if (dismissPlayerSearch?.Invoke() == true)
+            {
+                e.Handled = true;
+                return;
+            }
             var connection = (Keyboard.FocusedElement as FrameworkElement)?.Tag as ConnectionStatusView;
             if (connection?.Popup.IsOpen != true)
                 connection = connectionIndicator?.Tag as ConnectionStatusView;
