@@ -60,15 +60,27 @@ async function openProfile(user = null) {
     $("profile-level").value = "";
     await navigate("profile")
 }
+let profileLoadVersion = 0;
 async function loadProfile() {
-    const user = profileUser, page = profilePage, e = epoch;
-    const level = $("profile-level").value;
+    const user = profileUser, page = profilePage, e = epoch, version = ++profileLoadVersion;
+    const level = $("profile-level").value, own = !guestMode && !user;
+    const current = () => tab === "profile" && profileUser === user && profilePage === page &&
+        epoch === e && $("profile-level").value === level && version === profileLoadVersion;
     const p = await api("profile?page=" + page + (user ? "&user=" + encodeURIComponent(user): "") + (level ? "&difficulty=" + level: ""));
-    if (tab !== "profile" || profileUser !== user || profilePage !== page || epoch !== e || $("profile-level").value !== level) return;
+    if (!current()) return;
+    let details = null, detailError = null, friends = null;
+    if (own) {
+        try { details = await api("profile/own"); }
+        catch (error) { detailError = error.message; }
+    } else if (!guestMode && user && p.verified && verifiedAccount && p.user !== ownUsername) {
+        try { friends = await api("friends"); }
+        catch (error) { message(error.message); }
+    }
+    if (!current()) return;
+    // Update the visible sections together, rather than shrinking the page between awaits.
     $("profile-name").textContent = p.user;
     $("profile-verified").hidden = !p.verified;
     setPlayerAvatar($("profile-avatar"), p.user, !!p.avatar);
-    const own = !guestMode && !user;
     $("profile-settings").hidden = !own;
     $("profile-settings-open").textContent = p.verified ? "Налаштування профілю" : "Підтвердити пошту";
     $("avatar-edit").hidden = !own || !p.verified;
@@ -77,29 +89,20 @@ async function loadProfile() {
     const metrics = [["Ігор", p.games], ["Перемог", p.wins], ["Ідеальних", p.perfectWins],
         ["Балів", p.score], ["Серія / рекорд", p.currentStreak + " / " + p.bestStreak], ["Щоденних перемог", p.dailyWins]];
     $("profile-active").hidden = !own;
-    $("profile-active-rows").replaceChildren();
-    statCards($("profile-stats"), metrics);
-    if (own) {
-        try {
-            const details = await api("profile/own");
-            if (tab !== "profile" || epoch !== e || profileUser !== user || profilePage !== page || $("profile-level").value !== level) return;
-            statCards($("profile-stats"), [...metrics, ["Час", fmt(details.seconds)], ["Помилок", details.mistakes], ["Підказок", details.hints]]);
-            renderActiveGames(details.active);
-        } catch (error) {
-            if (tab === "profile" && epoch === e && profileUser === user) emptyList($("profile-active-rows"), error.message);
-        }
+    if (details) {
+        metrics.push(["Час", fmt(details.seconds)], ["Помилок", details.mistakes], ["Підказок", details.hints]);
+        renderActiveGames(details.active);
+    } else {
+        $("profile-active-rows").replaceChildren();
+        if (detailError) emptyList($("profile-active-rows"), detailError);
     }
+    statCards($("profile-stats"), metrics);
     const stats = $("profile-level-stats");
     stats.replaceChildren();
     row(stats, ["Складність", "Перемоги / ігри", "Ідеальні", "Серія / рекорд", "Бали", "Найкращий час"]);
     for (const s of p.byDifficulty || []) row(stats, [levels[s.difficulty], s.wins + " / " + s.games, s.perfectWins, s.currentStreak + " / " + s.bestStreak, s.score, s.bestSeconds == null ? "Немає" : fmt(s.bestSeconds)]);
     $("profile-friend").replaceChildren();
-    if (!guestMode && user && p.verified && verifiedAccount && p.user !== ownUsername) {
-        if (tab !== "profile" || epoch !== e || profileUser !== user) return;
-        const friends = await api("friends");
-        if (tab !== "profile" || epoch !== e || profileUser !== user) return;
-        friendActions($("profile-friend"), user, friends.find(f => f.user === user)?.status, loadProfile)
-    }
+    if (friends) friendActions($("profile-friend"), user, friends.find(f => f.user === user)?.status, loadProfile);
     drawCups($("profile-cups"), p.cups);
     const target = $("profile-history");
     target.replaceChildren();

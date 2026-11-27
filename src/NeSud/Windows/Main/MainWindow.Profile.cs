@@ -70,34 +70,50 @@ public sealed partial class MainWindow
         {
             if (loading) { reloadPending = true; return; }
             loading = true;
+            int requestedPage = page, requestedLevel = filter.SelectedIndex;
+            bool Current() => window.IsVisible && sessionToken == account?.Token && scope == Scope &&
+                page == requestedPage && filter.SelectedIndex == requestedLevel;
             prev.IsEnabled = next.IsEnabled = false;
             try
             {
                 bool local = own && account is null;
                 if (own && account is not null && !reachable) _ = Probe();
                 if (own && account is not null && reachable) await Sync();
-                if (!window.IsVisible || sessionToken != account?.Token || scope != Scope) return;
+                if (!Current()) return;
                 PublicProfile p;
                 OwnProfileDetails? details = null;
                 try
                 {
                     if (local) throw new InvalidOperationException("Локальний профіль");
-                    p = await Request<PublicProfile>("profile?page=" + page +
+                    p = await Request<PublicProfile>("profile?page=" + requestedPage +
                     (user is null ? "" : "&user=" + Uri.EscapeDataString(user)) +
-                    (filter.SelectedIndex > 0 ? "&difficulty=" + (Difficulty)(filter.SelectedIndex - 1) : ""));
+                    (requestedLevel > 0 ? "&difficulty=" + (Difficulty)(requestedLevel - 1) : ""));
                     if (own) details = await Request<OwnProfileDetails>("profile/own");
                 }
                 catch when (own)
                 {
                     local = true;
-                    (p, details) = LocalProfile(scope, page, filter.SelectedIndex);
+                    (p, details) = LocalProfile(scope, requestedPage, requestedLevel);
                 }
                 if (own && !local && store.History(scope, true).Count > 0)
                 {
                     local = true;
-                    (p, details) = LocalProfile(scope, page, filter.SelectedIndex);
+                    (p, details) = LocalProfile(scope, requestedPage, requestedLevel);
                 }
-                if (!window.IsVisible || sessionToken != account?.Token || scope != Scope) return;
+                if (!Current()) return;
+                List<FriendEntry>? links = null;
+                if (!own && account is not null && p.Verified &&
+                    !string.Equals(p.User, account.Username ?? account.User, StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if ((await Request<AccountSettings>("account/settings")).Verified)
+                            links = await Request<List<FriendEntry>>("friends");
+                    }
+                    catch { /* The profile remains available when friend actions cannot be loaded. */ }
+                }
+                if (!Current()) return;
+                // Commit the profile in one dispatcher turn, after all requests have completed.
                 if (own && !local && account is not null && account.Username != p.User)
                 {
                     account = account with { Username = p.User };
@@ -178,22 +194,16 @@ public sealed partial class MainWindow
                 history.Children.Add(games);
                 if (p.History.Count == 0) history.Children.Add(Text("Ігор ще немає.", 13, "Muted"));
                 friendActions.Children.Clear();
-                if (!own && account is not null && p.Verified &&
-                    !string.Equals(p.User, account.Username ?? account.User, StringComparison.OrdinalIgnoreCase) &&
-                    (await Request<AccountSettings>("account/settings")).Verified)
-                {
-                    var links = await Request<List<FriendEntry>>("friends");
-                    if (!window.IsVisible || sessionToken != account?.Token) return;
+                if (links is not null)
                     AddFriendActions(friendActions, p.User, links.FirstOrDefault(x => x.User == p.User)?.Status, Load);
-                }
                 prev.IsEnabled = page > 0;
                 next.IsEnabled = p.HasMore;
             }
             catch (Exception ex)
             {
-                if (!window.IsVisible) return;
-                body.Children.Clear();
-                body.Children.Add(Text(ex.Message, 14, "Wrong"));
+                if (!Current()) return;
+                if (body.Children.Count == 0) body.Children.Add(Text(ex.Message, 14, "Wrong"));
+                else Dialog("Профіль", ex.Message, false);
                 prev.IsEnabled = page > 0;
             }
             finally
