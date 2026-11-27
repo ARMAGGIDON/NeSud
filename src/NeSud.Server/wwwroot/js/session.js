@@ -14,7 +14,11 @@ function accept(data) {
             comparison = null;
             $("result-difficulty").value = String(game.difficulty)
         }
-        if (game.completed) loadComparison();
+        if (game.completed) {
+            loadComparison();
+            if (previousGame?.id === game.id && !previousGame.completed)
+                void showVictoryReward(game.id, challengeDay, epoch);
+        }
     }
     render();
     if (game && previousGame?.id === game.id) {

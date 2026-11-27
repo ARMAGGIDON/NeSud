@@ -112,6 +112,12 @@ public sealed partial class MainWindow : Window
         else status.Text = "";
         Render();
         Save();
+        if (G.Completed && account is not null && (state.GameScope ?? "") == Scope)
+        {
+            pendingWinReward = state.GameId;
+            nextSync = DateTimeOffset.MinValue;
+            _ = Sync();
+        }
         FocusCell();
         if (oldLives > G.Lives) Fade(lives);
         for (int i = 0; i < 81; i++) if (before[i] != G.Values[i] && G.Values[i] != 0)

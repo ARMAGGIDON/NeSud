@@ -37,8 +37,47 @@ async function spend(kind) {
         await refreshDaily()
     }
 }
+let automaticRewardDay = null;
+let rewardAttempt = null;
+let pendingRewardGame = null;
+function resourceIcon(kind) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.classList.add("resource-icon");
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", kind === "hint" ? "M9 18h6m-5 3h4M8 16v-2C1 8 6 1 12 1s11 7 4 13v2z" : "M3 3h18v18H3zM9 3v18m6-18v18M3 9h18M3 15h18");
+    svg.append(path);
+    return svg;
+}
+function giftArt() {
+    const art = document.createElement("span");
+    art.className = "gift-art";
+    for (const part of ["gift-box", "gift-prize", "gift-lid"]) {
+        const element = document.createElement("span");
+        element.className = part;
+        art.append(element);
+    }
+    return art;
+}
+async function showVictoryReward(id, day, e) {
+    if (guestMode || !online || !token) return;
+    const key = e + ":" + id;
+    if (pendingRewardGame === key) return;
+    pendingRewardGame = key;
+    await refreshDaily();
+    if (epoch !== e || game?.id !== id || !game.completed || tab !== "play" || document.querySelector("dialog[open]")) return;
+    if (!daily?.packs.some(p => day ? p.milestone === "challenge" && p.day === day : !["weekly", "challenge"].includes(p.milestone))) return;
+    dailyMode = day ? "challenge" : "win";
+    automaticRewardDay = day;
+    revealed = false;
+    rewardAttempt = null;
+    $("daily-result").textContent = "";
+    $("daily").showModal();
+    drawDaily();
+}
 function matchesPack(p) {
-    return dailyMode === "weekly" ? p.milestone === "weekly": dailyMode === "challenge" ? p.milestone === "challenge": !["weekly", "challenge"].includes(p.milestone)
+    return dailyMode === "weekly" ? p.milestone === "weekly": dailyMode === "challenge" ? p.milestone === "challenge" && (!automaticRewardDay || p.day === automaticRewardDay): !["weekly", "challenge"].includes(p.milestone)
 }
 function drawDaily() {
     $("daily-heading").textContent = dailyMode === "weekly" ? "Призи турніру": dailyMode === "challenge" ? "Нагороди щоденних ігор": "Щоденні нагороди";
@@ -55,7 +94,7 @@ function drawDaily() {
         label.textContent = resourceNames[kind];
         amount.textContent = balance(kind);
         b.className = "wallet-resource";
-        b.append(label, amount);
+        b.append(resourceIcon(kind), label, amount);
         b.title = "Використати ресурс";
         b.setAttribute("aria-label", resourceNames[kind] + ": " + balance(kind) + ". Використати");
         const count = kind === "life" ? game?.lives: kind === "hint" ? game?.hintCredits: game?.candidateCredits;
@@ -73,15 +112,20 @@ function drawDaily() {
     for (let i = 0; i < 3; i++) {
         const b = document.createElement("button");
         b.className = "mystery-card";
-        b.textContent = "?";
-        b.setAttribute("aria-label", "Вибрати картку " + (i + 1));
-        b.disabled = dailyBusy;
+        b.append(giftArt());
+        const caption = document.createElement("span");
+        caption.className = "gift-caption";
+        caption.textContent = "Подарунок " + (i + 1);
+        b.append(caption);
+        b.setAttribute("aria-label", "Відкрити подарунок " + (i + 1));
+        b.disabled = dailyBusy || (rewardAttempt !== null && rewardAttempt !== i);
         b.onclick = () => chooseCard(pack, i);
         cards.append(b)
     }
 }
 async function chooseCard(pack, card) {
-    if (dailyBusy) return;
+    if (dailyBusy || (rewardAttempt !== null && rewardAttempt !== card)) return;
+    rewardAttempt = card;
     dailyBusy = true;
     drawDaily();
     try {
@@ -90,8 +134,11 @@ async function chooseCard(pack, card) {
         revealed = true;
         const cards = $("daily-cards");
         Array.from(cards.children).forEach((b, i) => {
-            b.textContent = i === card ? resourceNames[r.item.kind] + " ×" + r.item.amount: "?";
-            b.classList.toggle("revealed", i === card);
+            if (i === card) {
+                b.querySelector(".gift-prize").append(resourceIcon(r.item.kind));
+                b.querySelector(".gift-caption").textContent = "×" + r.item.amount;
+                b.classList.add("revealed");
+            } else b.classList.add("unchosen");
             b.disabled = true
         });
         $("daily-result").textContent = "Отримано: " + resourceNames[r.item.kind] + " ×" + r.item.amount;
@@ -100,6 +147,8 @@ async function chooseCard(pack, card) {
         next.textContent = "Далі";
         next.onclick = () => {
             revealed = false;
+            rewardAttempt = null;
+            $("daily-result").textContent = "";
             drawDaily()
         };
         cards.append(next);
@@ -120,6 +169,9 @@ $("daily-open").onclick = async() => {
     }
     if (dailyMode === "win" && !game?.completed) return;
     if (!await pauseForNavigation()) return;
+    if ($("daily").open) return;
+    automaticRewardDay = null;
+    rewardAttempt = null;
     revealed = false;
     $("daily-result").textContent = "";
     $("daily").showModal();

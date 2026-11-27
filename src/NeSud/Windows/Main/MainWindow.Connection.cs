@@ -93,6 +93,13 @@ public sealed partial class MainWindow : Window
                 {
                     daily = updated;
                     Render();
+                    if (pendingWinReward != Guid.Empty && G?.Completed == true &&
+                        state.GameId == pendingWinReward && (state.GameScope ?? "") == scope &&
+                        !store.History(scope, true).Any(r => r.Id == pendingWinReward))
+                    {
+                        var id = pendingWinReward;
+                        _ = Dispatcher.BeginInvoke(new Action(() => _ = ShowWinReward(id)));
+                    }
                 }
             }
         }

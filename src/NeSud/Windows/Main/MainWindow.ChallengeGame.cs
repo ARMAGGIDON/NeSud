@@ -284,7 +284,13 @@ public sealed partial class MainWindow
                 string wireAction = !state.AutoClean && action is ("enter" or "hint") ? action + "-keep-notes" : action;
                 var g = await Request<OnlineGameView > ("web/action", new { id = game.Id, revision = game.Revision,
                     action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : note || temporaryNote, reward, challengeDay = day });
+                bool wonNow = game?.Completed != true && g.Completed;
                 Accept(g);
+                if (wonNow && window.IsVisible)
+                {
+                    var wonId = g.Id;
+                    _ = Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) _ = ShowWinReward(wonId, day); }));
+                }
                 if (action != "hint")selected = cell;
                 return true;
             }
