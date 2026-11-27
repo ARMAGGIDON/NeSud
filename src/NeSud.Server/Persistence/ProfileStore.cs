@@ -36,7 +36,7 @@ public sealed partial class ServerStore
             SELECT outcome,score,CASE WHEN outcome='completed' AND coalesce(json_extract(payload,'$.game.mistakes'),0)=0
               AND coalesce(json_extract(payload,'$.game.hints'),0)=0 AND coalesce(json_extract(payload,'$.game.candidateUses'),0)=0
               AND coalesce(json_extract(payload,'$.game.autoFilled'),0)=0 AND coalesce(json_extract(payload,'$.game.lifeRestores'),0)=0
-              THEN 1 ELSE 0 END,json_extract(payload,'$.game.puzzle.difficulty') FROM history WHERE name=$n ORDER BY julianday(json_extract(payload,'$.ended')),id
+              THEN 1 ELSE 0 END,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.seconds'),0) FROM history WHERE name=$n ORDER BY julianday(json_extract(payload,'$.ended')),id
             """, ("$n", name)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
@@ -55,7 +55,8 @@ public sealed partial class ServerStore
             var old = perLevel[i];
             int current = won?old.CurrentStreak + 1: 0;
             perLevel[i] = old with { Games = old.Games + 1, Wins = old.Wins + (won?1: 0), PerfectWins = old.PerfectWins + rows.GetInt32(2),
-                Score = old.Score + rows.GetInt64(1), CurrentStreak = current, BestStreak = Math.Max(old.BestStreak, current) };
+                Score = old.Score + rows.GetInt64(1), CurrentStreak = current, BestStreak = Math.Max(old.BestStreak, current),
+                BestSeconds = won ? Math.Min(old.BestSeconds ?? int.MaxValue, rows.GetInt32(4)) : old.BestSeconds };
         }
         using (var cmd = Database.Command(c, "SELECT COUNT(*) FROM challenge_wins WHERE name=$n", ("$n", name))) dailyWins = Convert.ToInt32(cmd.ExecuteScalar());
         var history = new List<PublicGame > ();
@@ -74,5 +75,39 @@ public sealed partial class ServerStore
         bool more = history.Count > 50;
         if (more)history.RemoveAt(50);
         return new(label, games, wins, perfect, streak, best, score, dailyWins, Cups(c, name), history, more, perLevel.ToList(), verified, avatar ? "/api/avatar?user=" + Uri.EscapeDataString(label) : null);
+    }
+    public OwnProfileDetails OwnDetails(string name)
+    {
+        using var c = db.Open();
+        long seconds, mistakes, hints;
+        using (var cmd = Database.Command(c, """
+            SELECT coalesce(sum(json_extract(payload,'$.game.seconds')),0),
+                coalesce(sum(json_extract(payload,'$.game.mistakes')),0),
+                coalesce(sum(json_extract(payload,'$.game.hints')),0)
+            FROM history WHERE name=$n
+            """, ("$n", name)))
+        using (var rows = cmd.ExecuteReader())
+        {
+            rows.Read();
+            seconds = rows.GetInt64(0);
+            mistakes = rows.GetInt64(1);
+            hints = rows.GetInt64(2);
+        }
+        var active = new List<ActiveGameInfo>();
+        void Add(WebGame session)
+        {
+            if (session.Game.Completed || session.Game.FinalDefeat(DateTimeOffset.UtcNow)) return;
+            active.Add(new(session.Id, "web", session.ChallengeDay, session.Game.Puzzle.Difficulty,
+                session.Game.Seconds, session.LastSeen, session.Game.Paused));
+        }
+        if (Session(name) is { } regular) Add(regular);
+        using (var cmd = Database.Command(c, "SELECT day,payload FROM challenge_sessions WHERE name=$n", ("$n", name)))
+        using (var rows = cmd.ExecuteReader())
+            while (rows.Read())
+                if (ChallengeAllowed(rows.GetString(0))) Add(Database.Decode<WebGame>(rows.GetString(1)));
+        foreach (var draft in Drafts(name))
+            if (!draft.Game.Completed && !draft.Game.FinalDefeat(DateTimeOffset.UtcNow))
+                active.Add(new(draft.Id, "desktop", null, draft.Game.Puzzle.Difficulty, draft.Game.Seconds, draft.Updated, draft.Game.Paused));
+        return new(seconds, mistakes, hints, active.OrderByDescending(g => g.Updated).ToList());
     }
 }

@@ -19,6 +19,8 @@ internal static partial class Endpoints
             string? name = user is null ? User(c, s) : s.ResolvePublicName(user);
             return name is null ? Results.NotFound() : Results.Ok(s.Profile(name, Math.Clamp(page ?? 0, 0, 10000), difficulty));
         });
+        app.MapGet("/api/profile/own", (HttpContext c, ServerStore s) =>
+            User(c, s) is { } name ? Results.Ok(s.OwnDetails(name)) : Results.Unauthorized());
         app.MapGet("/api/players", (HttpContext c, ServerStore s, string? q) =>
             User(c, s) is not { } name ? Results.Unauthorized() :
             !s.IsVerified(name) ? VerificationRequired() : Results.Ok(s.FindPlayers(q ?? "")));
@@ -52,12 +54,14 @@ internal static partial class Endpoints
             return Results.Ok(s.Acknowledge(name, records));
         });
 
-        app.MapPost("/api/desktop/draft", (HttpContext c, ServerStore s, DesktopDraft draft) =>
+        app.MapPost("/api/desktop/draft", async (HttpContext c, ServerStore s, IHubContext<GameHub> hub, DesktopDraft draft) =>
         {
             if (User(c, s) is not { } name) return Results.Unauthorized();
             if (draft.Id == Guid.Empty || draft.Started > draft.Updated || draft.Updated > DateTimeOffset.UtcNow.AddMinutes(5)
                 || draft.Game is null || !draft.Game.Valid() || draft.Game.Completed) return Results.BadRequest();
-            return Results.Ok(new SyncAck(s.SaveDraft(name, draft)));
+            bool saved = s.SaveDraft(name, draft);
+            if (saved) await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
+            return Results.Ok(new SyncAck(saved));
         });
         app.MapGet("/api/desktop/drafts", (HttpContext c, ServerStore s) =>
             User(c, s) is { } name ? Results.Ok(s.Drafts(name)) : Results.Unauthorized());
