@@ -121,6 +121,7 @@ public sealed partial class MainWindow
         public bool IsVisible => frame is not null && !closed;
         public bool IsPage => page;
         public Action? Reopen { get; set; }
+        public Action? RefreshPresentation { get; set; }
         public Func<bool, bool>? MouseHistory { get; set; }
         public bool IsClosingPending { get; set; }
         public string Title { get; }
@@ -135,7 +136,7 @@ public sealed partial class MainWindow
             }
         }
 
-        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false)
+        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false)
         {
             this.owner = owner;
             this.page = page;
@@ -193,12 +194,17 @@ public sealed partial class MainWindow
 
             if (page && body is FrameworkElement element)
             {
-                element.MaxWidth = PageContentWidth;
+                element.MaxWidth = gameLayout ? PageShellWidth : PageContentWidth;
                 element.HorizontalAlignment = HorizontalAlignment.Stretch;
             }
 
             MainWindow.At(layout, body, 1, 0);
-            shell = owner.Card(layout, page ? 18 : 14);
+            shell = owner.Card(layout, gameLayout ? 0 : page ? 18 : 14);
+            if (gameLayout)
+            {
+                shell.Background = Brushes.Transparent;
+                shell.BorderThickness = new Thickness(0);
+            }
             // A page container is a neutral focus anchor, not a visible interactive control.
             shell.Focusable = page;
             shell.FocusVisualStyle = null;

@@ -62,38 +62,15 @@ public sealed partial class MainWindow : Window
                 continue;
             }
             int value = g.Values[i];
-            bool given = g.Puzzle.Givens[i] != 0, selected = i == g.Selected;
-            bool wrong = value != 0 && value != g.Puzzle.Solution[i];
-            bool same = selectedValue != 0 && selectedValue == value;
-            bool peer = state.HighlightPeers && Sudoku.Peers[g.Selected].Contains(i);
-            string background = selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel";
-            b.Background = B(background);
-            string fg = wrong ? "Wrong" : given ? "Given" : "Accent";
-            b.Foreground = B(fg);
-            b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
-            b.Content = value != 0 ? value.ToString() : g.Notes[i] != 0 ? NoteGrid(g.Notes[i]) : null;
-            AutomationProperties.SetName(b, $"Рядок {i / 9 + 1}, стовпець {i % 9 + 1}, " +
-                (value == 0 ? "порожньо" : value.ToString()) + (given ? ", задано" : "") +
-                (wrong ? ", помилка" : "") + (selected ? ", вибрано" : ""));
+            DrawGameCell(b, i, value, g.Notes[i], g.Puzzle.Givens[i] != 0, i == g.Selected,
+                value != 0 && value != g.Puzzle.Solution[i],
+                selectedValue != 0 && selectedValue == value, state.HighlightPeers && Sudoku.Peers[g.Selected].Contains(i));
         }
         for (int i = 0; i < 9; i++)
         {
             int d = i + 1;
             int remaining = g is null ? 9 : g.Remaining(d);
-            var grid = new Grid { MinHeight = 35 };
-            var number = Text(d.ToString(), 21, "Text", true);
-            number.HorizontalAlignment = HorizontalAlignment.Center;
-            number.VerticalAlignment = VerticalAlignment.Center;
-            var count = Text(remaining.ToString(), 10, "Muted");
-            count.HorizontalAlignment = HorizontalAlignment.Right;
-            count.VerticalAlignment = VerticalAlignment.Bottom;
-            grid.Children.Add(number);
-            grid.Children.Add(count);
-            digits[i].HorizontalContentAlignment = HorizontalAlignment.Stretch;
-            digits[i].Content = grid;
-            digits[i].IsEnabled = active && g!.Editable(g.Selected) && (g.NotesMode || remaining > 0);
-            digits[i].Opacity = remaining == 0 ? 0.55 : 1;
-            AutomationProperties.SetName(digits[i], $"Цифра {d}, залишилось {remaining}");
+            DrawGameDigit(digits[i], d, remaining, active && g!.Editable(g.Selected) && (g.NotesMode || remaining > 0));
         }
         int filled = g?.Values.Count(v => v != 0) ?? 0;
         int givens = g?.Puzzle.Givens.Count(v => v != 0) ?? 0;
@@ -211,6 +188,35 @@ public sealed partial class MainWindow : Window
         foreach (var (ms, x) in new[] { (0, 0), (60, - 3), (120, 3), (180, - 2), (240, 0) })
             animation.KeyFrames.Add(new LinearDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
         transform.BeginAnimation(TranslateTransform.XProperty, animation);
+    }
+
+    private void DrawGameCell(Button b, int i, int value, int mask, bool given, bool selected, bool wrong, bool same, bool peer)
+    {
+        b.Background = B(selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel");
+        b.Foreground = B(wrong ? "Wrong" : given ? "Given" : "Accent");
+        b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
+        b.Content = value != 0 ? value.ToString() : mask != 0 ? NoteGrid(mask) : null;
+        AutomationProperties.SetName(b, $"Рядок {i / 9 + 1}, стовпець {i % 9 + 1}, " +
+            (value == 0 ? "порожньо" : value.ToString()) + (given ? ", задано" : "") +
+            (wrong ? ", помилка" : "") + (selected ? ", вибрано" : ""));
+    }
+
+    private void DrawGameDigit(Button button, int digit, int remaining, bool enabled)
+    {
+        var grid = new Grid { MinHeight = 35 };
+        var number = Text(digit.ToString(), 21, "Text", true);
+        number.HorizontalAlignment = HorizontalAlignment.Center;
+        number.VerticalAlignment = VerticalAlignment.Center;
+        var count = Text(remaining.ToString(), 10, "Muted");
+        count.HorizontalAlignment = HorizontalAlignment.Right;
+        count.VerticalAlignment = VerticalAlignment.Bottom;
+        grid.Children.Add(number);
+        grid.Children.Add(count);
+        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        button.Content = grid;
+        button.IsEnabled = enabled;
+        button.Opacity = remaining == 0 ? 0.55 : 1;
+        AutomationProperties.SetName(button, $"Цифра {digit}, залишилось {remaining}");
     }
 
     private UniformGrid NoteGrid(int mask)

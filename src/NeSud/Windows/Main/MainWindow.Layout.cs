@@ -164,6 +164,7 @@ public sealed partial class MainWindow : Window
             state.Dark = !state.Dark;
             ApplyTheme();
             Render();
+            surfaces.LastOrDefault()?.RefreshPresentation?.Invoke();
             Save();
         }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center;
@@ -202,9 +203,8 @@ public sealed partial class MainWindow : Window
         At(play, info, 0, 0);
 
         var boardArea = new Grid();
-        var view = new Viewbox { Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650 };
         board = BuildBoard();
-        view.Child = board;
+        var view = BoardView(board);
         boardArea.Children.Add(view);
         cover = new Grid();
         cover.SetResourceReference(Panel.BackgroundProperty, "PanelBrush");
@@ -451,7 +451,14 @@ public sealed partial class MainWindow : Window
         return c;
     }
 
-    private Grid BuildBoard()
+    private static Viewbox BoardView(Grid board) => new()
+    {
+        Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650, Child = board
+    };
+
+    private Grid BuildBoard() => BuildBoard(cells, i => Select(i), i => { if (Playing && G!.Selected != i) Select(i, false); });
+
+    private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null)
     {
         var result = new Grid { Width = 540, Height = 540, SnapsToDevicePixels = true };
         result.SetResourceReference(Panel.BackgroundProperty, "StrongLineBrush");
@@ -479,11 +486,9 @@ public sealed partial class MainWindow : Window
                 Margin = new Thickness(c % 3 == 0 ? 2 : 0.5, r % 3 == 0 ? 2 : 0.5,
                     c % 3 == 2 ? 2 : 0.5, r % 3 == 2 ? 2 : 0.5),
                 IsTabStop = false, FocusVisualStyle = null, Cursor = Cursors.Hand };
-            b.Click += (_, _) => Select(index);
-            b.GotKeyboardFocus += (_, _) => {
-                if (Playing && G!.Selected != index) Select(index, false);
-            };
-            cells[i] = b;
+            b.Click += (_, _) => select(index);
+            if (focused is not null) b.GotKeyboardFocus += (_, _) => focused(index);
+            target[i] = b;
             At(result, b, r, c);
         }
         return result;

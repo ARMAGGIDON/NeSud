@@ -28,7 +28,10 @@ public sealed partial class MainWindow : Window
     private InAppSurface Page(string title, UIElement content, double width = 780, double maxHeight = 760) =>
         OpenSurface(title, content, width, maxHeight, true);
 
-    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false)
+    private InAppSurface GamePage(string title, Grid content) =>
+        OpenSurface(title, content, PageShellWidth, 760, true, gameLayout: true);
+
+    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false)
     {
         if (Playing)
         {
@@ -39,7 +42,7 @@ public sealed partial class MainWindow : Window
             Save();
         }
 
-        return new InAppSurface(this, title, content, width, maxHeight, page, compactHeader);
+        return new InAppSurface(this, title, content, width, maxHeight, page, compactHeader, gameLayout);
     }
 
     private bool Dialog(string title, string message, bool confirm)
