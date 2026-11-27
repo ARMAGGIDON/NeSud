@@ -1412,7 +1412,7 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 @supports not (scrollbar-gutter: stable) { html { overflow-y: scroll; } }
 
 /* Ranking filters are outside the result scrollport. Its extent cannot resize the page. */
-@media (min-height: 400px) {
+@media (min-width: 651px) and (min-height: 400px), (min-height: 560px) {
     body:has(#app:not([hidden]) > #ranking:not([hidden])) { height: 100dvh; display: flex; flex-direction: column; }
     body:has(#app:not([hidden]) > #ranking:not([hidden])) > header { flex: none; }
     body:has(#app:not([hidden]) > #ranking:not([hidden])) > main,

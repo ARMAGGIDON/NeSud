@@ -288,3 +288,49 @@ test("wheel burst stays on a select after layout shifts and releases on real mov
     select.isConnected = false;
     assert.equal(wheel(page, 550), false);
 });
+
+test("profile history filter does not rebuild the upper profile or fetch details again", async () => {
+    const elements = new Map(), requests = [], upperWrites = [];
+    const $ = id => {
+        if (!elements.has(id)) {
+            const el = new Element();
+            const replace = el.replaceChildren.bind(el);
+            el.replaceChildren = (...items) => { if (id !== "profile-history") upperWrites.push(id); replace(...items); };
+            el.value = "";
+            elements.set(id, el);
+        }
+        return elements.get(id);
+    };
+    const profile = { user: "self", verified: true, games: 1, wins: 1, perfectWins: 0, score: 5,
+        currentStreak: 1, bestStreak: 1, dailyWins: 0, byDifficulty: [], cups: [], history: [], hasMore: false };
+    const api = async path => {
+        requests.push(path);
+        if (path === "profile/own") return { seconds: 1, mistakes: 0, hints: 0, active: [] };
+        return profile;
+    };
+    const source = read("profile.js");
+    const load = source.slice(source.indexOf("let profileLoadVersion"), source.indexOf("function renderActiveGames"));
+    const app = new Function("$", "api", "upperWrites", `
+        let profileUser = null, profilePage = 0, epoch = 1, tab = "profile", guestMode = false,
+            verifiedAccount = true, ownUsername = "self";
+        const fmt = String, row = () => {}, emptyList = () => {}, levels = [];
+        const setPlayerAvatar = () => upperWrites.push("avatar");
+        const statCards = () => upperWrites.push("stats");
+        const renderActiveGames = () => upperWrites.push("active");
+        const drawCups = () => upperWrites.push("cups");
+        ${load}
+        return { loadProfile, changePage: () => profilePage++ };
+    `)($, api, upperWrites);
+    await app.loadProfile();
+    assert.equal(requests.length, 2);
+    const writes = upperWrites.length;
+    $("profile-level").value = "Expert";
+    await app.loadProfile(false);
+    assert.equal(requests.length, 3);
+    assert.equal(requests[2], "profile?page=0&difficulty=Expert");
+    assert.equal(upperWrites.length, writes);
+    app.changePage();
+    await app.loadProfile(false);
+    assert.equal(requests[3], "profile?page=1&difficulty=Expert");
+    assert.equal(upperWrites.length, writes);
+});
