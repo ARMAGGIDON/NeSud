@@ -28,10 +28,13 @@ public sealed partial class MainWindow : Window
     private InAppSurface Page(string title, UIElement content, double width = 780, double maxHeight = 760) =>
         OpenSurface(title, content, width, maxHeight, true);
 
+    private InAppSurface GiftOverlay(UIElement content) =>
+        OpenSurface("Нагороди", content, 480, 530, false, floating: true);
+
     private InAppSurface GamePage(string title, Grid content) =>
         OpenSurface(title, content, PageShellWidth, 760, true, gameLayout: true);
 
-    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false)
+    private InAppSurface OpenSurface(string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false, bool floating = false)
     {
         if (Playing)
         {
@@ -42,7 +45,7 @@ public sealed partial class MainWindow : Window
             Save();
         }
 
-        return new InAppSurface(this, title, content, width, maxHeight, page, compactHeader, gameLayout);
+        return new InAppSurface(this, title, content, width, maxHeight, page, compactHeader, gameLayout, floating);
     }
 
     private bool Dialog(string title, string message, bool confirm)

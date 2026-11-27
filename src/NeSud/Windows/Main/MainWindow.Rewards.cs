@@ -125,6 +125,7 @@ public sealed partial class MainWindow : Window
     }
 
     private Guid pendingWinReward;
+    private DailyStatus? pendingWinBaseline;
     private bool giftDialogOpen;
     private async Task ShowWinReward(Guid id, string? day = null)
     {
@@ -136,14 +137,26 @@ public sealed partial class MainWindow : Window
             if (day is not null) daily = await Request<DailyStatus>("daily", token: session.Token);
             if (closing || !ReferenceEquals(account, session) || giftDialogOpen) return;
             if (day is null && (state.GameId != id || G?.Completed != true || surfaces.Count != 0)) return;
-            if (day is null) pendingWinReward = Guid.Empty;
-            if (daily?.Packs.Any(p => day is null ? p.Milestone is not ("weekly" or "challenge") : p.Milestone == "challenge" && p.Day == day) != true) return;
-            await ShowDaily(day, automatic: true);
+            if (daily is not { } updated) return;
+            if (day is not null)
+            {
+                if (updated.Packs.Any(p => p.Milestone == "challenge" && p.Day == day))
+                    await ShowDaily(day, automatic: true);
+                return;
+            }
+            var baseline = pendingWinBaseline;
+            pendingWinReward = Guid.Empty;
+            pendingWinBaseline = null;
+            int to = Math.Clamp(updated.Wins, 0, 7);
+            int from = baseline is null ? Math.Max(0, to - 1) :
+                baseline.Day == updated.Day ? Math.Clamp(baseline.Wins, 0, 7) : 0;
+            if (updated.Wins > 7 && from >= 7 || to <= from) return;
+            await ShowDaily(automatic: true, progressFrom: from, progressTo: to);
         }
         catch { }
     }
 
-    private async Task ShowDaily(string? onlyDay = null, bool automatic = false)
+    private async Task ShowDaily(string? onlyDay = null, bool automatic = false, int progressFrom = -1, int progressTo = -1)
     {
         if (account is null)
         {
@@ -153,52 +166,39 @@ public sealed partial class MainWindow : Window
         if (giftDialogOpen) return;
         bool weekly = !automatic && weeklyRewards, challenge = automatic ? onlyDay is not null : challengeRewards;
         if (!weekly && !challenge && G?.Completed != true) return;
-        bool Matches(DailyPack p) => weekly ? p.Milestone == "weekly" :
-            challenge ? p.Milestone == "challenge" && (onlyDay is null || p.Day == onlyDay) :
-            p.Milestone is not ("weekly" or "challenge");
+        string? questDay = daily?.Day;
+        bool Matches(DailyPack p)
+        {
+            if (weekly) return p.Milestone == "weekly";
+            if (challenge) return p.Milestone == "challenge" && (onlyDay is null || p.Day == onlyDay);
+            if (!automatic) return p.Milestone is not ("weekly" or "challenge");
+            int milestone = p.Milestone switch { "win1" => 1, "win3" => 3, "win7" => 7, _ => 0 };
+            return p.Day == questDay && milestone > progressFrom && milestone <= progressTo;
+        }
         var session = account;
         var panel = Stack();
-        panel.Children.Add(Text(weekly ? "Призи турніру" : challenge ? "Нагороди щоденних ігор" : "Щоденні нагороди", 24, "Text", true));
-        Gap(panel);
         var body = Stack();
         panel.Children.Add(body);
-        var window = Modal("Щоденні нагороди", panel, 540);
-        var notice = Text("Завантаження…", 14, "Muted");
+        var window = GiftOverlay(new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly });
+        var notice = Text("", 16, "Accent", true);
+        notice.TextAlignment = TextAlignment.Center;
         panel.Children.Add(notice);
         bool working = false;
         void Draw()
         {
             body.Children.Clear();
             if (daily is not { } d) return;
-            body.Children.Add(Text((weekly || challenge ? "" : $"Сьогодні: {Math.Min(7,d.Wins)}/7 перемог\n") + $"доступно наборів: {d.Packs.Count(Matches)}", 15, "Accent", true));
-            var wallet = new StackPanel { Orientation = Orientation.Horizontal };
-            wallet.Children.Add(ResourceLabel("hint", d.Hints.ToString()));
-            wallet.Children.Add(ResourceLabel("candidates", d.Candidates.ToString()));
-            body.Children.Add(wallet);
-            Gap(body);
-            foreach (var kind in automatic ? Array.Empty<string>() : new[] { "hint", "candidates" })
-            {
-                string k = kind;
-                var use = Action($"Використати: {ResourceName(k)} ({WalletCount(k)})", () =>
-                { window.Close();
-                _ = Spend(k); }, "Використати ресурс");
-                use.Content = ResourceLabel(k, $"Використати: {ResourceName(k)} ({WalletCount(k)})");
-                ToolTipService.SetShowOnDisabled(use, true);
-                use.IsEnabled = WalletCount(k) > 0 && G?.CanReward(k) == true && state.PendingReward is null;
-                body.Children.Add(use);
-            }
             var pack = d.Packs.FirstOrDefault(Matches);
             if (pack is null)
             {
-                body.Children.Add(Text("Немає доступних нагород.", 13, "Muted"));
+                var empty = Text("Немає доступних нагород.", 18, "Text", true);
+                empty.TextAlignment = TextAlignment.Center;
+                body.Children.Add(empty);
+                body.Children.Add(Action("Готово", () => window.Close()));
                 return;
             }
-            string milestone = pack.Milestone switch { "login" => "Щоденний вхід", "win1" => "Перша перемога",
-                "win3" => "Третя перемога", "win7" => "Сьома перемога", "weekly" => "Тижневий турнір", "challenge" => $"Щоденна гра ({pack.Day})", "win" => $"Перемога {pack.Slot + 1}", _ => "Попередня нагорода" };
-            Gap(body);
-            body.Children.Add(Text(milestone, 17, "Text", true));
-            var triangle = new Canvas { Width = 320, Height = 288 };
-            body.Children.Add(new Viewbox { Child = triangle, Stretch = Stretch.Uniform, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Center });
+            var triangle = new Canvas { Width = 320, Height = 320 };
+            body.Children.Add(triangle);
             const double distance = 168, size = 132;
             double height = distance * Math.Sqrt(3) / 2;
             var gifts = new GiftView[3];
@@ -208,7 +208,7 @@ public sealed partial class MainWindow : Window
                 int index = i;
                 var gift = gifts[i] = MakeGift(index);
                 Canvas.SetLeft(gift.Button, 160 - size / 2 + (i == 0 ? 0 : i == 1 ? -distance / 2 : distance / 2));
-                Canvas.SetTop(gift.Button, i == 0 ? 0 : height);
+                Canvas.SetTop(gift.Button, 28 + (i == 0 ? 0 : height));
                 triangle.Children.Add(gift.Button);
                 gift.Button.Click += async (_, _) => await SelectGift(index);
             }
@@ -247,13 +247,22 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var updated = await Request<DailyStatus>("daily", token: session.Token);
+                var updated = automatic && daily is not null ? daily : await Request<DailyStatus>("daily", token: session.Token);
                 if (!ReferenceEquals(account, session)) { window.Close(); return; }
                 daily = updated;
                 if (window.IsVisible)
                 {
-                    Draw();
                     notice.Text = "";
+                    if (progressFrom >= 0)
+                    {
+                        working = true;
+                        try { await AnimateQuest(body, progressFrom, progressTo); }
+                        finally { working = false; }
+                        if (!window.IsVisible) return;
+                        if (!daily.Packs.Any(Matches)) { window.Close(); return; }
+                    }
+                    Draw();
+                    Fade(body);
                 }
             }
             catch

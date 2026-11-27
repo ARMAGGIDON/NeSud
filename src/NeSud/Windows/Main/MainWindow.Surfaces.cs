@@ -137,7 +137,7 @@ public sealed partial class MainWindow
             }
         }
 
-        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false)
+        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false, bool gameLayout = false, bool floating = false)
         {
             this.owner = owner;
             this.page = page;
@@ -166,7 +166,7 @@ public sealed partial class MainWindow
             dismiss.BorderBrush = Brushes.Transparent;
             dismiss.Margin = new Thickness(8, 0, 0, 0);
             System.Windows.Automation.AutomationProperties.SetName(dismiss, "Закрити");
-            if (!page)
+            if (!page && !floating)
             {
                 var heading = new Grid { Margin = new Thickness(0, 0, 0, 12) };
                 heading.ColumnDefinitions.Add(new ColumnDefinition());
@@ -182,7 +182,7 @@ public sealed partial class MainWindow
             }
 
             UIElement body = content;
-            if (content is not Grid && content is not ScrollViewer)
+            if (!floating && content is not Grid && content is not ScrollViewer)
             {
                 body = new ScrollViewer
                 {
@@ -200,8 +200,8 @@ public sealed partial class MainWindow
             }
 
             MainWindow.At(layout, body, 1, 0);
-            shell = owner.Card(layout, gameLayout ? 0 : page ? 18 : 14);
-            if (gameLayout)
+            shell = owner.Card(layout, gameLayout || floating ? 0 : page ? 18 : 14);
+            if (gameLayout || floating)
             {
                 shell.Background = Brushes.Transparent;
                 shell.BorderThickness = new Thickness(0);

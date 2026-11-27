@@ -115,6 +115,7 @@ public sealed partial class MainWindow : Window
         if (G.Completed && account is not null && (state.GameScope ?? "") == Scope)
         {
             pendingWinReward = state.GameId;
+            pendingWinBaseline = daily;
             nextSync = DateTimeOffset.MinValue;
             _ = Sync();
         }

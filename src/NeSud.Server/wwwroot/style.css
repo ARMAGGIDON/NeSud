@@ -1424,3 +1424,29 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 }
 #profile-history { height: 320px; overflow: auto; scrollbar-gutter: stable; overflow-anchor: none; }
 #profile-level { width: 100%; min-width: 0; }
+
+/* Borderless reward overlay, identical for automatic and manual claims. */
+#daily {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 20px;
+    width: min(480px, calc(100vw - 24px));
+    overflow: visible;
+}
+#daily::backdrop { background: rgba(0,0,0,.64); }
+#daily > .dialog-close, #daily-heading, #daily-summary, #wallet, #daily-milestone { display: none; }
+#daily-result { text-align: center; min-height: 1.5em; }
+#daily-cards { --gift-step: min(156px, 36vw); padding-top: 0; }
+#daily-cards .mystery-card { border: 0; background: transparent; box-shadow: none; padding: 0; }
+#daily-cards .mystery-card:not(:disabled):hover { background: transparent; filter: drop-shadow(0 0 9px var(--accent)); }
+#daily-cards .gift-art { width: 88%; height: 82%; }
+#daily-cards .mystery-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#daily-cards.quest-animation { width: min(380px, 76vw); min-height: 130px; text-align: center; }
+.quest-count { display: block; font-size: 32px; color: var(--accent); margin: 12px 0; }
+.quest-track { height: 12px; border-radius: 6px; background: var(--control); overflow: hidden; }
+.quest-fill { height: 100%; border-radius: inherit; background: var(--accent); transition: width .65s cubic-bezier(.2,.8,.2,1); }
+.quest-marks { position: relative; height: 28px; margin-top: 7px; color: var(--muted); }
+.quest-marks span { position: absolute; transform: translateX(-50%); }
+.quest-marks .reached { color: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .quest-fill { transition: none; } }

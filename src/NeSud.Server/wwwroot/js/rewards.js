@@ -13,7 +13,7 @@ async function refreshDaily() {
             if (e !== epoch) return;
             daily = d;
             render();
-            if ($("daily").open && !revealed) drawDaily()
+            if ($("daily").open && !revealed && !questAnimating && !dailyBusy) drawDaily()
         }catch { }finally {
             dailyTask = null
         }
@@ -38,6 +38,8 @@ async function spend(kind) {
     }
 }
 let automaticRewardDay = null;
+let questRange = null;
+let questAnimating = false;
 let rewardAttempt = null;
 let pendingRewardGame = null;
 function resourceIcon(kind) {
@@ -65,6 +67,7 @@ async function showVictoryReward(id, day, e) {
     const key = e + ":" + id;
     if (pendingRewardGame === key) return;
     pendingRewardGame = key;
+    const baseline = daily;
     try {
         if (dailyTask) await dailyTask;
         if (epoch !== e || game?.id !== id || !online) return;
@@ -74,16 +77,74 @@ async function showVictoryReward(id, day, e) {
         render();
     } catch { return; }
     if (epoch !== e || game?.id !== id || !game.completed || tab !== "play" || document.querySelector("dialog[open]")) return;
-    if (!daily?.packs.some(p => day ? p.milestone === "challenge" && p.day === day : !["weekly", "challenge"].includes(p.milestone))) return;
+    if (!daily) return;
     dailyMode = day ? "challenge" : "win";
     automaticRewardDay = day;
+    questRange = null;
+    if (day) {
+        if (!daily.packs.some(matchesPack)) return;
+    } else {
+        const to = Math.min(7, daily.wins);
+        const from = baseline ? (baseline.day === daily.day ? Math.min(7, baseline.wins) : 0) : Math.max(0, to - 1);
+        if (to <= from) return;
+        questRange = { day: daily.day, from, to };
+    }
     revealed = false;
     rewardAttempt = null;
     $("daily-result").textContent = "";
     $("daily").showModal();
+    if (questRange) {
+        questAnimating = true;
+        try { await animateQuest(questRange.from, questRange.to); }
+        finally { questAnimating = false; }
+        if (!$("daily").open || epoch !== e) return;
+        if (!daily.packs.some(matchesPack)) { $("daily").close(); return; }
+    }
     drawDaily();
 }
+async function animateQuest(from, to) {
+    const host = $("daily-cards");
+    host.replaceChildren();
+    host.classList.add("quest-animation");
+    const title = document.createElement("h2"), count = document.createElement("strong"), track = document.createElement("div"), fill = document.createElement("div");
+    title.textContent = "Щоденний квест";
+    count.textContent = from + " / 7";
+    count.className = "quest-count";
+    count.setAttribute("role", "status");
+    track.className = "quest-track";
+    track.setAttribute("role", "progressbar");
+    track.setAttribute("aria-label", "Щоденний квест");
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", "7");
+    track.setAttribute("aria-valuenow", String(from));
+    fill.className = "quest-fill";
+    fill.style.width = (from / 7 * 100) + "%";
+    track.append(fill);
+    const marks = document.createElement("div");
+    marks.className = "quest-marks";
+    for (const n of [1, 3, 7]) {
+        const mark = document.createElement("span");
+        mark.textContent = n;
+        mark.style.left = (n / 7 * 100) + "%";
+        mark.classList.toggle("reached", n <= from);
+        marks.append(mark);
+    }
+    host.append(title, count, track, marks);
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    void fill.offsetWidth;
+    fill.style.width = (to / 7 * 100) + "%";
+    if (!reduced) await new Promise(resolve => setTimeout(resolve, 650));
+    count.textContent = to + " / 7";
+    track.setAttribute("aria-valuenow", String(to));
+    Array.from(marks.children).forEach(mark => mark.classList.toggle("reached", Number(mark.textContent) <= to));
+    await new Promise(resolve => setTimeout(resolve, reduced ? 100 : 350));
+    host.classList.remove("quest-animation");
+}
 function matchesPack(p) {
+    if (questRange) {
+        const milestone = { win1: 1, win3: 3, win7: 7 }[p.milestone] || 0;
+        return p.day === questRange.day && milestone > questRange.from && milestone <= questRange.to;
+    }
     return dailyMode === "weekly" ? p.milestone === "weekly": dailyMode === "challenge" ? p.milestone === "challenge" && (!automaticRewardDay || p.day === automaticRewardDay): !["weekly", "challenge"].includes(p.milestone)
 }
 function drawDaily() {
@@ -115,14 +176,19 @@ function drawDaily() {
     }
     const pack = daily.packs.find(matchesPack);
     $("daily-milestone").textContent = !pack ? "Усі доступні нагороди отримано.": ({ login: "Попередня нагорода за вхід", win1: "Перша перемога", win3: "Третя перемога", win7: "Сьома перемога", win: "Перемога " + (pack.slot + 1), weekly: "Тижневий турнір", challenge: "Щоденна гра" })[pack.milestone] + " (" + pack.day + ")";
-    if (!pack) return;
+    if (!pack) {
+        const empty = document.createElement("p");
+        empty.textContent = "Немає доступних нагород.";
+        cards.append(empty);
+        return;
+    }
     for (let i = 0; i < 3; i++) {
         const b = document.createElement("button");
         b.className = "mystery-card";
         b.append(giftArt());
         const caption = document.createElement("span");
         caption.className = "gift-caption";
-        caption.textContent = "Подарунок " + (i + 1);
+        caption.textContent = "";
         b.append(caption);
         b.setAttribute("aria-label", "Відкрити подарунок " + (i + 1));
         b.disabled = dailyBusy || (rewardAttempt !== null && rewardAttempt !== i);
@@ -173,7 +239,7 @@ async function chooseCard(pack, card) {
         render()
     }
 }
-$("daily").addEventListener("cancel", e => { if (dailyBusy) e.preventDefault(); });
+$("daily").addEventListener("cancel", e => { if (dailyBusy || questAnimating) e.preventDefault(); });
 $("daily-open").onclick = async() => {
     if (guestMode) {
         showAuth();
@@ -183,6 +249,7 @@ $("daily-open").onclick = async() => {
     if (!await pauseForNavigation()) return;
     if ($("daily").open) return;
     automaticRewardDay = null;
+    questRange = null;
     rewardAttempt = null;
     revealed = false;
     $("daily-result").textContent = "";
