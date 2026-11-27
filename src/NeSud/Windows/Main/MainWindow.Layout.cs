@@ -399,9 +399,9 @@ public sealed partial class MainWindow : Window
         for (int i = 0; i < 2; i++) menuActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         int menuIndex = 0;
         menu.Children.Add(menuActions);
-        foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges()), Action("Тижневий турнір", () => _ = ShowWeekly()),
+        foreach (var b in new[] { Action("Щоденні ігри", () => _ = ShowChallenges(), "Доступно після входу"), Action("Тижневий турнір", () => _ = ShowWeekly()),
             Action("Рейтинг", () => _ = ShowRanking()),
-            Action("Друзі та пошук", () => _ = ShowFriends()) })
+            Action("Друзі та пошук", () => _ = ShowFriends(), "Доступно після входу та підтвердження пошти") })
         { b.Margin = new Thickness(3);
         At(menuActions, b, menuIndex / 2, menuIndex % 2, 1);
             menuIndex++; }

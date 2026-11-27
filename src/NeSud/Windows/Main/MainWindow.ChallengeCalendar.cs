@@ -87,7 +87,8 @@ public sealed partial class MainWindow
                         b.Margin = new Thickness(2);
                         b.MinHeight = 38;
                         b.IsEnabled = d.Status is "available" or "started" or "retry";
-                        b.ToolTip = d.Status switch { "won" => "Перемога", "future" => "Майбутній день", "missed" => "Пропущено", "started" => "Продовжити", "retry" => "Повторити", _ => "Почати" };
+                        b.ToolTip = d.Day + ": " + (d.Status switch { "won" => "Перемога", "future" => "Майбутній день", "missed" => "Пропущено", "started" => "Продовжити", "retry" => "Повторити", _ => "Почати" });
+                        ToolTipService.SetShowOnDisabled(b, true);
                         if (d.Status == "won")
                         {
                             b.Background = B("Same");

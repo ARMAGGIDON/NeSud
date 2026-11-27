@@ -35,6 +35,7 @@ public sealed partial class MainWindow
         tools.VerticalAlignment = VerticalAlignment.Center;
         At(header, tools, 0, 2);
         var friendActions = Stack();
+        friendActions.Margin = new Thickness(0, 8, 0, 0);
         identity.Children.Add(friendActions);
         var avatarHost = new Grid();
         At(header, avatarHost, 0, 0);

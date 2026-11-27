@@ -154,6 +154,7 @@ public sealed partial class MainWindow
             redo.IsEnabled = active && game!.CanRedo;
             hint.Content = $"Підказка ({game?.HintCredits??0})";
             candidates.Content = $"Кандидати ({game?.CandidateCredits??0})";
+            candidates.ToolTip = game is null ? null : $"Зміни: {game.CandidateDelta}\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
             notes.Content = note?"Нотатки ✓": "Нотатки";
             auto.Content = game?.AutoFinish == true?"Авто ✓": "Авто";
             auto.IsEnabled = connected && !working && game is { Completed: false, OutOfLives: false };

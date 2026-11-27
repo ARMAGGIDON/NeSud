@@ -135,14 +135,14 @@ public sealed partial class MainWindow
             }
         }
 
-        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page)
+        public InAppSurface(MainWindow owner, string title, UIElement content, double width, double maxHeight, bool page, bool compactHeader = false)
         {
             this.owner = owner;
             this.page = page;
             Title = title;
             preferredWidth = width;
             preferredHeight = maxHeight;
-            layer = new Grid { ClipToBounds = true, Focusable = false };
+            layer = new Grid { ClipToBounds = true, Focusable = !page };
             if (page)
                 layer.SetResourceReference(Panel.BackgroundProperty, "BackgroundBrush");
             else
@@ -154,12 +154,30 @@ public sealed partial class MainWindow
 
             dismiss = owner.Action("×", Close, "Закрити");
             dismiss.HorizontalAlignment = HorizontalAlignment.Right;
-            dismiss.MinWidth = 38;
-            dismiss.MinHeight = 36;
-            dismiss.FontSize = 23;
-            dismiss.Margin = new Thickness(0, 0, 0, 8);
+            dismiss.Width = 32;
+            dismiss.Height = 32;
+            dismiss.MinWidth = 0;
+            dismiss.MinHeight = 0;
+            dismiss.Padding = new Thickness(0);
+            dismiss.FontSize = 20;
+            dismiss.Background = Brushes.Transparent;
+            dismiss.BorderBrush = Brushes.Transparent;
+            dismiss.Margin = new Thickness(8, 0, 0, 0);
             System.Windows.Automation.AutomationProperties.SetName(dismiss, "Закрити");
-            if (!page) MainWindow.At(layout, dismiss, 0, 0);
+            if (!page)
+            {
+                var heading = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+                heading.ColumnDefinitions.Add(new ColumnDefinition());
+                heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                if (compactHeader)
+                {
+                    var label = owner.Text(title, 23, "Text", true);
+                    label.VerticalAlignment = VerticalAlignment.Center;
+                    MainWindow.At(heading, label, 0, 0);
+                }
+                MainWindow.At(heading, dismiss, 0, 1);
+                MainWindow.At(layout, heading, 0, 0);
+            }
 
             UIElement body = content;
             if (content is not Grid && content is not ScrollViewer)
@@ -244,7 +262,7 @@ public sealed partial class MainWindow
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (!IsVisible) return;
-                if (!page) dismiss.Focus();
+                if (!page) layer.Focus();
                 else layer.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
                 Loaded?.Invoke(this, EventArgs.Empty);
             }));

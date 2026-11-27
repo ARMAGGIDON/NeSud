@@ -183,6 +183,7 @@ public sealed partial class MainWindow
             Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Пошта підтверджена" };
         frame.SetResourceReference(Border.BackgroundProperty, "SameBrush");
+        ToolTipService.SetShowOnDisabled(frame, true);
         System.Windows.Automation.AutomationProperties.SetName(frame, "Пошта підтверджена");
         return frame;
     }
@@ -309,7 +310,6 @@ public sealed partial class MainWindow
             if (!settings.Verified || settings.Invite is null || account?.Token != sessionToken ||
                 closing || parent != surfaces.LastOrDefault()) return;
             var panel = Stack();
-            panel.Children.Add(Text("Запрошення", 24, "Text", true));
             panel.Children.Add(ProfileMetrics(("Підтверджених запрошень", settings.Referrals.ToString("N0"))));
             panel.Children.Add(Text("Персональне посилання", 13, "Muted"));
             var link = serverUrl.TrimEnd('/') + "/?invite=" + Uri.EscapeDataString(settings.Invite);
@@ -348,7 +348,7 @@ public sealed partial class MainWindow
             field.Children.Add(copy);
             panel.Children.Add(field);
             panel.Children.Add(Text("За кожного нового підтвердженого гравця: 3 підказки та 3 кандидати.", 13, "Muted"));
-            Modal("Запрошення", panel, 580).ShowDialog();
+            Modal("Запрошення", panel, 580, compactHeader: true).ShowDialog();
         }
         catch (Exception ex) { Dialog("Запрошення", ex.Message, false); }
     }
