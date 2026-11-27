@@ -5,7 +5,14 @@ function row(parent, values) {
     r.className = "record";
     values.forEach(v => {
         let s = document.createElement("span");
-        s.textContent = v;
+        if (Array.isArray(v)) {
+            v.forEach((part, index) => {
+                const line = document.createElement(index === 0 ? "span" : "small");
+                line.textContent = part;
+                s.append(line);
+            });
+            s.classList.add("stacked-cell");
+        } else s.textContent = v;
         r.append(s)
     });
     parent.append(r)
@@ -17,11 +24,14 @@ function emptyList(target, message) {
     target.append(empty);
 }
 function setTab(t) {
+    const changed = tab !== t;
     tab = t;
+    $("home-brand").classList.toggle("can-return", t !== "menu");
     watchRankings(t === "ranking" || t === "weekly");
 
     ["menu", "play", "history", "ranking", "weekly", "challenge", "profile", "friends"].forEach(n => {
         $(n).hidden = n !== t;
+        if (n === t && changed) animate($(n), "page-enter");
     });
 }
 
@@ -81,10 +91,10 @@ async function navigate(t) {
             row(target, ["Дата / джерело", "Складність", "Результат / час", "Оцінка"]);
             const currentGame = challengeDay ? regularGame : game;
             if (currentGame && !currentGame.completed && !currentGame.finalDefeat)
-                row(target, ["Поточна · web", levels[currentGame.difficulty], "У процесі · " + fmt(currentGame.seconds), "–"]);
-            drafts.forEach(r => row(target, [new Date(r.updated).toLocaleString("uk-UA") + " · desktop", levels[r.game.puzzle.difficulty], "У процесі · " + fmt(r.game.seconds), "–"]));
+                row(target, [["Поточна", "Web"], levels[currentGame.difficulty], ["У процесі", fmt(currentGame.seconds)], "–"]);
+            drafts.forEach(r => row(target, [[new Date(r.updated).toLocaleString("uk-UA"), "Desktop"], levels[r.game.puzzle.difficulty], ["У процесі", fmt(r.game.seconds)], "–"]));
             if (!records.length && !drafts.length && target.children.length === 1) emptyList(target, "Ігор ще немає.");
-            records.forEach(r => row(target, [new Date(r.ended).toLocaleString("uk-UA") + " · " + (r.challengeDay ? "Щоденна " + r.challengeDay : r.source), levels[r.game.puzzle.difficulty], (r.outcome === "completed" ? "Перемога": r.outcome === "defeated" ? "Поразка": "Перервано") + " · " + fmt(r.game.seconds), r.score + " балів · помилки: " + r.game.mistakes + " · підказки: " + r.game.hints + " · кандидати: " + (r.game.candidateUses || 0) + " · відновлення: " + (r.game.lifeRestores || 0)]));
+            records.forEach(r => row(target, [[new Date(r.ended).toLocaleString("uk-UA"), r.challengeDay ? "Щоденна " + r.challengeDay : r.source], levels[r.game.puzzle.difficulty], [r.outcome === "completed" ? "Перемога" : r.outcome === "defeated" ? "Поразка" : "Перервано", fmt(r.game.seconds)], [r.score + " балів", "Помилки: " + r.game.mistakes, "Підказки: " + r.game.hints, "Кандидати: " + (r.game.candidateUses || 0), "Відновлення: " + (r.game.lifeRestores || 0)]]));
         }
         if (t === "ranking") {
             const mode = $("rankmode").value, metric = $("rankmetric").value, level = $("ranklevel").value;

@@ -26,7 +26,7 @@ async function loadCalendar() {
         const b = document.createElement("button");
         b.className = "calendar-day " + d.status;
         b.textContent = Number(d.day.slice(-2)) + (d.status === "won" ? " ✓": "");
-        b.title = d.day + " · " + ({ won: "Перемога", future: "Майбутній день", missed: "Пропущено", available: "Почати", started: "Продовжити", retry: "Повторити" })[d.status];
+        b.title = d.day + ": " + ({ won: "Перемога", future: "Майбутній день", missed: "Пропущено", available: "Почати", started: "Продовжити", retry: "Повторити" })[d.status];
         b.disabled = ["future", "missed", "won"].includes(d.status);
         b.onclick = () => openChallenge(d.day);
         grid.append(b)

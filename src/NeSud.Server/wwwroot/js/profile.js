@@ -12,7 +12,7 @@ function setPlayerAvatar(box, user, known = true) {
     box.dataset.user = user || "";
     const fallback = document.createElement("span");
     fallback.className = "avatar-initial";
-    fallback.textContent = user ? Array.from(user)[0].toUpperCase() : "•";
+    fallback.textContent = user ? Array.from(user)[0].toUpperCase() : "?";
     fallback.setAttribute("aria-hidden", "true");
     box.append(fallback);
     if (!user || !known) return;
@@ -89,7 +89,7 @@ async function loadProfile() {
     const target = $("profile-history");
     target.replaceChildren();
     row(target, ["Дата / режим", "Складність", "Результат / час", "Бали"]);
-    p.history.forEach(r => row(target, [new Date(r.ended).toLocaleString("uk-UA") + " · " + (r.challengeDay ? "Щоденна " + r.challengeDay: r.source), levels[r.difficulty], ({ completed: "Перемога", defeated: "Поразка", abandoned: "Перервано" })[r.outcome] + " · " + fmt(r.seconds), r.score + " · помилки: " + r.mistakes + " · підказки: " + r.hints]));
+    p.history.forEach(r => row(target, [[new Date(r.ended).toLocaleString("uk-UA"), r.challengeDay ? "Щоденна " + r.challengeDay : r.source], levels[r.difficulty], [({ completed: "Перемога", defeated: "Поразка", abandoned: "Перервано" })[r.outcome], fmt(r.seconds)], [r.score + " балів", "Помилки: " + r.mistakes, "Підказки: " + r.hints]]));
     $("profile-prev").disabled = page === 0;
     $("profile-next").disabled = !p.hasMore;
     if (!p.history.length) emptyList(target, "Ігор ще немає.");

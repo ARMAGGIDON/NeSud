@@ -73,11 +73,11 @@ function showResult() {
     if (!done && !lost) return;
     $("result-icon").textContent = done ? "✓": "♡";
     $("result-title").textContent = done ? "Головоломку розв’язано!": "Поразка";
-    $("result-level").textContent = challengeDay ? "Щоденна гра · " + challengeDay + " · " + levels[game.difficulty] : levels[game.difficulty];
+    $("result-level").textContent = challengeDay ? "Щоденна гра (" + challengeDay + "), " + levels[game.difficulty] : levels[game.difficulty];
     $("result-difficulty").hidden = !!challengeDay;
     $("result-new").textContent = challengeDay ? "До календаря": "Нова головоломка";
     $("result-score").textContent = (done ? game.currentScore: 0).toLocaleString("uk-UA") + " балів";
-    $("result-time").textContent = "Час " + fmt(game.seconds) + " · помилки " + game.mistakes;
+    compactMetrics($("result-time"), [["Час", fmt(game.seconds)], ["Помилки", game.mistakes]]);
     const b = $("result-breakdown");
     b.replaceChildren();
     for (const [label, val] of [["База", game.baseScore], ["Бонус за швидкість", "+" + game.speedBonus], ["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes], ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty], ["Автозавершення (" + game.autoFilled + " клітинок)", "−" + game.autoFillPenalty], ["Відновлення життя", "−" + 100 * game.lifeRestores]]) resultRow(b, label, val);

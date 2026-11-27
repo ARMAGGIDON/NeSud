@@ -1,5 +1,22 @@
 "use strict";
 
+// Keep labels and values separate; update existing elements instead of rebuilding on each pulse.
+function compactMetrics(target, entries) {
+    if (target.children.length !== entries.length) {
+        target.replaceChildren();
+        for (const [label] of entries) {
+            const item = document.createElement("div"), caption = document.createElement("small"), value = document.createElement("strong");
+            caption.textContent = label;
+            item.append(caption, value);
+            target.append(item);
+        }
+    }
+    entries.forEach(([label, value], i) => {
+        const item = target.children[i];
+        item.firstElementChild.textContent = label;
+        if (item.lastElementChild.textContent !== String(value)) item.lastElementChild.textContent = value;
+    });
+}
 function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
@@ -22,7 +39,7 @@ function render() {
     $("covertext").textContent = !online ? "Немає з’єднання": game?.outOfLives ? "Поразка": game?.paused ? "Гра на паузі": busy ? "Генеруємо поле…": "Створіть головоломку";
     $("resume").hidden = online && !game;
     $("resume").disabled = busy;
-    $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Реклама · останній шанс": "Продовжити";
+    $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Відновити життя за рекламу": "Продовжити";
     $("cover-detail").textContent = "";
     $("revive-progress").hidden = !game?.outOfLives;
     $("menu-continue").hidden = !regularGame;
@@ -39,14 +56,16 @@ function render() {
     $("newgame").hidden = !!challengeDay && !!game && !game.finalDefeat && !game.completed;
     $("newgame").textContent = challengeDay ? (game ? "Повторити": "Почати щоденну гру"): "Нова головоломка";
     $("difficulty-label").hidden = !!challengeDay;
-    $("game-mode").textContent = challengeDay ? "Щоденна гра · " + challengeDay: "Нова гра";
+    $("game-mode").textContent = challengeDay ? "Щоденна гра (" + challengeDay + ")": "Нова гра";
     $("level").textContent = game ? levels[game.difficulty]: "–";
     updateClock();
     $("lives").textContent = Array.from({ length: 3 }, (_, i) => i < (game?.lives || 0) ? "♥": "♡").join(" ");
-    $("penalties").textContent = game ? "Час −" + Math.floor(game.seconds / 3) + " · Помилки −" + 75 * game.mistakes + " · Підказки −" + 150 * game.hints + " · Кандидати −" + game.effectiveCandidatePenalty + " · Життя −" + 100 * game.lifeRestores + " · Авто −" + game.autoFillPenalty: "";
+    compactMetrics($("penalties"), game ? [["Час", "−" + Math.floor(game.seconds / 3)], ["Помилки", "−" + 75 * game.mistakes],
+        ["Підказки", "−" + 150 * game.hints], ["Кандидати", "−" + game.effectiveCandidatePenalty],
+        ["Життя", "−" + 100 * game.lifeRestores], ["Автозавершення", "−" + game.autoFillPenalty]] : []);
     $("hint").textContent = "Підказка (" + (game?.hintCredits || 0) + ")";
     $("candidates").textContent = "Кандидати (" + (game?.candidateCredits || 0) + ")";
-    $("candidates").title = game ? "Зміни: " + game.candidateDelta + " · −" + (2 * game.candidateDelta) + " балів": "";
+    $("candidates").title = game ? "Зміни: " + game.candidateDelta + "\nШтраф: −" + (2 * game.candidateDelta) + " балів": "";
     document.querySelectorAll("[data-reward]").forEach(b => {
         const count = b.dataset.reward === "life" ? game?.lives: b.dataset.reward === "hint" ? game?.hintCredits: game?.candidateCredits;
         b.hidden = !game || game.completed || game.outOfLives || count !== 0 || balance(b.dataset.reward) > 0;
@@ -56,7 +75,8 @@ function render() {
     $("result-daily").hidden = guestMode || !game?.completed || !daily?.packs.some(p => challengeDay ? p.milestone === "challenge": !["weekly", "challenge"].includes(p.milestone));
     $("challenge-rewards").hidden = guestMode || !daily?.packs.some(p => p.milestone === "challenge");
     $("weekly-rewards").hidden = guestMode || !daily?.packs.some(p => p.milestone === "weekly");
-    $("progress").textContent = game ? (game.completed ? "✓ Судоку розв’язано! ": "") + game.values.filter(Boolean).length + "/81 · Підказки: " + game.hints: "";
+    compactMetrics($("progress"), game ? [["Заповнено", game.values.filter(Boolean).length + " / 81"],
+        ["Підказки", game.hints]] : []);
     buttons.forEach((b, i) => {
         const v = game?.values[i] || 0, r = Math.floor(i / 9), c = i % 9, sr = Math.floor(selected / 9), sc = selected % 9;
         const animation = ["pop", "shake", "hint-pulse"].filter(k => b.classList.contains(k)).join(" ");
@@ -95,7 +115,7 @@ function render() {
     updateRevive();
 }
 document.addEventListener("keydown", e => {
-    if (tab !== "play" || !online || !game || e.target.matches("input,select") || $("confirm").open || $("auth").open || $("ad").open || $("daily").open || $("help").open || adPending) return;
+    if (tab !== "play" || !online || !game || e.target.matches("input,select") || document.querySelector("dialog[open]") || adPending) return;
     let k = e.key.toLowerCase();
     if (k === "p" || k === "escape") {
         act(game.paused ? "resume": "pause");

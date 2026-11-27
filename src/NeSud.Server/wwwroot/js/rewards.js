@@ -42,14 +42,22 @@ function matchesPack(p) {
 }
 function drawDaily() {
     $("daily-heading").textContent = dailyMode === "weekly" ? "Призи турніру": dailyMode === "challenge" ? "Нагороди щоденних ігор": "Щоденні нагороди";
-    $("daily-summary").textContent = daily ? (dailyMode === "win" ? "Сьогодні: " + Math.min(7, daily.wins) + "/7 перемог · ": "") + "Доступно наборів: " + daily.packs.filter(matchesPack).length: "Підключення…";
+    compactMetrics($("daily-summary"), daily ? [
+        ...(dailyMode === "win" ? [["Перемоги сьогодні", Math.min(7, daily.wins) + " / 7"]] : []),
+        ["Доступно наборів", daily.packs.filter(matchesPack).length]] : [["Стан", "Підключення…"]]);
     const wallet = $("wallet"), cards = $("daily-cards");
     wallet.replaceChildren();
     cards.replaceChildren();
     if (!daily) return;
     for (const kind of ["hint", "candidates"]) {
         const b = document.createElement("button");
-        b.textContent = resourceNames[kind] + ": " + balance(kind) + " · використати";
+        const label = document.createElement("span"), amount = document.createElement("strong");
+        label.textContent = resourceNames[kind];
+        amount.textContent = balance(kind);
+        b.className = "wallet-resource";
+        b.append(label, amount);
+        b.title = "Використати ресурс";
+        b.setAttribute("aria-label", resourceNames[kind] + ": " + balance(kind) + ". Використати");
         const count = kind === "life" ? game?.lives: kind === "hint" ? game?.hintCredits: game?.candidateCredits;
         b.disabled = !game || game.completed || count >= 3 || !balance(kind) || dailyBusy;
         b.onclick = async() => {
@@ -60,7 +68,7 @@ function drawDaily() {
         wallet.append(b)
     }
     const pack = daily.packs.find(matchesPack);
-    $("daily-milestone").textContent = !pack ? "Усі доступні нагороди отримано.": ({ login: "Попередня нагорода за вхід", win1: "Перша перемога", win3: "Третя перемога", win7: "Сьома перемога", win: "Перемога " + (pack.slot + 1), weekly: "Тижневий турнір", challenge: "Щоденна гра" })[pack.milestone] + " · " + pack.day;
+    $("daily-milestone").textContent = !pack ? "Усі доступні нагороди отримано.": ({ login: "Попередня нагорода за вхід", win1: "Перша перемога", win3: "Третя перемога", win7: "Сьома перемога", win: "Перемога " + (pack.slot + 1), weekly: "Тижневий турнір", challenge: "Щоденна гра" })[pack.milestone] + " (" + pack.day + ")";
     if (!pack) return;
     for (let i = 0; i < 3; i++) {
         const b = document.createElement("button");
