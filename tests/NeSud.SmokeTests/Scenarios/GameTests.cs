@@ -17,6 +17,17 @@ internal static partial class SmokeTests
         Check(g.Notes[cell] == 1 << correct, "Note mask");
         Check(g.Enter(cell, correct), "Number entry");
         Check(g.Notes[cell] == 0, "Clear notes after number");
+        int mistakesBefore = g.Mistakes, movesBefore = g.UndoStack.Count;
+        Check(!g.Editable(cell) && !g.Enter(cell, 0) && !g.Enter(cell, correct % 9 + 1) &&
+            !g.Enter(cell, correct, note: true), "Correct answer cannot be overwritten, erased or annotated");
+        Check(g.Values[cell] == correct && g.Mistakes == mistakesBefore && g.UndoStack.Count == movesBefore,
+            "Blocked edit has no side effects");
+        int[] focusBoard = new int[81];
+        focusBoard[0] = focusBoard[12] = focusBoard[40] = 5;
+        Check(BoardFocus.Nearest(focusBoard, 11, 5) == 12 &&
+            BoardFocus.Nearest(focusBoard, 12, 5) == 0 &&
+            BoardFocus.Nearest(focusBoard, 12, 5, false) == 12 &&
+            BoardFocus.Nearest(focusBoard, 12, 7) == -1, "Digit navigation and missing digit");
         Check(g.Undo() && g.Values[cell] == 0 && g.Notes[cell] != 0, "Undo notes");
         Check(g.Redo() && g.Values[cell] == correct, "Redo number");
         Check(g.Undo() && g.Enter(cell, correct % 9 + 1), "Branch history");

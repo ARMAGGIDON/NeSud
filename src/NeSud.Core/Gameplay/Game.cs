@@ -192,7 +192,7 @@ public sealed class Game
         return true;
     }
 
-    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && !Paused && !Completed && !OutOfLives;
+    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && Values[i] != Puzzle.Solution[i] && !Paused && !Completed && !OutOfLives;
     public bool Enter(int i, int digit, bool note = false, bool autoClean = true, bool hint = false)
     {
         if (!Editable(i) || digit is < 0 or > 9 || hint && (digit != Puzzle.Solution[i] || note || RulesVersion > 0 && HintCredits == 0)) return false;

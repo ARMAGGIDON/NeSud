@@ -467,7 +467,7 @@ public sealed partial class MainWindow : Window
         Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650, Child = board
     };
 
-    private Grid BuildBoard() => BuildBoard(cells, i => Select(i), i => { if (Playing && G!.Selected != i) Select(i, false); });
+    private Grid BuildBoard() => BuildBoard(cells, i => Select(i), i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); });
 
     private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null)
     {

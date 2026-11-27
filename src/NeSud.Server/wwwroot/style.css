@@ -1452,3 +1452,8 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 @media (prefers-reduced-motion: reduce) { .quest-fill { transition: none; } }
 
 #daily-cards:not(:has(.mystery-card)):not(.quest-animation) { min-height: 0; text-align: center; }
+
+/* Focus a digit independently of the selected Sudoku cell. */
+.mininotes .focused-note { color: var(--accenttext); background: var(--accent); border-radius: 3px; font-weight: 700; }
+#pad button.focused-digit { background: var(--same); opacity: 1; }
+#pad button.spent-digit:not(:disabled):not(.focused-digit) { opacity: .75; }

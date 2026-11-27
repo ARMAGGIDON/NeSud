@@ -86,7 +86,7 @@ public sealed partial class MainWindow
         var window = GamePage("Щоденна гра", root);
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
-        int selected = 0;
+        int selected = 0, focusDigit = 0;
         var anchor = Stopwatch.StartNew();
         double reviveDeadline = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -94,7 +94,8 @@ public sealed partial class MainWindow
         bool Active() => connected && !working && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
         void Select(int i)
         {
-            if (!Active() || selected == i) return;
+            if (!Active() || (selected == i && focusDigit == 0)) return;
+            focusDigit = 0;
             selected = i;
             Draw();
         }
@@ -139,9 +140,9 @@ public sealed partial class MainWindow
         for (int i = 0; i < padCells.Length; i++)
         {
             int digit = i + 1;
-            padCells[i].Click += async (_, _) => await Move("enter", digit);
+            padCells[i].Click += async (_, _) => await EnterDigit(digit);
         }
-        erase.Click += async (_, _) => await Move("enter", 0);
+        erase.Click += async (_, _) => await EnterDigit(0);
         undo.Click += async (_, _) => await Move("undo");
         redo.Click += async (_, _) => await Move("redo");
         notes.Click += (_, _) => {
@@ -170,6 +171,7 @@ public sealed partial class MainWindow
         }
         void Accept(OnlineGameView g)
         {
+            if (game?.Id != g.Id) focusDigit = 0;
             game = g.Empty?null: g;
             connected = true;
             anchor.Restart();
@@ -183,23 +185,25 @@ public sealed partial class MainWindow
             grid.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
             cover.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
             level.Text = game is null ? "Підготовка" : Level(game.Difficulty);
-            bool editable = active && game!.Givens[selected] == 0;
+            bool editable = active && focusDigit == 0 && game!.Givens[selected] == 0 &&
+                (game.Values[selected] == 0 || game.Wrong[selected]);
+            int highlighted = focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0;
             for (int i = 0; i < 81; i++)
             {
                 var b = boardCells[i];
                 int value = visible ? game!.Values[i] : 0;
                 DrawGameCell(b, i, value, visible ? game!.Notes[i] : 0, visible && game!.Givens[i] != 0,
-                    visible && i == selected, visible && game!.Wrong[i],
-                    visible && value != 0 && value == game!.Values[selected],
-                    visible && state.HighlightPeers && Sudoku.Peers[selected].Contains(i));
+                    visible && focusDigit == 0 && i == selected, visible && game!.Wrong[i],
+                    visible && value != 0 && value == highlighted,
+                    visible && focusDigit == 0 && state.HighlightPeers && Sudoku.Peers[selected].Contains(i), highlighted);
                 // Keep keyboard focus through an in-flight server move. Active() guards input.
                 b.IsEnabled = visible && game?.Reward is null;
-                b.IsTabStop = visible && i == selected;
+                b.IsTabStop = visible && focusDigit == 0 && i == selected;
             }
             for (int i = 0; i < 9; i++)
             {
                 int remaining = game?.Remaining[i] ?? 9;
-                DrawGameDigit(padCells[i], i + 1, remaining, editable && (note || remaining > 0));
+                DrawGameDigit(padCells[i], i + 1, remaining, active, i + 1 == highlighted);
             }
             int filled = game?.Values.Count(v => v != 0) ?? 0;
             int givens = game?.Givens.Count(v => v != 0) ?? 0;
@@ -273,6 +277,21 @@ public sealed partial class MainWindow
                 if (window.IsVisible)Draw();
             }
         }
+        async Task EnterDigit(int digit, bool temporaryNote = false)
+        {
+            if (!Active() || game is null) return;
+            bool locked = game.Givens[selected] != 0 || (game.Values[selected] != 0 && !game.Wrong[selected]);
+            if (focusDigit != 0 || locked)
+            {
+                if (digit == 0) return;
+                int next = BoardFocus.Nearest(game.Values, selected, digit, focusDigit == 0);
+                if (next >= 0) { Select(next); boardCells[next].Focus(); }
+                else { focusDigit = digit; padCells[digit - 1].Focus(); Draw(); }
+                return;
+            }
+            await Move("enter", digit, temporaryNote: temporaryNote);
+        }
+
         async Task<bool> Move(string action, int digit = 0, string? reward = null, bool temporaryNote = false)
         {
             if (working || !connected || game is null)return false;
@@ -291,7 +310,8 @@ public sealed partial class MainWindow
                     var wonId = g.Id;
                     _ = Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) _ = ShowWinReward(wonId, day); }));
                 }
-                if (action != "hint")selected = cell;
+                if (action != "hint") selected = cell;
+                else focusDigit = 0;
                 return true;
             }
             catch (Exception ex)
@@ -459,8 +479,8 @@ public sealed partial class MainWindow
             {
                 int digit = e.Key >= Key.D0 && e.Key <= Key.D9 ? (int)e.Key - (int)Key.D0 :
                     e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9 ? (int)e.Key - (int)Key.NumPad0 : -1;
-                if (digit >= 0) _ = Move("enter", digit, temporaryNote: mods.HasFlag(ModifierKeys.Shift));
-                else if (e.Key is Key.Delete or Key.Back) _ = Move("enter", 0);
+                if (digit >= 0) _ = EnterDigit(digit, temporaryNote: mods.HasFlag(ModifierKeys.Shift));
+                else if (e.Key is Key.Delete or Key.Back) _ = EnterDigit(0);
                 else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
                 {
                     int row = selected / 9, col = selected % 9;

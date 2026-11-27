@@ -50,11 +50,11 @@ public sealed partial class MainWindow : Window
             levels[i].FontWeight = chosen ? FontWeights.SemiBold : FontWeights.Normal;
             levels[i].IsEnabled = !Busy;
         }
-        int selectedValue = g is null ? 0 : g.Values[g.Selected];
+        int selectedValue = g is null ? 0 : DigitOnly ? localFocusDigit : g.Values[g.Selected];
         for (int i = 0; i < 81; i++)
         {
             var b = cells[i];
-            b.IsTabStop = active && i == g!.Selected;
+            b.IsTabStop = active && !DigitOnly && i == g!.Selected;
             if (g is null)
             {
                 b.Content = null;
@@ -62,15 +62,15 @@ public sealed partial class MainWindow : Window
                 continue;
             }
             int value = g.Values[i];
-            DrawGameCell(b, i, value, g.Notes[i], g.Puzzle.Givens[i] != 0, i == g.Selected,
+            DrawGameCell(b, i, value, g.Notes[i], g.Puzzle.Givens[i] != 0, !DigitOnly && i == g.Selected,
                 value != 0 && value != g.Puzzle.Solution[i],
-                selectedValue != 0 && selectedValue == value, state.HighlightPeers && Sudoku.Peers[g.Selected].Contains(i));
+                selectedValue != 0 && selectedValue == value, !DigitOnly && state.HighlightPeers && Sudoku.Peers[g.Selected].Contains(i), selectedValue);
         }
         for (int i = 0; i < 9; i++)
         {
             int d = i + 1;
             int remaining = g is null ? 9 : g.Remaining(d);
-            DrawGameDigit(digits[i], d, remaining, active && g!.Editable(g.Selected) && (g.NotesMode || remaining > 0));
+            DrawGameDigit(digits[i], d, remaining, active, d == selectedValue);
         }
         int filled = g?.Values.Count(v => v != 0) ?? 0;
         int givens = g?.Puzzle.Givens.Count(v => v != 0) ?? 0;
@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Window
         progressBar.Value = filled;
         undo.IsEnabled = active && g!.UndoStack.Count > 0;
         redo.IsEnabled = active && g!.RedoStack.Count > 0;
-        erase.IsEnabled = active && g!.Editable(g.Selected);
+        erase.IsEnabled = active && !DigitOnly && g!.Editable(g.Selected);
         hint.IsEnabled = fill.IsEnabled = notes.IsEnabled = active;
         hint.Content = $"Підказка ({g?.HintCredits ?? 0})";
         fill.Content = $"Кандидати ({g?.CandidateCredits ?? 0})";
@@ -190,18 +190,18 @@ public sealed partial class MainWindow : Window
         transform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
-    private void DrawGameCell(Button b, int i, int value, int mask, bool given, bool selected, bool wrong, bool same, bool peer)
+    private void DrawGameCell(Button b, int i, int value, int mask, bool given, bool selected, bool wrong, bool same, bool peer, int focusDigit)
     {
         b.Background = B(selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel");
         b.Foreground = B(wrong ? "Wrong" : given ? "Given" : "Accent");
         b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
-        b.Content = value != 0 ? value.ToString() : mask != 0 ? NoteGrid(mask) : null;
+        b.Content = value != 0 ? value.ToString() : mask != 0 ? NoteGrid(mask, focusDigit) : null;
         AutomationProperties.SetName(b, $"Рядок {i / 9 + 1}, стовпець {i % 9 + 1}, " +
             (value == 0 ? "порожньо" : value.ToString()) + (given ? ", задано" : "") +
             (wrong ? ", помилка" : "") + (selected ? ", вибрано" : ""));
     }
 
-    private void DrawGameDigit(Button button, int digit, int remaining, bool enabled)
+    private void DrawGameDigit(Button button, int digit, int remaining, bool enabled, bool focused)
     {
         var grid = new Grid { MinHeight = 35 };
         var number = Text(digit.ToString(), 21, "Text", true);
@@ -215,19 +215,27 @@ public sealed partial class MainWindow : Window
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Content = grid;
         button.IsEnabled = enabled;
-        button.Opacity = remaining == 0 ? 0.55 : 1;
+        button.Background = B(focused ? "Same" : "Control");
+        button.Opacity = remaining == 0 && !focused ? 0.75 : 1;
         AutomationProperties.SetName(button, $"Цифра {digit}, залишилось {remaining}");
     }
 
-    private UniformGrid NoteGrid(int mask)
+    private UniformGrid NoteGrid(int mask, int focusDigit)
     {
         var grid = new UniformGrid { Rows = 3, Columns = 3, Width = 51, Height = 51 };
         for (int n = 1; n <= 9; n++)
         {
-            var t = Text((mask & (1 << n)) != 0 ? n.ToString() : "", 13, "Muted");
+            bool marked = n == focusDigit && (mask & (1 << n)) != 0;
+            var t = Text((mask & (1 << n)) != 0 ? n.ToString() : "", 13, marked ? "AccentText" : "Muted", marked);
             t.TextAlignment = TextAlignment.Center;
             t.VerticalAlignment = VerticalAlignment.Center;
-            grid.Children.Add(t);
+            if (marked)
+            {
+                var highlight = new Border { Child = t, CornerRadius = new CornerRadius(3), Margin = new Thickness(1) };
+                highlight.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                grid.Children.Add(highlight);
+            }
+            else grid.Children.Add(t);
         }
         return grid;
     }

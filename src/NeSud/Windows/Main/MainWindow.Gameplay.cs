@@ -71,13 +71,18 @@ public sealed partial class MainWindow : Window
         saveStatus.Foreground = B("Wrong");
         saveStatus.ToolTip = ex.Message; }
     }
+    private int localFocusDigit;
+    private Guid focusGameId;
+    private bool DigitOnly => focusGameId == state.GameId && localFocusDigit != 0;
+
     private void FocusCell()
     {
-        if (Playing) cells[G!.Selected].Focus();
+        if (Playing && !DigitOnly) cells[G!.Selected].Focus();
     }
     private void Select(int i, bool focus = true)
     {
         if (!Playing) return;
+        localFocusDigit = 0;
         G!.Selected = i;
         Render();
         Save();
@@ -125,8 +130,26 @@ public sealed partial class MainWindow : Window
         { if (G.Values[i] == G.Puzzle.Solution[i]) Fade(cells[i]);
         else Shake(cells[i]); }
     }
-    private void Enter(int d, bool temporaryNote = false) => Change(g =>
-        g.Enter(g.Selected, d, temporaryNote || g.NotesMode, state.AutoClean));
+    private void Enter(int d, bool temporaryNote = false)
+    {
+        if (!Playing || G is not { } g) return;
+        if (DigitOnly || !g.Editable(g.Selected))
+        {
+            if (d == 0) return;
+            int next = BoardFocus.Nearest(g.Values, g.Selected, d, !DigitOnly);
+            if (next >= 0) Select(next);
+            else
+            {
+                focusGameId = state.GameId;
+                localFocusDigit = d;
+                // Keep keyboard input on the pad rather than the old cell.
+                digits[d - 1].Focus();
+                Render();
+            }
+            return;
+        }
+        Change(x => x.Enter(x.Selected, d, temporaryNote || x.NotesMode, state.AutoClean));
+    }
     private void ToggleNotes()
     {
         if (!Playing) return;
@@ -145,6 +168,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         if (G.GetHint() is not { } m) return;
+        localFocusDigit = 0;
         G.Selected = m.Cell;
         Change(g => g.Enter(m.Cell, m.Digit, false, state.AutoClean, true),
             $"{m.Reason}: рядок {m.Cell / 9 + 1}, стовпець {m.Cell % 9 + 1} = {m.Digit}.");

@@ -81,10 +81,11 @@ function render() {
     $("game-progress").value = filled;
     $("highlight-peers").checked = highlightPeers;
     $("auto-clean").checked = autoClean;
+    const highlighted = focusDigit || game?.values[selected] || 0;
     buttons.forEach((b, i) => {
         const v = game?.values[i] || 0, r = Math.floor(i / 9), c = i % 9, sr = Math.floor(selected / 9), sc = selected % 9;
         const animation = ["pop", "shake", "hint-pulse"].filter(k => b.classList.contains(k)).join(" ");
-        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (i === selected ? " selected": v && v === game?.values[selected] ? " same": highlightPeers && (r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3)) ? " peer": "");
+        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (!focusDigit && i === selected ? " selected": v && v === highlighted ? " same": !focusDigit && highlightPeers && (r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3)) ? " peer": "");
         if (animation) b.classList.add(...animation.split(" "));
         b.classList.toggle("wrong", !!game?.wrong?.[i]);
         b.replaceChildren();
@@ -95,10 +96,11 @@ function render() {
             for (let d = 1; d <= 9; d++) {
                 let k = document.createElement("span");
                 k.textContent = game.notes[i] & (1 << d) ? d: "";
+                if (d === highlighted && k.textContent) k.classList.add("focused-note");
                 n.append(k)
             }b.append(n)
         }
-        b.tabIndex = i === selected ? 0: -1;
+        b.tabIndex = !focusDigit && i === selected ? 0: -1;
         b.disabled = !online || !game || game.paused || game.outOfLives || adPending;
         b.setAttribute("aria-label", "Рядок " + (r + 1) + ", стовпець " + (c + 1) + ": " + (v || "порожньо"));
     });
@@ -107,9 +109,11 @@ function render() {
         const n = game?.remaining?.[i] ?? 9;
         b.querySelector("small").textContent = n;
         b.classList.toggle("spent-digit", n === 0);
-        b.disabled = !active || (!note && n === 0);
+        b.disabled = !active;
+        b.classList.toggle("focused-digit", i + 1 === highlighted);
         b.setAttribute("aria-label", "Цифра " + (i + 1) + ", залишилось " + n)
     });
+    document.querySelector('[data-action="erase"]').disabled = !active || !!focusDigit || lockedCell();
     $("auto-finish").checked = game?.autoFinish ?? autoFinish;
     $("auto-finish").disabled = !!game && (busy || game.completed || game.outOfLives);
     document.querySelector('[data-action="undo"]').disabled = !active || !game?.canUndo;
@@ -143,6 +147,7 @@ document.addEventListener("keydown", e => {
         if (k === "arrowright") c++;
         if (k === "arrowup") r--;
         if (k === "arrowdown") r++;
+        focusDigit = 0;
         selected = Math.max(0, Math.min(8, r)) * 9 + Math.max(0, Math.min(8, c));
         render();
         buttons[selected].focus()

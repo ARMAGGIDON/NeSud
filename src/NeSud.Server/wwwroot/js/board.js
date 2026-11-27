@@ -1,10 +1,12 @@
 "use strict";
 
+let focusDigit = 0;
 const buttons = [];
 for (let i = 0; i < 81; i++) {
     let b = document.createElement("button");
     b.className = "cell";
     b.onclick = () => {
+        focusDigit = 0;
         selected = i;
         render();
         b.focus()
@@ -21,8 +23,36 @@ for (let d = 1; d <= 9; d++) {
     b.onclick = () => enter(d);
     $("pad").append(b)
 }
+function nearestDigit(values, anchor, digit, skipAnchor = true) {
+    let best = -1, distance = Infinity;
+    for (let i = 0; i < values.length; i++) {
+        if (values[i] !== digit || (skipAnchor && i === anchor)) continue;
+        const d = Math.abs(Math.floor(i / 9) - Math.floor(anchor / 9)) + Math.abs(i % 9 - anchor % 9);
+        if (d < distance) { best = i; distance = d; }
+    }
+    return best >= 0 ? best : values[anchor] === digit ? anchor : -1;
+}
+function lockedCell() {
+    return !!game && (!!game.givens[selected] || (!!game.values[selected] && !game.wrong[selected]));
+}
 function enter(d, temp = false) {
-    act("enter", { cell: selected, digit: d, note: temp || note })
+    if (!online || !game || game.paused || game.completed || game.outOfLives || adPending) return;
+    if (focusDigit || lockedCell()) {
+        if (!d) return;
+        const next = nearestDigit(game.values, selected, d, !focusDigit);
+        if (next >= 0) {
+            focusDigit = 0;
+            selected = next;
+            render();
+            buttons[next].focus();
+        } else {
+            focusDigit = d;
+            render();
+            $("pad").children[d - 1].focus();
+        }
+        return;
+    }
+    act("enter", { cell: selected, digit: d, note: temp || note });
 }
 $("notes").onclick = () => {
     note = !note;
