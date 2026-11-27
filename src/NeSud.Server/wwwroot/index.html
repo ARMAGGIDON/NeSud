@@ -233,10 +233,13 @@
                 <section id="friends" class="panel" hidden>
                     <h2>Друзі та пошук</h2>
                     <form id="player-form" class="actions">
-                        <input id="player-search" placeholder="Нікнейм" minlength="2" maxlength="80">
+                        <input id="player-search" aria-label="Нікнейм гравця" placeholder="Нікнейм" minlength="2" maxlength="80">
                         <button type="submit">Знайти / оновити</button>
                     </form>
-                    <div id="player-results" class="actions"></div>
+                    <section class="player-search-area" aria-label="Результати пошуку">
+                        <small id="player-search-status" role="status">Введіть щонайменше 2 символи.</small>
+                        <div id="player-results"></div>
+                    </section>
                     <div id="friend-list"></div>
                 </section>
             </div>
