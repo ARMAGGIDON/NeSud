@@ -6,7 +6,8 @@
         "prepare-web": "node prepare-web.mjs",
         "test:realtime": "node --test realtime.test.mjs",
         "test:presentation": "node --test presentation.test.mjs",
-        "test:realtime:live": "node realtime.integration.mjs"
+        "test:realtime:live": "node realtime.integration.mjs",
+        "test:shutdown": "node shutdown.integration.mjs"
     },
     "dependencies": {
         "@microsoft/signalr": "10.0.11",

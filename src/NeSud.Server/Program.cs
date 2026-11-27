@@ -25,6 +25,26 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 var app = builder.Build();
+var stopping = app.Lifetime.ApplicationStopping;
+app.Use(async (context, next) =>
+{
+    if (stopping.IsCancellationRequested)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        return;
+    }
+
+    // Long-lived WebSocket requests must not hold Kestrel's graceful shutdown open.
+    // Abort only the hub transport; ordinary requests can finish their transactions.
+    if (context.Request.Path.StartsWithSegments("/hubs/game"))
+    {
+        using var registration = stopping.Register(static state => ((HttpContext)state!).Abort(), context);
+        await next();
+        return;
+    }
+
+    await next();
+});
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
@@ -44,5 +64,6 @@ app.MapHub<GameHub>("/hubs/game", options =>
     options.Transports = HttpTransportType.WebSockets;
     options.ApplicationMaxBufferSize = 32 * 1024;
     options.TransportMaxBufferSize = 32 * 1024;
+    options.WebSockets.CloseTimeout = TimeSpan.FromSeconds(2);
 });
 app.Run();
