@@ -30,6 +30,12 @@ public sealed partial class MainWindow
                     if (pending.Count > 0) await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Input);
                 }
             }
+            catch (Exception ex)
+            {
+                pending.Clear();
+                Finish(true);
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
             finally { draining = false; }
         }
 

@@ -109,10 +109,13 @@ public sealed partial class MainWindow
             {
                 try
                 {
+                    // Publish the new tail before executing input, including synchronous focus callbacks.
+                    await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.Input);
                     await previous;
                     while (working && CanInput() && game!.Id == id) await Task.Delay(15);
                     if (CanInput() && game!.Id == id) await action();
                 }
+                catch (Exception ex) { notice.Text = ex.Message; }
                 finally { queuedInputs--; }
             }
             return inputTail = Run();
@@ -579,8 +582,8 @@ public sealed partial class MainWindow
             else if (!CanInput()) return;
             else if (mods.HasFlag(ModifierKeys.Control))
             {
-                if (e.Key == Key.Z) _ = Move(mods.HasFlag(ModifierKeys.Shift) ? "redo" : "undo");
-                else if (e.Key == Key.Y) _ = Move("redo");
+                if (e.Key == Key.Z) _ = QueueInput(() => Move(mods.HasFlag(ModifierKeys.Shift) ? "redo" : "undo"));
+                else if (e.Key == Key.Y) _ = QueueInput(() => Move("redo"));
                 else return;
             }
             else
@@ -591,21 +594,25 @@ public sealed partial class MainWindow
                 else if (e.Key is Key.Delete or Key.Back) _ = QueueInput(() => EnterDigit(0));
                 else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
                 {
-                    int row = selected / 9, col = selected % 9;
-                    if (e.Key == Key.Left) col--;
-                    if (e.Key == Key.Right) col++;
-                    if (e.Key == Key.Up) row--;
-                    if (e.Key == Key.Down) row++;
-                    int target = Math.Clamp(row, 0, 8) * 9 + Math.Clamp(col, 0, 8);
-                    _ = QueueInput(() => { Select(target); boardCells[selected].Focus(); return Task.CompletedTask; });
+                    var key = e.Key;
+                    _ = QueueInput(() =>
+                    {
+                        int row = selected / 9, col = selected % 9;
+                        if (key == Key.Left) col--;
+                        if (key == Key.Right) col++;
+                        if (key == Key.Up) row--;
+                        if (key == Key.Down) row++;
+                        Select(Math.Clamp(row, 0, 8) * 9 + Math.Clamp(col, 0, 8));
+                        boardCells[selected].Focus();
+                        return Task.CompletedTask;
+                    });
                 }
                 else if (e.Key == Key.N || e.Key == Key.Space && Keyboard.FocusedElement is Button button && boardCells.Contains(button))
                 {
-                    note = !note;
-                    Draw();
+                    _ = QueueInput(() => { note = !note; Draw(); return Task.CompletedTask; });
                 }
-                else if (e.Key == Key.H) _ = Aid("hint");
-                else if (e.Key == Key.A) _ = Aid("candidates");
+                else if (e.Key == Key.H) _ = QueueInput(() => Aid("hint"));
+                else if (e.Key == Key.A) _ = QueueInput(() => Aid("candidates"));
                 else return;
             }
             e.Handled = true;

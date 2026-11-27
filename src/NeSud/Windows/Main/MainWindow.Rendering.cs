@@ -211,7 +211,7 @@ public sealed partial class MainWindow : Window
         b.Background = B(selected ? "Selected" : wrong ? "WrongBg" : same ? "Same" : peer ? "Peer" : "Panel");
         b.Foreground = B(wrong ? "Wrong" : given ? "Given" : "Accent");
         b.FontWeight = given ? FontWeights.SemiBold : FontWeights.Normal;
-        var visual = cellVisuals.GetOrCreateValue(b);
+        var visual = cellVisuals.GetValue(b, _ => new CellVisual());
         int effectiveFocus = value == 0 && (mask & (1 << focusDigit)) != 0 ? focusDigit : 0;
         if (visual.Value != value || visual.Mask != mask || visual.Focus != effectiveFocus ||
             (b.Content is null && (value != 0 || mask != 0)))
@@ -229,19 +229,19 @@ public sealed partial class MainWindow : Window
     {
         if (!digitVisuals.TryGetValue(button, out var visual))
         {
-        var grid = new Grid { MinHeight = 35 };
-        var number = Text(digit.ToString(), 21, "Text", true);
-        number.HorizontalAlignment = HorizontalAlignment.Center;
-        number.VerticalAlignment = VerticalAlignment.Center;
-        var count = Text("", 10, "Muted");
-        count.HorizontalAlignment = HorizontalAlignment.Right;
-        count.VerticalAlignment = VerticalAlignment.Bottom;
-        grid.Children.Add(number);
-        grid.Children.Add(count);
-        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        button.Content = grid;
-        visual = new DigitVisual(count);
-        digitVisuals.Add(button, visual);
+            var grid = new Grid { MinHeight = 35 };
+            var number = Text(digit.ToString(), 21, "Text", true);
+            number.HorizontalAlignment = HorizontalAlignment.Center;
+            number.VerticalAlignment = VerticalAlignment.Center;
+            var count = Text("", 10, "Muted");
+            count.HorizontalAlignment = HorizontalAlignment.Right;
+            count.VerticalAlignment = VerticalAlignment.Bottom;
+            grid.Children.Add(number);
+            grid.Children.Add(count);
+            button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+            button.Content = grid;
+            visual = new DigitVisual(count);
+            digitVisuals.Add(button, visual);
         }
         string remainingText = remaining.ToString();
         if (visual.Count.Text != remainingText)

@@ -113,7 +113,7 @@ public sealed partial class MainWindow : Window
                     Save();
                 }
             }
-            if (G is not null && G.Seconds - lastSavedSecond >= 5) Save();
+            if (G is not null && !G.Completed && !G.OutOfLives && G.Seconds - lastSavedSecond >= 5) SavePeriodic();
             if (account is not null && !syncing && DateTimeOffset.UtcNow >= nextSync) _ = Sync();
             if (!probing && DateTimeOffset.UtcNow >= nextProbe) _ = Probe();
         };

@@ -38,12 +38,15 @@ public sealed class LocalStore
         return state;
     }
 
-    public void Save(AppState state, GameRecord? terminal = null, string scope = "")
+    public void Save(AppState state, GameRecord? terminal = null, string scope = "") =>
+        SaveSnapshot(Database.Encode(state), terminal, scope);
+
+    public void SaveSnapshot(string snapshot, GameRecord? terminal = null, string scope = "")
     {
         using var db = database.Open();
         using var tx = db.BeginTransaction();
         using var cmd = Database.Command(db, "INSERT INTO settings VALUES(1,$p) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-            ("$p", Database.Encode(state)));
+            ("$p", snapshot));
         cmd.Transaction = tx;
         cmd.ExecuteNonQuery();
         if (terminal is not null)

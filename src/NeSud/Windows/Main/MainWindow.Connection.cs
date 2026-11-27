@@ -56,14 +56,15 @@ public sealed partial class MainWindow : Window
         var endpoint = serverUrl;
         try
         {
-            var pending = store.History(scope, true);
+            var pending = await Task.Run(() => store.History(scope, true));
+            if (closing) return;
             DesktopDraft? draft = G is { Completed: false } && (state.GameScope ?? "") == scope
                 ? new(state.GameId, state.Started, DateTimeOffset.UtcNow, Database.Decode<Game > (Database.Encode(G))) : null;
             foreach (var batch in pending.Chunk(10))
             {
                 var records = await Request<List<GameRecord>>("sync", batch, endpoint, session.Token);
                 if (closing) return;
-                store.Merge(scope, records);
+                await Task.Run(() => store.Merge(scope, records));
             }
             if (draft is not null)
             {
@@ -79,7 +80,7 @@ public sealed partial class MainWindow : Window
             {
                 var page = await Request<HistoryPage > ($"history/changes?after={cursor}", endpoint: endpoint, token: session.Token);
                 if (closing) return;
-                if (page.Records.Count > 0) store.Merge(scope, page.Records);
+                if (page.Records.Count > 0) await Task.Run(() => store.Merge(scope, page.Records));
                 cursor = page.Cursor;
                 historyCursors[scope] = cursor;
                 if (page.Records.Count < 100) break;

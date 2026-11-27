@@ -54,10 +54,47 @@ public sealed partial class MainWindow : Window
             accountedSeconds = 0;
         }
     }
+    private Task<Exception?>? periodicWrite;
+    private long saveEpoch;
+
+    private async void SavePeriodic()
+    {
+        if (closing || periodicWrite is { IsCompleted: false }) return;
+        string snapshot = Database.Encode(state);
+        int seconds = G?.Seconds ?? 0;
+        Guid id = state.GameId;
+        long epoch = ++saveEpoch;
+        lastSavedSecond = seconds;
+        var task = Task.Run<Exception?>(() =>
+        {
+            try { store.SaveSnapshot(snapshot); return null; }
+            catch (Exception ex) { return ex; }
+        });
+        periodicWrite = task;
+        var error = await task;
+        if (closing || saveEpoch != epoch || state.GameId != id) return;
+        if (error is not null)
+        {
+            lastSavedSecond = seconds - 5;
+            saveStatus.Text = "Не збережено";
+            saveStatus.Foreground = B("Wrong");
+            saveStatus.ToolTip = error.Message;
+        }
+        else
+        {
+            saveStatus.Text = "";
+            saveStatus.Foreground = B("Muted");
+            saveStatus.ToolTip = LocalStore.DefaultPath;
+        }
+    }
+
     private void Save(GameRecord? previous = null, string? previousScope = null)
     {
         try
         {
+            ++saveEpoch;
+            // Explicit saves must follow any earlier immutable autosave snapshot.
+            periodicWrite?.GetAwaiter().GetResult();
             store.Save(state, previous ?? (G is { Completed: true } ? Terminal("completed") : G?.FinalDefeat(DateTimeOffset.UtcNow) == true ? Terminal("defeated") : null), previousScope ?? state.GameScope ?? "");
             lastSavedSecond = G?.Seconds ?? 0;
             if (previous is not null || G is { Completed: true } && !syncing && nextSync > DateTimeOffset.UtcNow.AddSeconds(10))
