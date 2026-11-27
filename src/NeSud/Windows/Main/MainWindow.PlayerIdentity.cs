@@ -12,12 +12,11 @@ namespace NeSud;
 
 public sealed partial class MainWindow
 {
-    private readonly Dictionary<string, (BitmapSource? Image, DateTimeOffset Expires)> avatarCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (BitmapSource? Image, DateTimeOffset Checked, DateTimeOffset Expires)> avatarCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<BitmapSource?>> avatarRequests = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim avatarSlots = new(4);
     private readonly Dictionary<string, System.Net.Http.Headers.EntityTagHeaderValue> avatarTags = new(StringComparer.OrdinalIgnoreCase);
     private string? headerAvatarUser;
-    private DateTimeOffset nextHeaderAvatar;
 
     private void InvalidatePlayerAvatar(string user)
     {
@@ -36,20 +35,24 @@ public sealed partial class MainWindow
             using var response = await http.SendAsync(request);
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified && avatarCache.TryGetValue(user, out var previous))
                 return previous.Image;
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+                return response.StatusCode != System.Net.HttpStatusCode.NotFound && avatarCache.TryGetValue(user, out var retained)
+                    ? retained.Image : null;
             if (response.Content.Headers.ContentLength > 5 * 1024 * 1024) return null;
             var image = ReadAvatar(await response.Content.ReadAsByteArrayAsync());
             if (response.Headers.ETag is { } current) avatarTags[user] = current;
             return image;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException or NotSupportedException or FormatException)
-        { return null; }
+        { return avatarCache.TryGetValue(user, out var retained) ? retained.Image : null; }
         finally { avatarSlots.Release(); }
     }
 
     private async Task<BitmapSource?> PlayerAvatarImage(string user, bool fresh = false)
     {
-        if (!fresh && avatarCache.TryGetValue(user, out var cached) && cached.Expires > DateTimeOffset.UtcNow)
+        var now = DateTimeOffset.UtcNow;
+        if (avatarCache.TryGetValue(user, out var cached) &&
+            (fresh ? now - cached.Checked < TimeSpan.FromSeconds(5) : cached.Expires > now))
             return cached.Image;
         if (avatarRequests.TryGetValue(user, out var pending)) return await pending;
         var request = FetchPlayerAvatar(user);
@@ -58,7 +61,8 @@ public sealed partial class MainWindow
         {
             var image = await request;
             if (avatarCache.Count >= 256) { avatarCache.Clear(); avatarTags.Clear(); }
-            avatarCache[user] = (image, DateTimeOffset.UtcNow.AddSeconds(image is null ? 5 : 60));
+            var checkedAt = DateTimeOffset.UtcNow;
+            avatarCache[user] = (image, checkedAt, checkedAt.AddSeconds(image is null ? 5 : 60));
             return image;
         }
         finally { avatarRequests.Remove(user); }
@@ -155,9 +159,8 @@ public sealed partial class MainWindow
     {
         if (accountNavigation is null) return;
         string? user = account is null ? null : account.Username ?? account.User;
-        if (!force && headerAvatarUser == user && nextHeaderAvatar > DateTimeOffset.UtcNow) return;
+        if (!force && headerAvatarUser == user) return;
         headerAvatarUser = user;
-        nextHeaderAvatar = DateTimeOffset.UtcNow.AddSeconds(60);
         accountNavigation.Content = user is null ? "Увійти" : PlayerIdentity(user, 26, "Мій профіль", refresh: true);
     }
 

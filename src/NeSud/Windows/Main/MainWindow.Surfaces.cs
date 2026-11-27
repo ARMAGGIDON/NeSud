@@ -20,8 +20,10 @@ public sealed partial class MainWindow
 
     private async Task NavigateHeader(Action action)
     {
-        if (surfaces.LastOrDefault() is { IsPage: false }) return;
+        var source = surfaces.LastOrDefault();
+        if (source is { IsPage: false } || closing) return;
         if (beforePageNavigation is not null && !await beforePageNavigation()) return;
+        if (closing || source != surfaces.LastOrDefault() || homeRequested) return;
         action();
     }
 

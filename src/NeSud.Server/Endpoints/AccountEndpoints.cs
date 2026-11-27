@@ -72,6 +72,7 @@ internal static partial class Endpoints
             if (!s.IsVerified(name)) return VerificationRequired();
             if (edit.Png is null) return Results.BadRequest(new { error = "Аватар можна лише замінити." });
             if (!s.SetAvatar(name, edit.Png)) return Results.BadRequest(new { error = "Некоректне квадратне PNG-зображення." });
+            try { await hub.Clients.Group(GameHub.Group(name)).SendAsync("AvatarChanged"); } catch { }
             await GameHub.NotifyAccount(hub.Clients.Group(GameHub.Group(name)));
             return Results.Ok(new SyncAck(true));
         });

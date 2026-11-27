@@ -57,6 +57,11 @@ async function ensureRealtime() {
     connection.on("GameChanged", day => {
         if (connection === realtime && subscribed) queueGameRefresh(day);
     });
+    connection.on("AvatarChanged", () => {
+        if (connection !== realtime || !subscribed) return;
+        avatarVersion = Date.now();
+        queueAccountRefresh();
+    });
     connection.on("AccountChanged", () => {
         if (connection === realtime && subscribed) queueAccountRefresh();
     });

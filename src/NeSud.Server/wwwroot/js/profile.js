@@ -92,6 +92,7 @@ async function loadProfile() {
     p.history.forEach(r => row(target, [new Date(r.ended).toLocaleString("uk-UA") + " · " + (r.challengeDay ? "Щоденна " + r.challengeDay: r.source), levels[r.difficulty], ({ completed: "Перемога", defeated: "Поразка", abandoned: "Перервано" })[r.outcome] + " · " + fmt(r.seconds), r.score + " · помилки: " + r.mistakes + " · підказки: " + r.hints]));
     $("profile-prev").disabled = page === 0;
     $("profile-next").disabled = !p.hasMore;
+    if (!p.history.length) emptyList(target, "Ігор ще немає.");
 }
 function drawCups(target, cups) {
     target.replaceChildren();
