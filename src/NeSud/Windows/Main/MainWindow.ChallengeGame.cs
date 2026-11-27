@@ -240,7 +240,8 @@ public sealed partial class MainWindow
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
-                notice.Text = $"Останній шанс: {left} с";
+                notice.Text = left > 0 ? $"Життя закінчилися. На відновлення: {left} с" :
+                    "Життя закінчилися. Перевіряємо можливість відновлення…";
                 mainAction.IsEnabled = connected && !working && left > 0;
                 if (left == 0 && !working && connected)_ = Load();
             }
@@ -308,7 +309,7 @@ public sealed partial class MainWindow
             mainAction.IsEnabled = !working && game?.Reward is null;
             if (connected) notice.Text = game is null ? "Головоломка дня: " + day :
                 game.Completed ? $"Час: {FormatTime(game.Seconds)}\nБали: {game.CurrentScore:N0}\nПомилки: {game.Mistakes}\nПідказки: {game.Hints}" :
-                game.FinalDefeat ? "Час вичерпано." : game.Paused ? "Поле приховано, таймер зупинено." : "";
+                game.FinalDefeat ? "Усі життя вичерпано. Спробуйте ще раз." : game.Paused ? "Поле приховано, таймер зупинено." : "";
             Clock();
         }
         async Task Load(bool pauseSession = false)

@@ -137,14 +137,14 @@ public sealed partial class MainWindow : Window
         if (G is not { OutOfLives: true } g || Busy) return;
         int left = g.ReviveSeconds(DateTimeOffset.UtcNow);
         coverDetail.Text = g.ReviveReadyAt is not null ? "Останній шанс використано. Очікуємо рекламу." :
-            left > 0 ? $"Останній шанс: {left} с" : "Час вичерпано.";
+            left > 0 ? $"Життя закінчилися. На відновлення: {left} с" : "Усі життя вичерпано.";
         coverButton.IsEnabled = left > 0 && !watchingReward;
     }
 
     private async Task ShowResult(Game g)
     {
         bool win = g.Completed;
-        resultTitle.Text = win ? "Головоломку розв’язано!" : "Поразка";
+        resultTitle.Text = win ? "Головоломку розв’язано!" : "Поразка: усі життя вичерпано";
         SetCompactMetrics(resultSummary, [("Складність", Level(g.Puzzle.Difficulty)), ("Час", FormatTime(g.Seconds)),
             ("Бали", (win ? g.CurrentScore : 0).ToString("N0"))]);
         SetDetailRows(resultBreakdown, ("База", g.BaseScore.ToString("N0")), ("Бонус швидкості", $"+{g.SpeedBonus:N0}"),

@@ -21,7 +21,7 @@ function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
     $("revive-progress").value = left;
-    $("cover-detail").textContent = game.reward ? "Останній шанс використано.": left > 0 ? "Останній шанс: " + left + " с": "Час вичерпано.";
+    $("cover-detail").textContent = game.reward ? "Останній шанс використано.": left > 0 ? "Життя закінчилися. На відновлення: " + left + " с": "Життя закінчилися. Перевіряємо можливість відновлення…";
     $("resume").disabled = busy || adPending || left === 0;
     if (tab === "play" && !left && !game.reward && online && !busy && !adPending) act("heartbeat")
 }
@@ -40,7 +40,8 @@ function render() {
     $("resume").hidden = online && !game;
     $("resume").disabled = busy;
     $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Відновити життя за рекламу": "Продовжити";
-    $("cover-detail").textContent = online && game?.paused ? "Поле приховано, таймер зупинено." : "";
+    $("cover-detail").textContent = online && game?.finalDefeat ? "Усі життя вичерпано." :
+        online && game?.paused ? "Поле приховано, таймер зупинено." : "";
     $("revive-progress").hidden = !game?.outOfLives;
     $("menu-continue").hidden = !regularGame;
     $("menu-continue").textContent = regularGame?.completed || regularGame?.finalDefeat

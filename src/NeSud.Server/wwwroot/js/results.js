@@ -85,7 +85,7 @@ function showResult() {
     $("game-tools").hidden = done || lost;
     if (!done && !lost) return;
     $("result-icon").textContent = done ? "✓": "♡";
-    $("result-title").textContent = done ? "Головоломку розв’язано!": "Поразка";
+    $("result-title").textContent = done ? "Головоломку розв’язано!": "Поразка: усі життя вичерпано";
     $("result-level").textContent = challengeDay ? "Щоденна гра (" + challengeDay + "), " + levels[game.difficulty] : levels[game.difficulty];
     $("result-difficulty").hidden = !!challengeDay;
     $("result-new").textContent = challengeDay ? "До календаря": "Нова головоломка";
