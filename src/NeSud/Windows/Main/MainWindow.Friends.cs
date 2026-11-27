@@ -75,7 +75,7 @@ public sealed partial class MainWindow
         var searchStatus = Text("", 13, "Muted");
         var results = Stack();
         var resultScroll = new ScrollViewer { Content = results, MaxHeight = 240,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         var popupBody = Stack();
         popupBody.Children.Add(searchStatus);
         Gap(popupBody, 5);

@@ -4,15 +4,26 @@
 // Keep native dropdowns, keyboard focus, and the existing change handlers intact.
 function installSelectWheel(root) {
     const states = new WeakMap();
+    let owner = null;
+    const samePointer = event => owner && Number.isFinite(event.clientX) && Number.isFinite(event.clientY) &&
+        (event.clientX - owner.x) ** 2 + (event.clientY - owner.y) ** 2 <= 16;
+    const release = () => { owner = null; };
     function onWheel(event) {
-        const select = event.target.closest?.("select");
-        if (!select || select.multiple || select.size > 1 || select.matches(":disabled") ||
-            event.ctrlKey || event.shiftKey || event.altKey || event.metaKey ||
-            !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+        if (event.ctrlKey || event.shiftKey || event.altKey || event.metaKey ||
+            !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) { release(); return; }
+        let select = event.target.closest?.("select");
+        if (owner && event.timeStamp - owner.time <= 250 && samePointer(event) &&
+            owner.select.isConnected && owner.select.getClientRects().length &&
+            !owner.select.closest("[hidden]") && !owner.select.matches(":disabled")) {
+            select = owner.select;
+        } else release();
+        if (!select || select.multiple || select.size > 1 || select.matches(":disabled")) return;
         // Native open pickers handle their own scrolling. :open is not available in older browsers.
-        try { if (select.matches(":open")) return; } catch { }
+        try { if (select.matches(":open")) { release(); return; } } catch { }
         if (!event.cancelable) return;
         event.preventDefault();
+        if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY))
+            owner = { select, x: event.clientX, y: event.clientY, time: event.timeStamp };
         const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 120 : 1);
         const state = states.get(select) || { delta: 0, time: 0 };
         if (event.timeStamp - state.time > 250 || Math.sign(state.delta) !== Math.sign(delta)) state.delta = 0;
@@ -34,9 +45,9 @@ function installSelectWheel(root) {
         }
     }
     root.addEventListener("wheel", onWheel, { passive: false });
-    root.addEventListener("pointerout", event => {
-        const select = event.target.closest?.("select");
-        if (select && (!event.relatedTarget || !select.contains(event.relatedTarget))) states.delete(select);
-    });
+    root.addEventListener("pointermove", event => { if (!samePointer(event)) release(); });
+    root.addEventListener("pointerdown", release);
+    root.addEventListener("keydown", release);
+    root.addEventListener("pointerout", event => { if (!event.relatedTarget) release(); });
 }
 installSelectWheel(document);

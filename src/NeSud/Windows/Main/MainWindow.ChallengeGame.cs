@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         var padCells = new Button[9];
         var tools = new UniformGrid { Columns = 4 };
         panel.Children.Add(tools);
-        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
+        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Visible }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
         int selected = 0;

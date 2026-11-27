@@ -15,14 +15,45 @@ public partial class App : Application
         public long LastEvent;
     }
     private readonly ConditionalWeakTable<ComboBox, WheelState> comboWheel = new();
+    private WeakReference<ComboBox>? wheelOwner;
+    private Point wheelPosition;
+    private long wheelTime;
+
+    // Keep a wheel burst on its original control if a layout update moves it
+    // beneath a stationary pointer. A real pointer move releases it.
+    private static bool SamePointer(Point a, Point b) => (a - b).LengthSquared <= 16;
+
+    private void OnWindowWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not Window window || wheelOwner is null ||
+            !wheelOwner.TryGetTarget(out var combo)) return;
+        if (Environment.TickCount64 - wheelTime > 250 || !SamePointer(e.GetPosition(window), wheelPosition) ||
+            !combo.IsVisible || !combo.IsEnabled || combo.IsDropDownOpen || Window.GetWindow(combo) != window ||
+            Keyboard.Modifiers != ModifierKeys.None)
+        {
+            wheelOwner = null;
+            return;
+        }
+        if (e.Delta != 0 && combo.Items.Count > 0) ApplyComboWheel(combo, e);
+    }
 
     private void OnComboBoxWheel(object sender, MouseWheelEventArgs e)
     {
         if (sender is not ComboBox { IsEnabled: true, IsDropDownOpen: false, IsMouseOver: true } combo ||
             combo.Items.Count == 0 || e.Delta == 0 || Keyboard.Modifiers != ModifierKeys.None) return;
 
-        // Handle the preview event without Focus(): selection and keyboard focus are independent.
+        ApplyComboWheel(combo, e);
+    }
+
+    private void ApplyComboWheel(ComboBox combo, MouseWheelEventArgs e)
+    {
         e.Handled = true;
+        if (Window.GetWindow(combo) is { } window)
+        {
+            wheelOwner = new WeakReference<ComboBox>(combo);
+            wheelPosition = e.GetPosition(window);
+            wheelTime = Environment.TickCount64;
+        }
         var state = comboWheel.GetValue(combo, _ => new WheelState());
         long now = Environment.TickCount64;
         if (now - state.LastEvent > 250 || Math.Sign(state.Delta) != Math.Sign(e.Delta)) state.Delta = 0;
@@ -42,11 +73,6 @@ public partial class App : Application
         }
     }
 
-    private void OnComboBoxMouseLeave(object sender, MouseEventArgs e)
-    {
-        if (sender is ComboBox combo) comboWheel.Remove(combo);
-    }
-
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -57,6 +83,14 @@ public partial class App : Application
             Shutdown(); return;
         }
         MainWindow = new MainWindow();
+        MainWindow.PreviewMouseWheel += OnWindowWheel;
+        MainWindow.PreviewMouseMove += (_, args) =>
+        {
+            if (wheelOwner is not null && !SamePointer(args.GetPosition(MainWindow), wheelPosition)) wheelOwner = null;
+        };
+        MainWindow.PreviewMouseDown += (_, _) => wheelOwner = null;
+        MainWindow.PreviewKeyDown += (_, _) => wheelOwner = null;
+        MainWindow.Deactivated += (_, _) => wheelOwner = null;
         MainWindow.Show();
     }
     protected override void OnExit(ExitEventArgs e)

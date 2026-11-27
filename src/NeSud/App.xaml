@@ -107,6 +107,9 @@
         </Track.Thumb>
        </Track>
       </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0"/></Trigger>
+      </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
    </Setter>
@@ -188,7 +191,6 @@
   <Style TargetType="ComboBox">
    <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardButtonFocus}"/>
    <EventSetter Event="PreviewMouseWheel" Handler="OnComboBoxWheel"/>
-   <EventSetter Event="MouseLeave" Handler="OnComboBoxMouseLeave"/>
    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
    <Setter Property="Background" Value="{DynamicResource ControlBrush}"/>
    <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}"/>

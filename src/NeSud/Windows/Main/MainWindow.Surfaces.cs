@@ -185,7 +185,7 @@ public sealed partial class MainWindow
                 body = new ScrollViewer
                 {
                     Content = content,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
                     HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 };

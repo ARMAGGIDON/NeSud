@@ -22,7 +22,7 @@ public sealed partial class MainWindow
         var scroll = new ScrollViewer
         {
             Content = body,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Padding = new Thickness(0, 0, 8, 0)
         };

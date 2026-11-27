@@ -1405,3 +1405,8 @@ dialog[open] { animation: dialog-enter .16s ease-out; }
 .rank-state p { margin: 0; }
 .rank-state .loading-indicator { margin: 0; }
 .rank-state .loading-indicator:hover::after, .rank-state .loading-indicator:focus-visible::after { left: 50%; transform: translateX(-50%); }
+
+/* Keep viewport width stable when dynamic lists start or stop overflowing. */
+html { scrollbar-gutter: stable both-edges; background: var(--bg); }
+dialog, .help-content, #player-results { scrollbar-gutter: stable; }
+@supports not (scrollbar-gutter: stable) { html { overflow-y: scroll; } }

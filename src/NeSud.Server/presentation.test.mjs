@@ -259,3 +259,32 @@ test("ranking loading, empty and error states share headings and preserve cached
     assert.match(target.children[0].className, /rank-heading/);
     assert.match(target.children[1].className, /rank-state-error/);
 });
+
+test("wheel burst stays on a select after layout shifts and releases on real movement or timeout", () => {
+    const listeners = {};
+    const root = { addEventListener: (name, fn) => { listeners[name] = fn; } };
+    new Function("document", "Event", read("select-wheel.js"))(root, class { constructor(type) { this.type = type; } });
+    const select = {
+        selectedIndex: 0, options: [{}, {}, {}, {}], isConnected: true,
+        closest: q => q === "select" ? select : null, matches: () => false,
+        getClientRects: () => [{}], dispatchEvent() {}
+    };
+    const page = { closest: () => null };
+    function wheel(target, timeStamp, x = 100) {
+        let prevented = false;
+        listeners.wheel({ target, deltaY: 100, deltaX: 0, deltaMode: 0, timeStamp,
+            clientX: x, clientY: 50, cancelable: true, preventDefault() { prevented = true; } });
+        return prevented;
+    }
+    assert.equal(wheel(select, 10), true);
+    assert.equal(wheel(page, 70), true);
+    assert.equal(select.selectedIndex, 2);
+    listeners.pointermove({ clientX: 120, clientY: 50 });
+    assert.equal(wheel(page, 100, 120), false);
+    assert.equal(wheel(select, 150), true);
+    assert.equal(wheel(page, 450), false);
+    assert.equal(select.selectedIndex, 3);
+    wheel(select, 500);
+    select.isConnected = false;
+    assert.equal(wheel(page, 550), false);
+});

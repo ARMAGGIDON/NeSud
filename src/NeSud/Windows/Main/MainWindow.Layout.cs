@@ -320,7 +320,7 @@ public sealed partial class MainWindow : Window
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
         Gap(side, 9);
 
-        var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         sideCard = Card(scroll, 13);
         At(root, sideCard, 1, 2);
@@ -362,7 +362,7 @@ public sealed partial class MainWindow : Window
             _ = ShowDaily();
         });
         result.Children.Add(resultDaily);
-        resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        resultCard = Card(new ScrollViewer { Content = result, VerticalScrollBarVisibility = ScrollBarVisibility.Visible });
         resultCard.Visibility = Visibility.Collapsed;
         At(root, resultCard, 1, 0, 3);
         var menu = Stack();
@@ -405,7 +405,7 @@ public sealed partial class MainWindow : Window
         { b.Margin = new Thickness(3);
         At(menuActions, b, menuIndex / 2, menuIndex % 2, 1);
             menuIndex++; }
-        menuCard = Card(new ScrollViewer { Content = menu, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        menuCard = Card(new ScrollViewer { Content = menu, VerticalScrollBarVisibility = ScrollBarVisibility.Visible });
         At(root, menuCard, 1, 0, 3);
         var footer = new Grid { Margin = new Thickness(3, 10, 3, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition());
