@@ -22,6 +22,10 @@ internal static partial class SmokeTests
             !g.Enter(cell, correct, note: true), "Correct answer cannot be overwritten, erased or annotated");
         Check(g.Values[cell] == correct && g.Mistakes == mistakesBefore && g.UndoStack.Count == movesBefore,
             "Blocked edit has no side effects");
+        Check(BoardFocus.NextDigit(7, [1,1,1,1,1,1,0,2,1]) == 8 &&
+            BoardFocus.NextDigit(7, [1,1,1,1,1,1,0,0,2]) == 9 &&
+            BoardFocus.NextDigit(9, [0,2,0,0,0,0,0,0,0]) == 2 &&
+            BoardFocus.NextDigit(7, [0,0,0,0,0,0,0,0,0]) == 0, "Next unfinished digit and wrap");
         int[] focusBoard = new int[81];
         focusBoard[0] = focusBoard[12] = focusBoard[40] = 5;
         Check(BoardFocus.Nearest(focusBoard, 11, 5) == 12 &&

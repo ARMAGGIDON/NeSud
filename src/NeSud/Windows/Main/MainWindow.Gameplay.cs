@@ -86,7 +86,7 @@ public sealed partial class MainWindow : Window
     {
         if (!Playing || G is not { } g) return;
         int digit = ActivePaintDigit;
-        bool paint = state.PaintDigit && digit != 0 && g.Values[i] == 0 && g.Editable(i);
+        bool paint = state.PaintDigit && digit != 0 && g.Remaining(digit) > 0 && g.Values[i] == 0 && g.Editable(i);
         if (paint) SetPaintDigit(digit);
         Select(i);
         if (paint) Change(x => x.Enter(i, digit, x.NotesMode || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), state.AutoClean));
@@ -115,7 +115,15 @@ public sealed partial class MainWindow : Window
         ReadClock();
         var before = (int[])G!.Values.Clone();
         int oldLives = G.Lives;
+        var remainingBefore = Enumerable.Range(1, 9).Select(G.Remaining).ToArray();
+        int anchor = G.Selected;
         if (!action(G)) return;
+        if (!G.Completed && !G.OutOfLives)
+        {
+            int digit = G.Values[anchor];
+            if (digit != 0 && before[anchor] != digit && remainingBefore[digit - 1] > 0 && G.Remaining(digit) == 0)
+                AdvanceDigit(digit, anchor);
+        }
         if (G!.OutOfLives)
         {
             SyncClock();
@@ -151,9 +159,23 @@ public sealed partial class MainWindow : Window
         { if (G.Values[i] == G.Puzzle.Solution[i]) Fade(cells[i]);
         else Shake(cells[i]); }
     }
+    private void AdvanceDigit(int digit, int anchor)
+    {
+        var g = G!;
+        int next = BoardFocus.NextDigit(digit, Enumerable.Range(1, 9).Select(g.Remaining).ToArray());
+        if (next == 0) return;
+        int cell = BoardFocus.Nearest(g.Values, anchor, next, false);
+        localFocusDigit = cell < 0 ? next : 0;
+        focusGameId = state.GameId;
+        g.Selected = cell < 0 ? anchor : cell;
+        if (state.PaintDigit) SetPaintDigit(next);
+        if (cell < 0) digits[next - 1].Focus();
+    }
+
     private void Enter(int d, bool temporaryNote = false)
     {
         if (!Playing || G is not { } g) return;
+        if (d > 0 && g.Remaining(d) == 0) return;
         if (state.PaintDigit && d > 0) SetPaintDigit(d);
         if (DigitOnly || !g.Editable(g.Selected))
         {

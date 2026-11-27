@@ -15,7 +15,7 @@ for (let i = 0; i < 81; i++) {
         if (pulse) await pulse;
         if (!game || busy || !online || game.paused || game.completed || game.outOfLives || adPending) return;
         const digit = paintDigit || focusDigit || game.values[selected];
-        const paint = paintMode && digit && !game.values[i] && !game.givens[i];
+        const paint = paintMode && digit && game.remaining[digit - 1] > 0 && !game.values[i] && !game.givens[i];
         if (paint) paintDigit = digit;
         selectCell(i);
         b.focus();
@@ -42,11 +42,31 @@ function nearestDigit(values, anchor, digit, skipAnchor = true) {
     }
     return best >= 0 ? best : values[anchor] === digit ? anchor : -1;
 }
+function nextDigit(digit, remaining) {
+    for (let step = 1; step < 9; step++) {
+        const next = (digit - 1 + step) % 9 + 1;
+        if (remaining[next - 1] > 0) return next;
+    }
+    return 0;
+}
+function advanceCompletedDigit(before, anchor) {
+    if (!game || game.completed || game.outOfLives || before?.id !== game.id) return false;
+    const digit = game.values[anchor];
+    if (!digit || before.values[anchor] === digit || !before.remaining[digit - 1] || game.remaining[digit - 1] !== 0) return false;
+    const next = nextDigit(digit, game.remaining);
+    if (!next) return false;
+    const target = nearestDigit(game.values, anchor, next, false);
+    selected = target < 0 ? anchor : target;
+    focusDigit = target < 0 ? next : 0;
+    if (paintMode) paintDigit = next;
+    return true;
+}
 function lockedCell() {
     return !!game && (!!game.givens[selected] || (!!game.values[selected] && !game.wrong[selected]));
 }
 function enter(d, temp = false) {
     if (!online || !game || game.paused || game.completed || game.outOfLives || adPending) return;
+    if (d > 0 && game.remaining[d - 1] === 0) return;
     if (paintMode && d > 0) paintDigit = d;
     if (focusDigit || lockedCell()) {
         if (!d) return;

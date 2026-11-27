@@ -221,9 +221,9 @@ public sealed partial class MainWindow : Window
         grid.Children.Add(count);
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Content = grid;
-        button.IsEnabled = enabled;
-        button.Background = B(focused ? "Same" : "Control");
-        button.Opacity = remaining == 0 && !focused ? 0.75 : 1;
+        button.IsEnabled = enabled && remaining > 0;
+        button.Background = B(focused && remaining > 0 ? "Same" : "Control");
+        button.Opacity = remaining == 0 ? 0.55 : 1;
         AutomationProperties.SetName(button, $"Цифра {digit}, залишилось {remaining}");
     }
 

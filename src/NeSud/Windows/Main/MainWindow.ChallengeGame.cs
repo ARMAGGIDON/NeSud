@@ -150,7 +150,7 @@ public sealed partial class MainWindow
         {
             if (!Active() || game is null) return;
             int digit = paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
-            bool paint = state.PaintDigit && digit != 0 && game.Values[i] == 0 && game.Givens[i] == 0;
+            bool paint = state.PaintDigit && digit != 0 && game.Remaining[digit - 1] > 0 && game.Values[i] == 0 && game.Givens[i] == 0;
             if (paint) paintDigit = digit;
             Select(i);
             if (paint) await Move("enter", digit, temporaryNote: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
@@ -298,6 +298,7 @@ public sealed partial class MainWindow
         async Task EnterDigit(int digit, bool temporaryNote = false)
         {
             if (!Active() || game is null) return;
+            if (digit > 0 && game.Remaining[digit - 1] == 0) return;
             if (state.PaintDigit && digit > 0) paintDigit = digit;
             bool locked = game.Givens[selected] != 0 || (game.Values[selected] != 0 && !game.Wrong[selected]);
             if (focusDigit != 0 || locked)
@@ -317,6 +318,8 @@ public sealed partial class MainWindow
             working = true;
             Draw();
             int cell = selected;
+            var before = game;
+            bool advanceFocus = false;
             try
             {
                 string wireAction = !state.AutoClean && action is ("enter" or "hint") ? action + "-keep-notes" : action;
@@ -335,6 +338,24 @@ public sealed partial class MainWindow
                     focusDigit = 0;
                     if (state.PaintDigit) paintDigit = g.Values[selected];
                 }
+                int anchor = action == "hint" ? g.Selected : cell;
+                if (action is "enter" or "hint" && !g.Completed && !g.OutOfLives)
+                {
+                    int placed = g.Values[anchor];
+                    if (placed != 0 && before.Values[anchor] != placed &&
+                        before.Remaining[placed - 1] > 0 && g.Remaining[placed - 1] == 0)
+                    {
+                        int next = BoardFocus.NextDigit(placed, g.Remaining);
+                        if (next != 0)
+                        {
+                            int target = BoardFocus.Nearest(g.Values, anchor, next, false);
+                            selected = target < 0 ? anchor : target;
+                            focusDigit = target < 0 ? next : 0;
+                            if (state.PaintDigit) paintDigit = next;
+                            advanceFocus = true;
+                        }
+                    }
+                }
                 return true;
             }
             catch (Exception ex)
@@ -346,7 +367,15 @@ public sealed partial class MainWindow
             finally
             {
                 working = false;
-                if (window.IsVisible)Draw();
+                if (window.IsVisible)
+                {
+                    Draw();
+                    if (advanceFocus)
+                    {
+                        if (focusDigit != 0) padCells[focusDigit - 1].Focus();
+                        else boardCells[selected].Focus();
+                    }
+                }
             }
         }
         async Task Aid(string kind)

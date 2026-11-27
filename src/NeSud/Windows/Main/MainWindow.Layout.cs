@@ -460,38 +460,6 @@ public sealed partial class MainWindow : Window
     {
         var toggle = Option("Введення активної цифри кліком", state.PaintDigit, set);
         toggle.ToolTip = "Виберіть цифру, потім натискайте порожні клітинки. У режимі нотаток цифра додається або стирається.";
-        var template = new ControlTemplate(typeof(CheckBox));
-        var row = new FrameworkElementFactory(typeof(DockPanel));
-        var track = new FrameworkElementFactory(typeof(Border), "Track");
-        track.SetValue(DockPanel.DockProperty, Dock.Left);
-        track.SetValue(FrameworkElement.WidthProperty, 34.0);
-        track.SetValue(FrameworkElement.HeightProperty, 19.0);
-        track.SetValue(FrameworkElement.MarginProperty, new Thickness(0,0,7,0));
-        track.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        track.SetValue(Border.CornerRadiusProperty, new CornerRadius(10));
-        track.SetResourceReference(Border.BackgroundProperty, "ControlBrush");
-        track.SetResourceReference(Border.BorderBrushProperty, "StrongLineBrush");
-        track.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-        var knob = new FrameworkElementFactory(typeof(Border), "Knob");
-        knob.SetValue(FrameworkElement.WidthProperty, 13.0);
-        knob.SetValue(FrameworkElement.HeightProperty, 13.0);
-        knob.SetValue(FrameworkElement.MarginProperty, new Thickness(2));
-        knob.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
-        knob.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        knob.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
-        knob.SetResourceReference(Border.BackgroundProperty, "MutedBrush");
-        track.AppendChild(knob);
-        row.AppendChild(track);
-        var content = new FrameworkElementFactory(typeof(ContentPresenter));
-        content.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        row.AppendChild(content);
-        template.VisualTree = row;
-        var on = new Trigger { Property = System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, Value = true };
-        on.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension("AccentBrush"), "Track"));
-        on.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension("AccentTextBrush"), "Knob"));
-        on.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right, "Knob"));
-        template.Triggers.Add(on);
-        toggle.Template = template;
         return toggle;
     }
 

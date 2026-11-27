@@ -75,7 +75,8 @@ window.addEventListener("online", () => token ? reconnect(): login(true));
 async function act(action, extra = { }) {
     if (action !== "heartbeat" && pulse) await pulse;
     if (!online || busy || !game) return false;
-    const e = epoch;
+    const e = epoch, before = game;
+    let advanceFocus = false;
     busy = true;
     try {
         const wireAction = !autoClean && (action === "enter" || action === "hint") ? action + "-keep-notes" : action;
@@ -92,6 +93,8 @@ async function act(action, extra = { }) {
             selectCell(game.selected);
             animate(buttons[selected], "hint-pulse")
         }
+        if (action === "enter" || action === "hint")
+            advanceFocus = advanceCompletedDigit(before, action === "hint" ? game.selected : extra.cell);
         if (game.completed && !previousGame?.completed && !guestMode) refreshDaily();
         message("");
         return true;
@@ -103,7 +106,11 @@ async function act(action, extra = { }) {
         return false
     }finally {
         busy = false;
-        if (action !== "heartbeat" || !online || game?.outOfLives || game?.paused || game?.completed || game?.reward) render()
+        if (action !== "heartbeat" || !online || game?.outOfLives || game?.paused || game?.completed || game?.reward) render();
+        if (advanceFocus && e === epoch && tab === "play") {
+            if (focusDigit) $("pad").children[focusDigit - 1].focus();
+            else buttons[selected].focus();
+        }
     }
 }
 setInterval(() => {

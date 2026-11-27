@@ -109,8 +109,8 @@ function render() {
         const n = game?.remaining?.[i] ?? 9;
         b.querySelector("small").textContent = n;
         b.classList.toggle("spent-digit", n === 0);
-        b.disabled = !active;
-        b.classList.toggle("focused-digit", i + 1 === highlighted);
+        b.disabled = !active || n === 0;
+        b.classList.toggle("focused-digit", n > 0 && i + 1 === highlighted);
         b.setAttribute("aria-label", "Цифра " + (i + 1) + ", залишилось " + n)
     });
     document.querySelector('[data-action="erase"]').disabled = !active || !!focusDigit || lockedCell();
