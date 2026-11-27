@@ -33,10 +33,8 @@ public sealed partial class ServerStore
         long score = 0;
         var perLevel = Enum.GetValues<Difficulty > ().Select(d => new LevelStats(d, 0, 0, 0, 0, 0, 0)).ToArray();
         using (var cmd = Database.Command(c, """
-            SELECT outcome,score,CASE WHEN outcome='completed' AND coalesce(json_extract(payload,'$.game.mistakes'),0)=0
-              AND coalesce(json_extract(payload,'$.game.hints'),0)=0 AND coalesce(json_extract(payload,'$.game.candidateUses'),0)=0
-              AND coalesce(json_extract(payload,'$.game.autoFilled'),0)=0 AND coalesce(json_extract(payload,'$.game.lifeRestores'),0)=0
-              THEN 1 ELSE 0 END,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.seconds'),0) FROM history WHERE name=$n ORDER BY julianday(json_extract(payload,'$.ended')),id
+            SELECT outcome,score,perfect,p.difficulty,seconds FROM history h
+            JOIN history_puzzles p USING(puzzle_id) WHERE name=$n ORDER BY ended_jd,id
             """, ("$n", name)))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
@@ -61,16 +59,22 @@ public sealed partial class ServerStore
         using (var cmd = Database.Command(c, "SELECT COUNT(*) FROM challenge_wins WHERE name=$n", ("$n", name))) dailyWins = Convert.ToInt32(cmd.ExecuteScalar());
         var history = new List<PublicGame > ();
         using (var cmd = Database.Command(c, """
-            SELECT payload FROM history
-            WHERE name=$n AND ($d IS NULL OR json_extract(payload,'$.game.puzzle.difficulty')=$d)
-            ORDER BY julianday(json_extract(payload,'$.ended')) DESC,id LIMIT 51 OFFSET $offset
-            """, ("$n", name), ("$offset", page * 50), ("$d", difficulty is null?null: (int)difficulty.Value)))
+            SELECT h.ended,h.challenge_day,h.source,p.difficulty,h.outcome,h.seconds,h.score,h.mistakes,h.hints,
+                coalesce(json_extract(h.game,'$.candidateUses'),0),coalesce(json_extract(h.game,'$.autoFilled'),0),
+                coalesce(json_extract(h.game,'$.lifeRestores'),0)
+            FROM history h JOIN history_puzzles p USING(puzzle_id)
+            WHERE h.name=$n AND ($d IS NULL OR p.difficulty=$d)
+            ORDER BY h.ended_jd DESC,h.id LIMIT 51 OFFSET $offset
+            """.Replace("($d IS NULL OR p.difficulty=$d)", difficulty is null ? "1=1" : "p.difficulty=$d"),
+            difficulty is null ? [("$n", name), ("$offset", page * 50)] :
+                [("$n", name), ("$offset", page * 50), ("$d", (int)difficulty.Value)]))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
-            var r = Database.Decode<GameRecord > (rows.GetString(0));
-            var g = r.Game;
-            string? day = r.ChallengeDay;
-            history.Add(new(r.Ended, day is null?"regular": "challenge", r.Source, g.Puzzle.Difficulty, r.Outcome, g.Seconds, r.Score, g.Mistakes, g.Hints, g.CandidateUses, g.AutoFilled, g.LifeRestores, day));
+            string? day = rows.IsDBNull(1) ? null : rows.GetString(1);
+            history.Add(new(DateTimeOffset.Parse(rows.GetString(0), CultureInfo.InvariantCulture),
+                day is null ? "regular" : "challenge", rows.GetString(2), (Difficulty)rows.GetInt32(3),
+                rows.GetString(4), rows.GetInt32(5), rows.GetInt32(6), rows.GetInt32(7), rows.GetInt32(8),
+                rows.GetInt32(9), rows.GetInt32(10), rows.GetInt32(11), day));
         }
         bool more = history.Count > 50;
         if (more)history.RemoveAt(50);
@@ -81,9 +85,7 @@ public sealed partial class ServerStore
         using var c = db.Open();
         long seconds, mistakes, hints;
         using (var cmd = Database.Command(c, """
-            SELECT coalesce(sum(json_extract(payload,'$.game.seconds')),0),
-                coalesce(sum(json_extract(payload,'$.game.mistakes')),0),
-                coalesce(sum(json_extract(payload,'$.game.hints')),0)
+            SELECT coalesce(sum(seconds),0),coalesce(sum(mistakes),0),coalesce(sum(hints),0)
             FROM history WHERE name=$n
             """, ("$n", name)))
         using (var rows = cmd.ExecuteReader())

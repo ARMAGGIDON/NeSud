@@ -14,159 +14,314 @@ public sealed partial class MainWindow
 {
     private async Task ShowChallengeGame(string day, bool resumeOnly = false)
     {
-        var panel = Stack();
-        panel.Children.Add(Text("Щоденна гра (" + day + ")", 22, "Text", true));
-        var summary = new UniformGrid { Columns = 5, Margin = new Thickness(0, 8, 0, 8) };
-        panel.Children.Add(summary);
-        var notice = Text("", 13, "Muted");
-        panel.Children.Add(notice);
-        var grid = new UniformGrid { Columns = 9, Rows = 9, Width = 414, Height = 414, HorizontalAlignment = HorizontalAlignment.Center };
+        // The online session remains authoritative; only its presentation mirrors the local game.
+        var root = new Grid();
+        AddGameColumns(root);
+        var play = BuildPlayGrid();
+        var info = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
+        var level = Text("Підготовка", 19, "Text", true);
+        var elapsed = Text("00:00", 19, "Text", true);
+        var life = Text("♡ ♡ ♡", 19, "Wrong", true);
+        var points = Text("0", 19, "Accent", true);
+        At(info, Metric("СКЛАДНІСТЬ", level), 0, 0);
+        At(info, Metric("ЧАС", elapsed), 0, 1);
+        At(info, Metric("ЖИТТЯ", life), 0, 2);
+        At(info, Metric("БАЛИ", points), 0, 3);
+        At(play, info, 0, 0);
+
         var boardCells = new Button[81];
-        panel.Children.Add(grid);
-        var pad = new UniformGrid { Columns = 9 };
-        panel.Children.Add(pad);
+        Action<int>? selectCell = null, clickCell = null;
+        Func<int, bool, Task>? paintCell = null;
+        Func<bool>? canPaint = null;
+        var grid = BuildBoard(boardCells, i => clickCell?.Invoke(i), i => selectCell?.Invoke(i),
+            (i, first) => paintCell?.Invoke(i, first) ?? Task.CompletedTask, () => canPaint?.Invoke() == true);
+        var boardArea = new Grid();
+        boardArea.Children.Add(BoardView(grid));
+        var cover = new Grid();
+        cover.SetResourceReference(Panel.BackgroundProperty, "PanelBrush");
+        var center = Stack();
+        center.VerticalAlignment = VerticalAlignment.Center;
+        center.HorizontalAlignment = HorizontalAlignment.Center;
+        center.MaxWidth = 320;
+        var coverTitle = Text("", 27, "Text", true);
+        coverTitle.TextAlignment = TextAlignment.Center;
+        var notice = Text("", 15, "Muted");
+        notice.TextAlignment = TextAlignment.Center;
+        var mainAction = Action("Почати", primary: true);
+        center.Children.Add(coverTitle);
+        Gap(center);
+        center.Children.Add(notice);
+        Gap(center, 18);
+        center.Children.Add(mainAction);
+        cover.Children.Add(center);
+        boardArea.Children.Add(cover);
+        At(play, boardArea, 1, 0);
+        var bottom = Stack();
+        bottom.Margin = new Thickness(0, 14, 0, 0);
+        var progress = new UniformGrid { Columns = 3 };
+        var progressBar = new ProgressBar { Minimum = 0, Maximum = 81, Height = 5, Margin = new Thickness(0, 7, 0, 0), BorderThickness = new Thickness(0) };
+        progressBar.SetResourceReference(Control.ForegroundProperty, "AccentBrush");
+        progressBar.SetResourceReference(Control.BackgroundProperty, "ControlBrush");
+        bottom.Children.Add(progress);
+        bottom.Children.Add(progressBar);
+        At(play, bottom, 2, 0);
+        At(root, Card(play), 0, 0);
+
+        var side = Stack();
+        side.Children.Add(Text("Щоденна гра", 19, "Text", true));
+        side.Children.Add(Text(day, 14, "Muted"));
+        Gap(side, 10);
+        side.Children.Add(Text("Цифри та нотатки", 17, "Text", true));
+        Gap(side, 5);
+        var pad = new UniformGrid { Columns = 3 };
+        side.Children.Add(pad);
         var padCells = new Button[9];
-        var tools = new UniformGrid { Columns = 4 };
-        panel.Children.Add(tools);
-        var window = Page("Щоденна гра", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Visible }, 560, Math.Min(850, SystemParameters.WorkArea.Height - 30));
+        Gap(side, 8);
+        var tools = new UniformGrid { Columns = 2 };
+        side.Children.Add(tools);
+        Gap(side, 10);
+        var settings = Stack();
+        settings.Children.Add(Text("Налаштування", 16, "Text", true));
+        side.Children.Add(settings);
+        At(root, Card(new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 13), 0, 2);
+        var window = GamePage("Щоденна гра", root);
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
-        int selected = 0;
+        int selected = 0, focusDigit = 0, paintDigit = 0;
         var anchor = Stopwatch.StartNew();
         double reviveDeadline = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         var heartbeat = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-        bool Active() => connected && !working && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
-        void Select(int i)
+        bool CanInput() => connected && window.IsVisible && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
+        bool Active() => CanInput() && !working;
+        // Input arriving during a heartbeat or a move is serialized, not discarded.
+        Task inputTail = Task.CompletedTask;
+        int queuedInputs = 0, inputGeneration = 0;
+        Task QueueInput(Func<Task> action)
         {
-            selected = i;
-            Draw();
+            if (!CanInput()) return Task.CompletedTask;
+            var id = game!.Id;
+            int generation = inputGeneration;
+            var previous = inputTail;
+            queuedInputs++;
+            async Task Run()
+            {
+                try
+                {
+                    // Publish the new tail before executing input, including synchronous focus callbacks.
+                    await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.Input);
+                    await previous;
+                    while (working && CanInput() && game!.Id == id && generation == inputGeneration) await Task.Delay(15);
+                    if (CanInput() && game!.Id == id && generation == inputGeneration) await action();
+                }
+                catch (Exception ex) { notice.Text = ex.Message; }
+                finally { queuedInputs--; }
+            }
+            return inputTail = Run();
         }
-        for (int i = 0; i < 81; i++)
+        bool CanNote(int i, int digit) => game is not null && game.Values[i] == 0 &&
+            ((game.Notes[i] & (1 << digit)) != 0 || (Sudoku.Candidates(game.Values, i) & (1 << digit)) != 0);
+        void Select(int i, bool redraw = true)
         {
-            var b = Action("");
-            b.FontSize = 19;
-            b.Padding = new Thickness(0);
-            b.Margin = new Thickness(1);
-            boardCells[i] = b;
-            grid.Children.Add(b);
+            if (!Active()) return;
+            focusDigit = 0;
+            selected = i;
+            if (state.PaintDigit && game!.Values[i] != 0) paintDigit = game.Values[i];
+            if (redraw) Draw();
         }
         for (int d = 1; d <= 9; d++)
         {
-            var b = Action(d.ToString());
-            b.Padding = new Thickness(1);
+            var b = Action(d.ToString(), tip: $"Клавіша {d}");
+            b.Margin = new Thickness(2);
+            b.Padding = new Thickness(3, 4, 3, 4);
+            b.MinHeight = 39;
             padCells[d - 1] = b;
             pad.Children.Add(b);
         }
-        var erase = Action("Стерти");
-        var undo = Action("↶");
-        var redo = Action("↷");
-        var notes = Action("Нотатки");
-        var hint = Action("Підказка");
-        var candidates = Action("Кандидати");
-        var pause = Action("Пауза");
-        var auto = Action("Автозавершення");
-        foreach (var b in new[] { erase, undo, redo, notes, hint, candidates, pause, auto })
+        var undo = Action("↶  Скасувати", tip: "Ctrl+Z");
+        var redo = Action("↷  Повторити", tip: "Ctrl+Y / Ctrl+Shift+Z");
+        var erase = Action("Стерти", tip: "Delete / Backspace / 0");
+        var notes = Action("Нотатки", tip: "N або Space; Shift+цифра для разової нотатки");
+        var hint = Action("Підказка", tip: "H");
+        var candidates = Action("Кандидати", tip: "A");
+        var pause = Action("Пауза", tip: "P");
+        foreach (var b in new[] { undo, redo, erase, notes, hint, candidates, pause })
         {
             b.Margin = new Thickness(2);
+            b.MinHeight = 32;
+            b.Padding = new Thickness(6, 4, 6, 4);
             tools.Children.Add(b);
         }
-        var mainAction = Action("Почати", primary: true);
-        panel.Children.Add(mainAction);
-        for (int i = 0; i < boardCells.Length; i++)
+        var auto = new CheckBox { Content = Text("Автозавершення ≤9 клітинок"), IsChecked = state.AutoFinish };
+        bool updatingOptions = false;
+        auto.Checked += async (_, _) => await ChangeAuto(true);
+        auto.Unchecked += async (_, _) => await ChangeAuto(false);
+        settings.Children.Add(auto);
+        settings.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => { state.HighlightPeers = v; Draw(); }));
+        settings.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
+        settings.Children.Add(PaintOption(v =>
         {
-            int index = i;
-            boardCells[i].Click += (_, _) => Select(index);
+            state.PaintDigit = v;
+            localPaintDigit = 0;
+            paintDigit = v ? (focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0) : 0;
+            Draw();
+        }));
+        async Task ChangeAuto(bool enabled)
+        {
+            if (updatingOptions) return;
+            state.AutoFinish = enabled;
+            Save();
+            if (game is not null && game.AutoFinish != enabled) await Move("auto-finish");
+        }
+        selectCell = i => { if (selected != i || focusDigit != 0) _ = QueueInput(() => { Select(i); return Task.CompletedTask; }); };
+        clickCell = i => _ = QueueInput(() => ClickChallengeCell(i));
+        Guid strokeGame = Guid.Empty;
+        int strokeDigit = 0;
+        bool strokeNote = false;
+        canPaint = CanInput;
+        paintCell = (i, first) => QueueInput(async () =>
+        {
+            if (!Active() || game is null || !window.IsVisible) return;
+            if (first)
+            {
+                strokeGame = game.Id;
+                strokeDigit = game.Values[i] != 0 ? game.Values[i] :
+                    paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
+                strokeNote = note || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                await ClickChallengeCell(i);
+                return;
+            }
+            if (strokeGame != game.Id || strokeDigit == 0 || game.Remaining[strokeDigit - 1] == 0 ||
+                game.Values[i] != 0 || game.Givens[i] != 0) return;
+            paintDigit = strokeDigit;
+            Select(i, redraw: false);
+            if (strokeNote && !CanNote(i, strokeDigit)) { Draw(); return; }
+            await Move("enter", strokeDigit, noteOverride: strokeNote);
+        });
+        async Task ClickChallengeCell(int i)
+        {
+            if (!Active() || game is null) return;
+            int digit = paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game.Values[selected];
+            bool paint = state.PaintDigit && digit != 0 && game.Remaining[digit - 1] > 0 && game.Values[i] == 0 && game.Givens[i] == 0;
+            if (paint) paintDigit = digit;
+            Select(i, redraw: !paint);
+            if (paint)
+            {
+                bool asNote = note || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                if (asNote && !CanNote(i, digit)) { Draw(); return; }
+                await Move("enter", digit, noteOverride: asNote);
+            }
         }
         for (int i = 0; i < padCells.Length; i++)
         {
             int digit = i + 1;
-            padCells[i].Click += async (_, _) => await Move("enter", digit);
+            padCells[i].Click += async (_, _) => await QueueInput(() => EnterDigit(digit));
         }
-        erase.Click += async (_, _) => await Move("enter", 0);
+        erase.Click += async (_, _) => await QueueInput(() => EnterDigit(0));
         undo.Click += async (_, _) => await Move("undo");
         redo.Click += async (_, _) => await Move("redo");
-        notes.Click += (_, _) => {
-            note = !note;
-            Draw();
-        };
+        void ToggleChallengeNotes()
+        {
+            if (!CanInput()) return;
+            _ = QueueInput(() =>
+            {
+                note = !note;
+                Draw();
+                return Task.CompletedTask;
+            });
+        }
+        notes.Click += (_, _) => ToggleChallengeNotes();
+        window.ToggleNotesAction = ToggleChallengeNotes;
         hint.Click += async (_, _) => await Aid("hint");
         candidates.Click += async (_, _) => await Aid("candidates");
         pause.Click += async (_, _) => await Move(game?.Paused == true ? "resume" : "pause");
-        auto.Click += async (_, _) => await Move("auto-finish");
         mainAction.Click += async (_, _) => await Primary();
         void Clock()
         {
             if (game is null)return;
             int seconds = game.Seconds + (connected && !game.Paused && !game.Completed && !game.OutOfLives && game.Reward is null?(int)Math.Min(12, anchor.Elapsed.TotalSeconds): 0);
-            SetCompactMetrics(summary, [("Складність", Level(game.Difficulty)), ("Час", FormatTime(seconds)),
-                ("Життя", new string('♥', Math.Clamp(game.Lives, 0, 3))), ("Бали", game.CurrentScore.ToString("N0")),
-                ("Помилки", game.Mistakes.ToString())]);
+            elapsed.Text = FormatTime(seconds);
+            life.Text = string.Join(" ", Enumerable.Range(0, Game.MaxLives).Select(i => i < game.Lives ? "♥" : "♡"));
+            points.Text = Math.Max(0, game.CurrentScore - seconds / 3 + game.Seconds / 3).ToString("N0");
+            life.ToolTip = $"Життя: {game.Lives}/{Game.MaxLives}\nПомилки: {game.Mistakes}";
             if (game.OutOfLives && !game.FinalDefeat && game.Reward is null)
             {
                 int left = Math.Max(0, (int)Math.Ceiling(reviveDeadline - anchor.Elapsed.TotalMilliseconds / 1000));
-                notice.Text = $"Останній шанс: {left} с";
+                notice.Text = left > 0 ? $"На відновлення: {left} с\nШтраф: −{game.NextReviveCost:N0} балів" :
+                    "Життя закінчилися. Перевіряємо можливість відновлення…";
                 mainAction.IsEnabled = connected && !working && left > 0;
                 if (left == 0 && !working && connected)_ = Load();
             }
         }
         void Accept(OnlineGameView g)
         {
+            if (game?.Id != g.Id) focusDigit = paintDigit = 0;
+            if (game?.Id != g.Id || g.Empty || g.OutOfLives || g.Completed || g.Paused || g.Reward is not null)
+                inputGeneration++;
             game = g.Empty?null: g;
             connected = true;
             anchor.Restart();
             reviveDeadline = (game?.ReviveRemainingMs ?? 0) / 1000.0;
-            if (game is not null)selected = Math.Clamp(game.Selected, 0, 80);
+            if (game is not null) selected = Math.Clamp(game.Selected, 0, 80);
         }
         void Draw()
         {
             bool active = Active();
             bool visible = game is { Paused: false, Completed: false, OutOfLives: false } && connected;
-            grid.Visibility = game?.Completed == true || game?.FinalDefeat == true?Visibility.Collapsed: Visibility.Visible;
+            grid.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            cover.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
+            level.Text = game is null ? "Підготовка" : Level(game.Difficulty);
+            bool editable = active && focusDigit == 0 && game!.Givens[selected] == 0 &&
+                (game.Values[selected] == 0 || game.Wrong[selected]);
+            int highlighted = state.PaintDigit && paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0;
             for (int i = 0; i < 81; i++)
             {
                 var b = boardCells[i];
-                int value = visible?game!.Values[i]: 0;
-                b.Content = value != 0?value.ToString(): visible && game!.Notes[i] != 0?string.Join(" ", Enumerable.Range(1, 9).Where(d => (game.Notes[i] & (1<<d)) != 0)): "";
-                b.FontSize = value != 0?19: 10;
-                bool peer = visible && state.HighlightPeers && Sudoku.Peers[selected].Contains(i);
-                bool same = visible && value != 0 && value == game!.Values[selected];
-                b.Background = B(i == selected && visible ? "Selected" : visible && game!.Wrong[i] ? "WrongBg" :
-                    same ? "Same" : peer ? "Peer" : "Panel");
-                b.Foreground = B(visible && game!.Wrong[i]?"Wrong": visible && game!.Givens[i] != 0?"Given": "Accent");
-                b.IsEnabled = active;
-                b.BorderThickness = new Thickness(1, 1, i % 9 % 3 == 2?2: 1, i / 9 % 3 == 2?2: 1);
+                int value = visible ? game!.Values[i] : 0;
+                DrawGameCell(b, i, value, visible ? game!.Notes[i] : 0, visible && game!.Givens[i] != 0,
+                    visible && focusDigit == 0 && i == selected, visible && game!.Wrong[i],
+                    visible && value != 0 && value == highlighted,
+                    visible && focusDigit == 0 && state.HighlightPeers && Sudoku.Peers[selected].Contains(i), highlighted);
+                // Keep keyboard focus through an in-flight server move. Active() guards input.
+                b.IsEnabled = visible && game?.Reward is null;
+                b.IsTabStop = visible && focusDigit == 0 && i == selected;
             }
             for (int i = 0; i < 9; i++)
             {
-                var g = new Grid { MinHeight = 30 };
-                var number = Text((i + 1).ToString(), 19, "Text", true);
-                number.HorizontalAlignment = HorizontalAlignment.Center;
-                number.VerticalAlignment = VerticalAlignment.Center;
-                var count = Text((game?.Remaining[i] ?? 9).ToString(), 10, "Muted");
-                count.HorizontalAlignment = HorizontalAlignment.Right;
-                count.VerticalAlignment = VerticalAlignment.Bottom;
-                g.Children.Add(number);
-                g.Children.Add(count);
-                padCells[i].HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                padCells[i].Content = g;
-                padCells[i].IsEnabled = active;
+                int remaining = game?.Remaining[i] ?? 9;
+                DrawGameDigit(padCells[i], i + 1, remaining, CanInput(), i + 1 == highlighted);
             }
-            erase.IsEnabled = notes.IsEnabled = hint.IsEnabled = candidates.IsEnabled = active;
+            int filled = game?.Values.Count(v => v != 0) ?? 0;
+            int givens = game?.Givens.Count(v => v != 0) ?? 0;
+            SetCompactMetrics(progress, game is null ? [("Стан", "Підготовка поля")] :
+                [("Заповнено", $"{filled} / 81"), ("Ваші клітинки", $"{filled - givens} / {81 - givens}"), ("Підказки", game.Hints.ToString())]);
+            progressBar.Value = filled;
+            erase.IsEnabled = editable;
+            notes.IsEnabled = CanInput();
+            hint.IsEnabled = candidates.IsEnabled = active;
             undo.IsEnabled = active && game!.CanUndo;
             redo.IsEnabled = active && game!.CanRedo;
-            hint.Content = $"Підказка ({game?.HintCredits??0})";
-            candidates.Content = $"Кандидати ({game?.CandidateCredits??0})";
-            candidates.ToolTip = game is null ? null : $"Зміни: {game.CandidateDelta}\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
-            notes.Content = note?"Нотатки ✓": "Нотатки";
-            auto.Content = game?.AutoFinish == true?"Авто ✓": "Авто";
-            auto.IsEnabled = connected && !working && game is { Completed: false, OutOfLives: false };
-            pause.Content = game?.Paused == true?"Продовжити": "Пауза";
+            hint.Content = $"Підказка ({game?.HintCredits ?? 0})";
+            candidates.Content = $"Кандидати ({game?.CandidateCredits ?? 0})";
+            candidates.ToolTip = game is null ? null : $"Зміниться {game.CandidateDelta} кандидатів\nШтраф: −{(long)Game.CandidatePointCost * game.CandidateDelta} балів";
+            notes.Content = note ? "Нотатки: увімк." : "Нотатки";
+            notes.Background = B(note ? "Same" : "Control");
+            updatingOptions = true;
+            auto.IsChecked = game?.AutoFinish ?? state.AutoFinish;
+            updatingOptions = false;
+            auto.IsEnabled = connected && !working && game is not { Completed: true } && game is not { OutOfLives: true };
+            pause.Content = game?.Paused == true ? "Продовжити" : "Пауза";
             pause.IsEnabled = connected && !working && game is { Completed: false, OutOfLives: false, Reward: null };
-            mainAction.Content = !connected?"Відновити з’єднання": game is null?"Почати": game.Completed?"До календаря": game.FinalDefeat?"Повторити": game.OutOfLives?"Останній шанс": game.Paused?"Продовжити": "";
-            mainAction.Visibility = active?Visibility.Collapsed: Visibility.Visible;
-            mainAction.IsEnabled = !working;
-            if (connected)notice.Text = game is null?"": game.Completed?"Головоломку розв’язано!": game.FinalDefeat?"Поразка": game.Paused?"Гра на паузі": "";
+            coverTitle.Text = !connected ? "Немає з’єднання" : game is null ? (working ? "Генеруємо поле…" : "Почнімо гру") :
+                game.Completed ? "Головоломку розв’язано!" : game.OutOfLives ? "Поразка" : game.Paused ? "Гра на паузі" : "Очікуємо відповідь…";
+            mainAction.Content = !connected ? "Відновити з’єднання" : game is null ? "Почати" :
+                game.Completed ? "До календаря" : game.FinalDefeat ? "Повторити" : game.OutOfLives ? "Відновити життя за рекламу" : "Продовжити";
+            mainAction.IsEnabled = !working && game?.Reward is null;
+            if (connected) notice.Text = game is null ? "Головоломка дня: " + day :
+                game.Completed ? $"Час: {FormatTime(game.Seconds)}\nБали: {game.CurrentScore:N0}\nПомилки: {game.Mistakes}\nПідказки: {game.Hints}" :
+                game.FinalDefeat ? "Усі життя вичерпано. Спробуйте ще раз." : game.Paused ? "Поле приховано, таймер зупинено." : "";
             Clock();
         }
         async Task Load(bool pauseSession = false)
@@ -211,19 +366,68 @@ public sealed partial class MainWindow
                 if (window.IsVisible)Draw();
             }
         }
-        async Task<bool> Move(string action, int digit = 0, string? reward = null)
+        async Task EnterDigit(int digit, bool temporaryNote = false)
+        {
+            if (!Active() || game is null) return;
+            if (digit > 0 && game.Remaining[digit - 1] == 0) return;
+            if (state.PaintDigit && digit > 0) paintDigit = digit;
+            bool locked = game.Givens[selected] != 0 || (game.Values[selected] != 0 && !game.Wrong[selected]);
+            if (focusDigit != 0 || locked)
+            {
+                if (digit == 0) return;
+                int next = BoardFocus.Nearest(game.Values, selected, digit, focusDigit == 0);
+                if (next >= 0) { Select(next); boardCells[next].Focus(); }
+                else { focusDigit = digit; padCells[digit - 1].Focus(); Draw(); }
+                return;
+            }
+            if (digit > 0 && (note || temporaryNote) && !CanNote(selected, digit)) { Draw(); return; }
+            await Move("enter", digit, temporaryNote: temporaryNote);
+        }
+
+        async Task<bool> Move(string action, int digit = 0, string? reward = null, bool temporaryNote = false, bool? noteOverride = null)
         {
             if (working || !connected || game is null)return false;
             working = true;
             Draw();
             int cell = selected;
+            var before = game;
+            bool advanceFocus = false;
             try
             {
                 string wireAction = !state.AutoClean && action is ("enter" or "hint") ? action + "-keep-notes" : action;
                 var g = await Request<OnlineGameView > ("web/action", new { id = game.Id, revision = game.Revision,
-                    action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : note, reward, challengeDay = day });
+                    action = wireAction, cell, digit, note = action == "auto-finish" ? !game.AutoFinish : (noteOverride ?? (note || temporaryNote)), reward, challengeDay = day });
+                bool wonNow = game?.Completed != true && g.Completed;
                 Accept(g);
-                if (action != "hint")selected = cell;
+                if (wonNow && window.IsVisible)
+                {
+                    var wonId = g.Id;
+                    _ = Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) _ = ShowWinReward(wonId, day); }));
+                }
+                if (action != "hint") selected = cell;
+                else
+                {
+                    focusDigit = 0;
+                    if (state.PaintDigit) paintDigit = g.Values[selected];
+                }
+                int anchor = action == "hint" ? g.Selected : cell;
+                if (action is "enter" or "hint" && !g.Completed && !g.OutOfLives)
+                {
+                    int placed = g.Values[anchor];
+                    if (placed != 0 && before.Values[anchor] != placed &&
+                        before.Remaining[placed - 1] > 0 && g.Remaining[placed - 1] == 0)
+                    {
+                        int next = BoardFocus.NextDigit(placed, g.Remaining);
+                        if (next != 0)
+                        {
+                            int target = BoardFocus.Nearest(g.Values, anchor, next, false);
+                            selected = target < 0 ? anchor : target;
+                            focusDigit = target < 0 ? next : 0;
+                            if (state.PaintDigit) paintDigit = next;
+                            advanceFocus = true;
+                        }
+                    }
+                }
                 return true;
             }
             catch (Exception ex)
@@ -235,7 +439,15 @@ public sealed partial class MainWindow
             finally
             {
                 working = false;
-                if (window.IsVisible)Draw();
+                if (window.IsVisible)
+                {
+                    Draw();
+                    if (advanceFocus)
+                    {
+                        if (focusDigit != 0) padCells[focusDigit - 1].Focus();
+                        else boardCells[selected].Focus();
+                    }
+                }
             }
         }
         async Task Aid(string kind)
@@ -269,6 +481,8 @@ public sealed partial class MainWindow
             if (game?.Reward is null)return;
             var body = Stack();
             body.Children.Add(Text("Демонстраційна реклама", 22, "Text", true));
+            if (kind == "life")
+                body.Children.Add(Text($"Відновлюється одне життя. Штраф: −{game.NextReviveCost:N0} балів. Наступне відновлення коштуватиме дорожче.", 14, "Muted"));
             var remaining = Text("", 24, "Accent", true);
             body.Children.Add(remaining);
             var ad = Modal("Винагорода", body, 360);
@@ -316,7 +530,7 @@ public sealed partial class MainWindow
         }
         timer.Tick += (_, _) => Clock();
         heartbeat.Tick += async (_, _) => {
-            if (game is { Paused: false, Completed: false, OutOfLives: false, Reward: null } && !working && connected)await Load();
+            if (game is { Paused: false, Completed: false, OutOfLives: false, Reward: null } && !working && queuedInputs == 0 && connected) await Load();
         };
         window.Loaded += async (_, _) => {
             await Load(true);
@@ -367,23 +581,51 @@ public sealed partial class MainWindow
         };
         window.MouseHistory = forward => { if (!Active()) return false; _ = Move(forward ? "redo" : "undo"); return true; };
         window.Reopen = () => _ = ShowChallengeGame(day, resumeOnly: true);
+        window.RefreshPresentation = Draw;
+        window.EscapeAction = () =>
+        {
+            if (game is not { Completed: false, OutOfLives: false, Reward: null } || !connected) return false;
+            if (!working) _ = Move(game.Paused ? "resume" : "pause");
+            return true;
+        };
         window.PreviewKeyDown += (_, e) =>
         {
-            if (!Active())return;
-            int digit = e.Key >= Key.D1 && e.Key <= Key.D9?(int)e.Key - (int)Key.D0: e.Key >= Key.NumPad1 && e.Key <= Key.NumPad9?(int)e.Key - (int)Key.NumPad0: 0;
-            if (digit > 0)_ = Move("enter", digit);
-            else if (e.Key is Key.Delete or Key.Back)_ = Move("enter", 0);
-            else if (e.Key == Key.Left)Select(Math.Max(0, selected - 1));
-            else if (e.Key == Key.Right)Select(Math.Min(80, selected + 1));
-            else if (e.Key == Key.Up)Select(Math.Max(0, selected - 9));
-            else if (e.Key == Key.Down)Select(Math.Min(80, selected + 9));
-            else if (e.Key == Key.N)
+            var mods = Keyboard.Modifiers;
+            if (mods.HasFlag(ModifierKeys.Alt) || mods.HasFlag(ModifierKeys.Windows)) return;
+            if (e.Key == Key.P && connected && !working && game is { Completed: false, OutOfLives: false, Reward: null })
+                _ = Move(game.Paused ? "resume" : "pause");
+            else if (!CanInput()) return;
+            else if (mods.HasFlag(ModifierKeys.Control))
             {
-                note = !note;
-                Draw();
+                if (e.Key == Key.Z) _ = QueueInput(() => Move(mods.HasFlag(ModifierKeys.Shift) ? "redo" : "undo"));
+                else if (e.Key == Key.Y) _ = QueueInput(() => Move("redo"));
+                else return;
             }
-            else if (e.Key == Key.P)_ = Move("pause");
-            else return;
+            else
+            {
+                int digit = e.Key >= Key.D0 && e.Key <= Key.D9 ? (int)e.Key - (int)Key.D0 :
+                    e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9 ? (int)e.Key - (int)Key.NumPad0 : -1;
+                if (digit >= 0) _ = QueueInput(() => EnterDigit(digit, temporaryNote: mods.HasFlag(ModifierKeys.Shift)));
+                else if (e.Key is Key.Delete or Key.Back) _ = QueueInput(() => EnterDigit(0));
+                else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
+                {
+                    var key = e.Key;
+                    _ = QueueInput(() =>
+                    {
+                        int row = selected / 9, col = selected % 9;
+                        if (key == Key.Left) col--;
+                        if (key == Key.Right) col++;
+                        if (key == Key.Up) row--;
+                        if (key == Key.Down) row++;
+                        Select(Math.Clamp(row, 0, 8) * 9 + Math.Clamp(col, 0, 8));
+                        boardCells[selected].Focus();
+                        return Task.CompletedTask;
+                    });
+                }
+                else if (e.Key == Key.H) _ = QueueInput(() => Aid("hint"));
+                else if (e.Key == Key.A) _ = QueueInput(() => Aid("candidates"));
+                else return;
+            }
             e.Handled = true;
         };
         Draw();

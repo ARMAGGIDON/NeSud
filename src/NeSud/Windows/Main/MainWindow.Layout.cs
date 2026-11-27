@@ -107,9 +107,7 @@ public sealed partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
+        AddGameColumns(root);
 
         var header = new Grid { Margin = new Thickness(24, 18, 24, 14), MaxWidth = PageShellWidth };
         headerBar = header;
@@ -164,6 +162,7 @@ public sealed partial class MainWindow : Window
             state.Dark = !state.Dark;
             ApplyTheme();
             Render();
+            surfaces.LastOrDefault()?.RefreshPresentation?.Invoke();
             Save();
         }, "Світла / темна тема");
         theme.VerticalAlignment = VerticalAlignment.Center;
@@ -183,10 +182,7 @@ public sealed partial class MainWindow : Window
         At(header, headerActions, 0, 1);
 
 
-        var play = new Grid();
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        play.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var play = BuildPlayGrid();
         var info = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
         heading = Text("", 19, "Text", true);
@@ -202,9 +198,8 @@ public sealed partial class MainWindow : Window
         At(play, info, 0, 0);
 
         var boardArea = new Grid();
-        var view = new Viewbox { Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650 };
         board = BuildBoard();
-        view.Child = board;
+        var view = BoardView(board);
         boardArea.Children.Add(view);
         cover = new Grid();
         cover.SetResourceReference(Panel.BackgroundProperty, "PanelBrush");
@@ -318,6 +313,13 @@ public sealed partial class MainWindow : Window
         side.Children.Add(autoFinish);
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
+        side.Children.Add(localPaintOption = PaintOption(v =>
+        {
+            if (updatingPaintOption) return;
+            state.PaintDigit = v;
+            if (!v) localPaintDigit = 0;
+            else if (G is { } g) SetPaintDigit(DigitOnly ? localFocusDigit : g.Values[g.Selected]);
+        }));
         Gap(side, 9);
 
         var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
@@ -451,7 +453,43 @@ public sealed partial class MainWindow : Window
         return c;
     }
 
-    private Grid BuildBoard()
+    private CheckBox? localPaintOption;
+    private bool updatingPaintOption;
+
+    private CheckBox PaintOption(Action<bool> set)
+    {
+        var toggle = Option("Введення активної цифри кліком", state.PaintDigit, set);
+        toggle.ToolTip = "Виберіть цифру, потім натискайте порожні клітинки. У режимі нотаток цифра додається або стирається.";
+        return toggle;
+    }
+
+    private static void AddGameColumns(Grid root)
+    {
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(290) });
+    }
+
+    private static Grid BuildPlayGrid()
+    {
+        var play = new Grid();
+        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        play.RowDefinitions.Add(new RowDefinition());
+        play.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        return play;
+    }
+
+    private static Viewbox BoardView(Grid board) => new()
+    {
+        Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650, Child = board
+    };
+
+    private Grid BuildBoard() => BuildBoard(cells, ClickCell,
+        i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); },
+        (i, first) => { PaintLocalStroke(i, first); return Task.CompletedTask; }, () => Playing);
+
+    private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null,
+        Func<int, bool, Task>? paint = null, Func<bool>? canStart = null)
     {
         var result = new Grid { Width = 540, Height = 540, SnapsToDevicePixels = true };
         result.SetResourceReference(Panel.BackgroundProperty, "StrongLineBrush");
@@ -479,13 +517,16 @@ public sealed partial class MainWindow : Window
                 Margin = new Thickness(c % 3 == 0 ? 2 : 0.5, r % 3 == 0 ? 2 : 0.5,
                     c % 3 == 2 ? 2 : 0.5, r % 3 == 2 ? 2 : 0.5),
                 IsTabStop = false, FocusVisualStyle = null, Cursor = Cursors.Hand };
-            b.Click += (_, _) => Select(index);
-            b.GotKeyboardFocus += (_, _) => {
-                if (Playing && G!.Selected != index) Select(index, false);
+            b.Click += (_, _) => select(index);
+            if (focused is not null) b.GotKeyboardFocus += (_, _) =>
+            {
+                // Mouse focus arrives before Click. Do not replace the active digit before painting.
+                if (Mouse.LeftButton != MouseButtonState.Pressed) focused(index);
             };
-            cells[i] = b;
+            target[i] = b;
             At(result, b, r, c);
         }
+        if (paint is not null) AttachPaintStroke(result, paint, canStart ?? (() => true));
         return result;
     }
 }

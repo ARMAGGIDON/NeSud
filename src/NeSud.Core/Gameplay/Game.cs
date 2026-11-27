@@ -49,6 +49,11 @@ public sealed class Game
     public long EffectiveCandidatePenalty => RulesVersion >= 2 ? CandidatePenalty : RulesVersion == 1 ? 100L * CandidateUses : 0;
     public int LifeRestores { get;
     set; }
+    public const int CurrentRulesVersion = 4, ReviveBaseCost = 100;
+    public long NextReviveCost => RulesVersion >= 4 ? ReviveBaseCost * (LifeRestores + 1L) : ReviveBaseCost;
+    public long LifeRestorePenalty => RulesVersion >= 4
+        ? (long)Math.Min(long.MaxValue / 2m, ReviveBaseCost / 2m * LifeRestores * (LifeRestores + 1m))
+        : RulesVersion > 0 ? ReviveBaseCost * (long)LifeRestores : 0;
     public bool AutoFinish { get;
     set; }
     public int AutoFilled { get;
@@ -69,7 +74,7 @@ public sealed class Game
         (int)Math.Round(BaseScore * 0.6 * Math.Pow(Math.Clamp(1.0 - (double)Seconds / TargetSeconds, 0, 1), 2));
     public long AutoFillPenalty => RulesVersion >= 3 ? (long)AutoFilled * AutoFillCost : 0;
     public bool CanStartRevive(DateTimeOffset now) => RulesVersion >= 3 && OutOfLives && !ReviveAttempted &&
-        LifeRestores == 0 && ReviveDeadline is { } deadline && now < deadline;
+        (RulesVersion >= 4 || LifeRestores == 0) && ReviveDeadline is { } deadline && now < deadline;
     public int ReviveSeconds(DateTimeOffset now) => CanStartRevive(now)
         ? Math.Max(0, (int)Math.Ceiling((ReviveDeadline!.Value - now).TotalSeconds)) : 0;
     public bool FinalDefeat(DateTimeOffset now) => OutOfLives && !CanStartRevive(now) &&
@@ -87,9 +92,11 @@ public sealed class Game
         if (!OutOfLives || !ReviveAttempted || ReviveReadyAt is not { } ready || ReviveExpiresAt is not { } expiry ||
             now < ready || now >= expiry) return false;
         Lives = 1;
+        ReviveDeadline = null;
         LifeRestores++;
         AdsWatched++;
         CancelRevive();
+        if (RulesVersion >= 4) ReviveAttempted = false;
         return true;
     }
     public void CancelRevive()
@@ -117,19 +124,27 @@ public sealed class Game
     public bool OutOfLives => RulesVersion > 0 && Lives == 0 && !Completed;
     public int CurrentScore => (int)Math.Max(0L, (long)BaseScore + SpeedBonus -
         Seconds / 3L - 75L * Mistakes - 150L * Hints -
-        EffectiveCandidatePenalty - AutoFillPenalty - (RulesVersion > 0 ? 100L * LifeRestores : 0L));
+        EffectiveCandidatePenalty - AutoFillPenalty - LifeRestorePenalty);
     // Legacy history retains its original scoring rules; only active games are migrated.
     public void UpgradeRules()
     {
-        if (RulesVersion >= 3 || Completed) return;
+        if (RulesVersion >= CurrentRulesVersion || Completed) return;
+        if (RulesVersion == 3)
+        {
+            // A completed defeat must not be reopened by upgrading a persisted session.
+            if (FinalDefeat(DateTimeOffset.UtcNow)) return;
+            RulesVersion = CurrentRulesVersion;
+            if (!OutOfLives) { ReviveAttempted = false; ReviveDeadline = null; CancelRevive(); }
+            return;
+        }
         if (RulesVersion == 0)
         {
             Lives = Math.Max(0, MaxLives - Mistakes);
             HintCredits = CandidateCredits = 1;
         }
         CandidatePenalty = EffectiveCandidatePenalty;
-        RulesVersion = 3;
-        ReviveAttempted = LifeRestores > 0;
+        RulesVersion = CurrentRulesVersion;
+        ReviveAttempted = OutOfLives && LifeRestores > 0;
         if (OutOfLives && !ReviveAttempted) ReviveDeadline = DateTimeOffset.UtcNow.AddSeconds(10);
     }
 
@@ -160,7 +175,7 @@ public sealed class Game
 
     public static Game Start(Puzzle puzzle) => new()
     {
-        Puzzle = puzzle, Values = (int[])puzzle.Givens.Clone(), RulesVersion = 3,
+        Puzzle = puzzle, Values = (int[])puzzle.Givens.Clone(), RulesVersion = CurrentRulesVersion,
         Selected = Array.FindIndex(puzzle.Givens, v => v == 0)
     };
 
@@ -192,15 +207,18 @@ public sealed class Game
         return true;
     }
 
-    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && !Paused && !Completed && !OutOfLives;
+    public bool Editable(int i) => i is >= 0 and < 81 && Puzzle.Givens[i] == 0 && Values[i] != Puzzle.Solution[i] && !Paused && !Completed && !OutOfLives;
     public bool Enter(int i, int digit, bool note = false, bool autoClean = true, bool hint = false)
     {
         if (!Editable(i) || digit is < 0 or > 9 || hint && (digit != Puzzle.Solution[i] || note || RulesVersion > 0 && HintCredits == 0)) return false;
         if (note && digit != 0)
         {
             if (Values[i] != 0) return false;
+            int bit = 1 << digit;
+            // Existing stale notes can always be erased. New notes must agree with visible peers.
+            if ((Notes[i] & bit) == 0 && (Sudoku.Candidates(Values, i) & bit) == 0) return false;
             Remember();
-            Notes[i] ^= 1 << digit;
+            Notes[i] ^= bit;
             return true;
         }
         if (Values[i] == digit && Notes[i] == 0) return false;
@@ -276,7 +294,7 @@ public sealed class Game
         Seconds = Mistakes = Hints = 0;
         Paused = NotesMode = Awarded = false;
         Selected = Array.IndexOf(Values, 0);
-        RulesVersion = 2;
+        RulesVersion = CurrentRulesVersion;
         Lives = MaxLives;
         HintCredits = CandidateCredits = 1;
         CandidateUses = LifeRestores = AdsWatched = 0;
@@ -293,7 +311,7 @@ public sealed class Game
         if (Puzzle is null || Puzzle.Givens is null || Puzzle.Solution is null ||
             !Enum.IsDefined(Puzzle.Difficulty) || !Sudoku.IsConsistent(Puzzle.Givens) ||
             !Sudoku.IsConsistent(Puzzle.Solution) || Puzzle.Solution.Contains(0) ||
-            RulesVersion is < 0 or > 3 || AutoFilled is < 0 or > 9 || Lives is < 0 or > MaxLives ||
+            RulesVersion is < 0 or > CurrentRulesVersion || AutoFilled is < 0 or > 9 || Lives is < 0 or > MaxLives ||
             HintCredits is < 0 or > MaxAid || CandidateCredits is < 0 or > MaxAid ||
             CandidateUses < 0 || CandidateChanges is < 0 or > 1_000_000_000 || CandidatePenalty is < 0 or > 10_000_000_000 || LifeRestores < 0 || AdsWatched < 0 || ManualCorrect is null ||
             ManualCorrect.Any(i => i is < 0 or >= 81 || Puzzle.Givens[i] != 0) ||

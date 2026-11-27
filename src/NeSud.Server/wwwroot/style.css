@@ -665,52 +665,53 @@ html {
 }
 
 #daily-cards {
-    display: grid;
-    grid-template-columns: repeat(3,1fr);
-    gap: 10px;
-    margin: 12px 0
+    --gift-step: min(132px, 37vw);
+    position: relative;
+    width: calc(var(--gift-step) * 2);
+    min-height: calc(var(--gift-step) * 1.866 + 16px);
+    margin: 12px auto;
+    padding-bottom: 8px;
 }
-
 .mystery-card {
-    min-height: 125px;
+    position: absolute;
+    width: calc(var(--gift-step) * .9);
+    height: calc(var(--gift-step) * .9);
+    min-height: 0;
+    padding: 4px;
     border: 1px solid var(--accent);
     background: var(--control);
-    font-size: 48px;
-    font-weight: 700;
     color: var(--accent);
-    border-radius: 12px
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
-
-.mystery-card:hover {
-    transform: translateY(-2px)
-}
-
-#wallet {
-    display: grid;
-    gap: 5px
-}
-
-#daily-result {
-    color: var(--accent);
-    font-weight: 650
-}
-
-#daily-open {
-    padding: 5px;
-    font-size: 12px;
-    margin: 0 0 4px
-}
-
-.mystery-card.revealed {
-    font-size: 18px;
-    opacity: 1;
-    background: var(--accent);
-    color: var(--accenttext);
-    overflow-wrap: anywhere
-}
-
-.next-card {
-    grid-column: 1/-1
+.mystery-card:nth-child(1) { left: 50%; top: 0; transform: translateX(-50%); }
+.mystery-card:nth-child(2) { left: 25%; top: calc(var(--gift-step) * .8660254); transform: translateX(-50%); }
+.mystery-card:nth-child(3) { left: 75%; top: calc(var(--gift-step) * .8660254); transform: translateX(-50%); }
+.gift-art { display: block; position: relative; width: 82%; height: 75%; }
+.gift-box, .gift-lid { position: absolute; background: var(--accent); border-radius: 4px; }
+.gift-box { left: 12%; width: 76%; top: 43%; height: 51%; }
+.gift-lid { left: 6%; width: 88%; top: 34%; height: 17%; z-index: 2; }
+.gift-box::before, .gift-lid::before { content: ""; position: absolute; left: 43%; width: 14%; height: 100%; background: var(--accenttext); }
+.gift-lid::after { content: ""; position: absolute; left: 29%; top: -95%; width: 42%; height: 90%; border: 3px solid var(--accent); border-radius: 70% 70% 0 0; box-sizing: border-box; }
+.gift-prize { position: absolute; z-index: 1; left: 31%; top: 38%; width: 38%; opacity: 0; transform: translateY(12px); }
+.resource-icon { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; flex-shrink: 0; }
+.gift-prize .resource-icon { width: 100%; height: auto; }
+.gift-caption { font-size: 12px; color: var(--text); }
+.mystery-card.revealed { opacity: 1; filter: none; }
+.mystery-card.unchosen { opacity: .35; }
+.mystery-card.revealed .gift-lid { transform: translate(30%, -170%) rotate(14deg); transition: transform .45s ease-out; }
+.mystery-card.revealed .gift-prize { opacity: 1; transform: translateY(-120%); transition: transform .45s ease-out, opacity .45s; }
+.mystery-card.revealed .gift-caption { font-weight: 700; font-size: 18px; }
+.next-card { display: block; width: 100%; position: relative; top: calc(var(--gift-step) * 1.866 + 4px); margin-bottom: 4px; }
+#daily-cards:has(.next-card) { min-height: calc(var(--gift-step) * 1.866 + 62px); }
+#wallet { display: grid; gap: 5px; }
+#daily-result { color: var(--accent); font-weight: 650; }
+#daily-open { padding: 5px; font-size: 12px; margin: 0 0 4px; }
+@media (prefers-reduced-motion: reduce) {
+    .mystery-card.revealed .gift-lid, .mystery-card.revealed .gift-prize { transition: none; }
 }
 
 .metrics strong.hearts {
@@ -1423,3 +1424,39 @@ dialog, .help-content, #player-results { scrollbar-gutter: stable; }
 }
 #profile-history { height: 320px; overflow: auto; scrollbar-gutter: stable; overflow-anchor: none; }
 #profile-level { width: 100%; min-width: 0; }
+
+/* Borderless reward overlay, identical for automatic and manual claims. */
+#daily {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 20px;
+    width: min(480px, calc(100vw - 24px));
+    overflow: visible;
+}
+#daily::backdrop { background: rgba(0,0,0,.64); }
+#daily > .dialog-close, #daily-heading, #daily-summary, #wallet, #daily-milestone { display: none; }
+#daily-result { text-align: center; min-height: 1.5em; }
+#daily-cards { --gift-step: min(156px, 36vw); padding-top: 0; }
+#daily-cards .mystery-card { border: 0; background: transparent; box-shadow: none; padding: 0; }
+#daily-cards .mystery-card:not(:disabled):hover { background: transparent; filter: drop-shadow(0 0 9px var(--accent)); }
+#daily-cards .gift-art { width: 88%; height: 82%; }
+#daily-cards .mystery-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#daily-cards.quest-animation { width: min(380px, 76vw); min-height: 130px; text-align: center; }
+.quest-count { display: block; font-size: 32px; color: var(--accent); margin: 12px 0; }
+.quest-track { height: 12px; border-radius: 6px; background: var(--control); overflow: hidden; }
+.quest-fill { height: 100%; border-radius: inherit; background: var(--accent); transition: width .65s cubic-bezier(.2,.8,.2,1); }
+.quest-marks { position: relative; height: 28px; margin-top: 7px; color: var(--muted); }
+.quest-marks span { position: absolute; transform: translateX(-50%); }
+.quest-marks .reached { color: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .quest-fill { transition: none; } }
+
+#daily-cards:not(:has(.mystery-card)):not(.quest-animation) { min-height: 0; text-align: center; }
+
+/* Focus a digit independently of the selected Sudoku cell. */
+.mininotes .focused-note { color: var(--accenttext); background: var(--accent); border-radius: 3px; font-weight: 700; }
+#pad button.focused-digit { background: var(--same); opacity: 1; }
+#pad button.spent-digit:disabled { opacity: .45; }
+
+#board.paint-mode { touch-action: none; user-select: none; cursor: crosshair; }
+#board.paint-mode .cell { cursor: crosshair; }

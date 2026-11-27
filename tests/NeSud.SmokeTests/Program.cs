@@ -15,6 +15,7 @@ internal static partial class SmokeTests
         var puzzles = GeneratePuzzles(repetitions, random);
         TestGame(puzzles);
         TestStorage(puzzles);
+        TestSchemaMigration(puzzles[0]);
         TestRules(puzzles);
         TestRewards(puzzles, random);
         TestChallenges(puzzles);

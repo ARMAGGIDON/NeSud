@@ -23,11 +23,47 @@ internal static partial class SmokeTests
         Check(lifeGame.FinishRevive(lossTime.AddSeconds(8)) && lifeGame.Lives == 1 && !lifeGame.OutOfLives &&
             lifeGame.CurrentScore == initialScore - 325, "Life restoration and score penalty");
         Check(lifeGame.Undo() && lifeGame.Lives == 1 && lifeGame.Mistakes == 3, "Undo never refunds lives");
+        Check(lifeGame.ReviveDeadline is null && !lifeGame.FinalDefeat(lossTime.AddHours(1)) &&
+            !lifeGame.CanStartRevive(lossTime.AddHours(1)), "Successful revival clears deadline; elapsed time alone cannot defeat");
+        lifeGame.Seconds += 3600;
+        Check(lifeGame.Enter(blanks[3], lifeGame.Puzzle.Solution[blanks[3]]) &&
+            lifeGame.Lives == 1 && !lifeGame.FinalDefeat(lossTime.AddHours(1)), "Correct move after revival preserves life");
+        for (int n = 2; n <= 4; n++)
+        {
+            int cell = blanks[n + 2];
+            Check(lifeGame.Enter(cell, lifeGame.Puzzle.Solution[cell] % 9 + 1) &&
+                lifeGame.Mistakes == n + 2 && lifeGame.Lives == 0, "Life exhaustion after revival");
+            var lost = lifeGame.ReviveDeadline!.Value.AddSeconds(-10);
+            Check(!lifeGame.FinalDefeat(lost) && lifeGame.CanStartRevive(lost) &&
+                lifeGame.NextReviveCost == 100L * n, "New revival window and increasing price");
+            Check(lifeGame.BeginRevive(lost) && !lifeGame.FinishRevive(lost.AddSeconds(7)) &&
+                lifeGame.FinishRevive(lost.AddSeconds(8)), "Repeated revival requires completed ad");
+            Check(lifeGame.Lives == 1 && lifeGame.LifeRestores == n && lifeGame.LifeRestorePenalty == 50L * n * (n + 1) &&
+                !lifeGame.FinalDefeat(lost.AddHours(1)), "Cumulative revival penalty");
+        }
+        var historical = Game.Start(puzzles[0]);
+        historical.RulesVersion = 3;
+        historical.LifeRestores = 3;
+        Check(historical.LifeRestorePenalty == 300, "Historical scoring preserved");
+        var activeLegacy = Game.Start(puzzles[0]);
+        activeLegacy.RulesVersion = 3;
+        activeLegacy.LifeRestores = 1;
+        activeLegacy.ReviveAttempted = true;
+        int oldScore = activeLegacy.CurrentScore;
+        activeLegacy.UpgradeRules();
+        Check(activeLegacy.RulesVersion == Game.CurrentRulesVersion && !activeLegacy.ReviveAttempted &&
+            activeLegacy.CurrentScore == oldScore && activeLegacy.NextReviveCost == 200, "Active legacy revival migration");
         var aid = Game.Start(puzzles[0]);
         int blank = blanks[0], correctMask = Sudoku.Candidates(aid.Values, blank);
         int validDigit = BitOperations.TrailingZeroCount((uint) correctMask);
         int invalidDigit = BitOperations.TrailingZeroCount((uint)(Sudoku.All & ~correctMask));
-        Check(aid.Enter(blank, validDigit, note: true) && aid.Enter(blank, invalidDigit, note: true), "Manual notes setup");
+        Check(aid.Enter(blank, validDigit, note: true), "Manual notes setup");
+        int undoCount = aid.UndoStack.Count;
+        Check(!aid.Enter(blank, invalidDigit, note: true) && aid.UndoStack.Count == undoCount &&
+            aid.Mistakes == 0 && aid.Lives == Game.MaxLives, "Conflicting note rejected without side effects");
+        aid.Notes[blank] |= 1 << invalidDigit; // Legacy/stale note may still be removed.
+        Check(aid.Enter(blank, invalidDigit, note: true) && (aid.Notes[blank] & (1 << invalidDigit)) == 0,
+            "Conflicting existing note can be erased");
         int expected = Enumerable.Range(0, 81).Sum(j => aid.Values[j] == 0
             ? BitOperations.PopCount((uint)(aid.Notes[j] ^ Sudoku.Candidates(aid.Values, j))) : 0);
         Check(aid.CandidateDelta() == expected && aid.FillNotes() && aid.CandidateCredits == 0 &&
@@ -48,7 +84,7 @@ internal static partial class SmokeTests
         legacy.CandidateUses = 2;
         int legacyScore = legacy.CurrentScore;
         legacy.UpgradeRules();
-        Check(legacy.RulesVersion == 3 && legacy.CurrentScore == legacyScore, "Legacy migration");
+        Check(legacy.RulesVersion == Game.CurrentRulesVersion && legacy.CurrentScore == legacyScore, "Legacy migration");
         Console.WriteLine("PASS lives, aid, variable penalties, legacy migration, persistence");
 
         var cancelledRevive = Game.Start(puzzles[0]);

@@ -3,6 +3,8 @@
 function accept(data) {
     previousGame = game;
     game = data?.empty ? null : data;
+    if (!game || previousGame?.id !== game.id || game.outOfLives || game.completed || game.paused || game.reward)
+        cancelPaintStroke();
     if (!challengeDay) regularGame = game;
     online = navigator.onLine;
     clockAnchor = performance.now();
@@ -10,11 +12,17 @@ function accept(data) {
         selected = Math.max(0, Math.min(80, selected));
         reviveEnd = performance.now() + (game.reviveRemainingMs || 0);
         if (previousGame?.id !== game.id) {
+            focusDigit = paintDigit = 0;
+            selected = Math.max(0, Math.min(80, game.selected ?? 0));
             resultKey = "";
             comparison = null;
             $("result-difficulty").value = String(game.difficulty)
         }
-        if (game.completed) loadComparison();
+        if (game.completed) {
+            loadComparison();
+            if (previousGame?.id === game.id && !previousGame.completed)
+                void showVictoryReward(game.id, challengeDay, epoch);
+        }
     }
     render();
     if (game && previousGame?.id === game.id) {
@@ -69,7 +77,8 @@ window.addEventListener("online", () => token ? reconnect(): login(true));
 async function act(action, extra = { }) {
     if (action !== "heartbeat" && pulse) await pulse;
     if (!online || busy || !game) return false;
-    const e = epoch;
+    const e = epoch, before = game;
+    let advanceFocus = false;
     busy = true;
     try {
         const wireAction = !autoClean && (action === "enter" || action === "hint") ? action + "-keep-notes" : action;
@@ -83,9 +92,11 @@ async function act(action, extra = { }) {
             return true
         }accept(data);
         if (action === "hint") {
-            selected = game.selected;
+            selectCell(game.selected);
             animate(buttons[selected], "hint-pulse")
         }
+        if (action === "enter" || action === "hint")
+            advanceFocus = advanceCompletedDigit(before, action === "hint" ? game.selected : extra.cell);
         if (game.completed && !previousGame?.completed && !guestMode) refreshDaily();
         message("");
         return true;
@@ -97,7 +108,11 @@ async function act(action, extra = { }) {
         return false
     }finally {
         busy = false;
-        if (action !== "heartbeat" || !online || game?.outOfLives || game?.paused || game?.completed || game?.reward) render()
+        if (action !== "heartbeat" || !online || game?.outOfLives || game?.paused || game?.completed || game?.reward) render();
+        if (advanceFocus && e === epoch && tab === "play") {
+            if (focusDigit) $("pad").children[focusDigit - 1].focus();
+            else buttons[selected].focus();
+        }
     }
 }
 setInterval(() => {

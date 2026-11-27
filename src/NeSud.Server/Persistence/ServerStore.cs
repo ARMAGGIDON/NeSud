@@ -37,18 +37,14 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS daily_packs (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL, milestone TEXT NOT NULL, slot INTEGER NOT NULL, options TEXT NOT NULL, chosen INTEGER, PRIMARY KEY(name,day,milestone,slot));
             CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
             CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
-            CREATE INDEX IF NOT EXISTS ix_history_name ON history(name);
-            CREATE INDEX IF NOT EXISTS ix_history_day ON history(name, outcome, julianday(json_extract(payload,'$.ended')));
-            CREATE INDEX IF NOT EXISTS ix_history_rank ON history(source,outcome,name,score);
-            CREATE INDEX IF NOT EXISTS ix_history_compare ON history(source,outcome,json_extract(payload,'$.game.puzzle.difficulty'),coalesce(json_extract(payload,'$.game.rulesVersion'),0));
-            CREATE INDEX IF NOT EXISTS ix_history_week ON history(source,outcome,julianday(json_extract(payload,'$.ended')));
+
             CREATE INDEX IF NOT EXISTS ix_daily_pending ON daily_packs(name,day) WHERE chosen IS NULL;
             CREATE INDEX IF NOT EXISTS ix_tokens_expiry ON tokens(expires);
             CREATE TABLE IF NOT EXISTS tournament_state (id INTEGER PRIMARY KEY CHECK(id=1), next_week TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS tournament_results (week TEXT NOT NULL, rank INTEGER NOT NULL, name TEXT NOT NULL REFERENCES accounts(name), wins INTEGER NOT NULL, score INTEGER NOT NULL, PRIMARY KEY(week,rank), UNIQUE(week,name));
             CREATE TABLE IF NOT EXISTS friendships (sender TEXT NOT NULL REFERENCES accounts(name), recipient TEXT NOT NULL REFERENCES accounts(name), accepted INTEGER NOT NULL DEFAULT 0 CHECK(accepted IN (0,1)), CHECK(sender<>recipient), PRIMARY KEY(sender,recipient));
             CREATE INDEX IF NOT EXISTS ix_friend_recipient ON friendships(recipient,accepted);
-            CREATE INDEX IF NOT EXISTS ix_history_level ON history(name,json_extract(payload,'$.game.puzzle.difficulty'));
+
             CREATE TABLE IF NOT EXISTS challenge_puzzles (day TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS challenge_sessions (name TEXT NOT NULL REFERENCES accounts(name), day TEXT NOT NULL REFERENCES challenge_puzzles(day), payload TEXT NOT NULL, PRIMARY KEY(name,day));
             CREATE INDEX IF NOT EXISTS ix_challenge_sessions_day ON challenge_sessions(day);
@@ -64,14 +60,16 @@ public sealed partial class ServerStore
             INSERT INTO wallet(name,kind,amount) SELECT name,'hint',amount FROM wallet WHERE kind='life'
             ON CONFLICT(name,kind) DO UPDATE SET amount=amount+excluded.amount;
             DELETE FROM wallet WHERE kind='life';
-            UPDATE daily_packs SET options=replace(options,'"kind":"life"','"kind":"hint"') WHERE options LIKE '%"kind":"life"%';
             """);
         convert.ExecuteNonQuery();
-        MigrateChallengeHistory(migration, tx);
         MigrateProfiles(migration, tx);
+        NormalizeSchema(migration, tx);
+        MigrateChallengeHistory(migration, tx);
         using var seed = Tx(migration, tx, "INSERT OR IGNORE INTO tournament_state VALUES(1,$w)", ("$w", Week(DateTimeOffset.UtcNow)));
         seed.ExecuteNonQuery();
         PruneChallengeSessions(migration, tx);
         tx.Commit();
+        using var optimize = Database.Command(migration, "PRAGMA optimize");
+        optimize.ExecuteNonQuery();
     }
 }

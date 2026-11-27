@@ -17,6 +17,21 @@ internal static partial class SmokeTests
         Check(g.Notes[cell] == 1 << correct, "Note mask");
         Check(g.Enter(cell, correct), "Number entry");
         Check(g.Notes[cell] == 0, "Clear notes after number");
+        int mistakesBefore = g.Mistakes, movesBefore = g.UndoStack.Count;
+        Check(!g.Editable(cell) && !g.Enter(cell, 0) && !g.Enter(cell, correct % 9 + 1) &&
+            !g.Enter(cell, correct, note: true), "Correct answer cannot be overwritten, erased or annotated");
+        Check(g.Values[cell] == correct && g.Mistakes == mistakesBefore && g.UndoStack.Count == movesBefore,
+            "Blocked edit has no side effects");
+        Check(BoardFocus.NextDigit(7, [1,1,1,1,1,1,0,2,1]) == 8 &&
+            BoardFocus.NextDigit(7, [1,1,1,1,1,1,0,0,2]) == 9 &&
+            BoardFocus.NextDigit(9, [0,2,0,0,0,0,0,0,0]) == 2 &&
+            BoardFocus.NextDigit(7, [0,0,0,0,0,0,0,0,0]) == 0, "Next unfinished digit and wrap");
+        int[] focusBoard = new int[81];
+        focusBoard[0] = focusBoard[12] = focusBoard[40] = 5;
+        Check(BoardFocus.Nearest(focusBoard, 11, 5) == 12 &&
+            BoardFocus.Nearest(focusBoard, 12, 5) == 0 &&
+            BoardFocus.Nearest(focusBoard, 12, 5, false) == 12 &&
+            BoardFocus.Nearest(focusBoard, 12, 7) == -1, "Digit navigation and missing digit");
         Check(g.Undo() && g.Values[cell] == 0 && g.Notes[cell] != 0, "Undo notes");
         Check(g.Redo() && g.Values[cell] == correct, "Redo number");
         Check(g.Undo() && g.Enter(cell, correct % 9 + 1), "Branch history");
@@ -34,13 +49,13 @@ internal static partial class SmokeTests
         {
             var path = Path.Combine(folder, "state.json");
             var store = new StateStore(path);
-            var state = new AppState { Game = g, Dark = false, ShowMistakes = false };
+            var state = new AppState { Game = g, Dark = false, ShowMistakes = false, PaintDigit = true };
             store.Save(state);
             var loaded = store.Load();
             Check(loaded.Game is { } restored && restored.Valid() && restored.Seconds == 123 &&
                 restored.NotesMode && restored.Values.SequenceEqual(g.Values) &&
                 restored.Notes.SequenceEqual(g.Notes) && restored.UndoStack.Count == g.UndoStack.Count &&
-                !loaded.Dark && !loaded.ShowMistakes, "Persistence round trip");
+                !loaded.Dark && !loaded.ShowMistakes && loaded.PaintDigit, "Persistence round trip");
             g.Seconds = 124;
             store.Save(state);
             File.WriteAllText(path, "broken");
@@ -50,6 +65,13 @@ internal static partial class SmokeTests
         {
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
         }
+        var paint = Game.Start(puzzles[0]);
+        var emptyCells = Enumerable.Range(0, 81).Where(i => paint.Values[i] == 0).Take(2).ToArray();
+        int aDigit = paint.Puzzle.Solution[emptyCells[0]], bDigit = paint.Puzzle.Solution[emptyCells[1]];
+        Check(paint.Enter(emptyCells[0], aDigit, note: true) && paint.Enter(emptyCells[1], bDigit, note: true) &&
+            paint.Notes[emptyCells[0]] == 1 << aDigit && paint.Notes[emptyCells[1]] == 1 << bDigit &&
+            paint.Enter(emptyCells[0], aDigit, note: true) && paint.Notes[emptyCells[0]] == 0 &&
+            paint.Notes[emptyCells[1]] == 1 << bDigit && paint.Mistakes == 0, "Note painting toggles independently");
         g.Restart();
         Check(g.Values.SequenceEqual(g.Puzzle.Givens) && g.Seconds == 0 && g.UndoStack.Count == 0, "Restart");
         for (int i = 0; i < 81; i++) if (g.Puzzle.Givens[i] == 0) g.Enter(i, g.Puzzle.Solution[i]);

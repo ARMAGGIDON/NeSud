@@ -87,7 +87,7 @@ internal static partial class SmokeTests
             for (int rank = 1; rank <= 11; rank++)
             {
                 using var conn = new Database(Path.Combine(dailyDir, "server.db")).Open();
-                using var command = Database.Command(conn, "SELECT options FROM daily_packs WHERE name=$n AND milestone=\'weekly\'", ("$n", rankedUsers[rank - 1]));
+                using var command = Database.Command(conn, "SELECT (SELECT json_group_array(json_object('kind',kind,'amount',amount)) FROM (SELECT kind,amount FROM daily_pack_cards k WHERE (k.name,k.day,k.milestone,k.slot)=(p.name,p.day,p.milestone,p.slot) ORDER BY card)) FROM daily_packs p WHERE name=$n AND milestone=\'weekly\'", ("$n", rankedUsers[rank - 1]));
                 var cards = Database.Decode<RewardItem[] > ((string) command.ExecuteScalar()!);
                 int[] expected = rank <= 2?[3, 3, 3]: rank == 3?[2, 3, 3]: rank <= 10?[2, 2, 2]: [1, 1, 2];
                 Check(cards.Select(x => x.Amount).Order().SequenceEqual(expected) && cards.Select(x => x.Kind).Distinct().Count() == 2, "Weekly distribution rank " + rank);
@@ -122,7 +122,7 @@ internal static partial class SmokeTests
             int units = 0;
             var bestCards = new Dictionary < (string, string, int), int > ();
             using (var conn = new Database(Path.Combine(dailyDir, "server.db")).Open())
-            using (var command = Database.Command(conn, "SELECT day,milestone,slot,options FROM daily_packs WHERE name=$n", ("$n", weekUser)))
+            using (var command = Database.Command(conn, "SELECT day,milestone,slot,(SELECT json_group_array(json_object('kind',kind,'amount',amount)) FROM (SELECT kind,amount FROM daily_pack_cards k WHERE (k.name,k.day,k.milestone,k.slot)=(p.name,p.day,p.milestone,p.slot) ORDER BY card)) FROM daily_packs p WHERE name=$n", ("$n", weekUser)))
             using (var rows = command.ExecuteReader())
                 while (rows.Read())
                 {

@@ -21,7 +21,7 @@ function updateRevive() {
     if (!game?.outOfLives || game.finalDefeat || !online) return;
     const left = Math.max(0, Math.ceil((reviveEnd - performance.now()) / 1000));
     $("revive-progress").value = left;
-    $("cover-detail").textContent = game.reward ? "Останній шанс використано.": left > 0 ? "Останній шанс: " + left + " с": "Час вичерпано.";
+    $("cover-detail").textContent = game.reward ? "Очікуємо завершення реклами.": left > 0 ? "На відновлення: " + left + " с. Штраф: −" + (game.nextReviveCost ?? 100).toLocaleString("uk-UA") + " балів": "Життя закінчилися. Перевіряємо можливість відновлення…";
     $("resume").disabled = busy || adPending || left === 0;
     if (tab === "play" && !left && !game.reward && online && !busy && !adPending) act("heartbeat")
 }
@@ -40,7 +40,8 @@ function render() {
     $("resume").hidden = online && !game;
     $("resume").disabled = busy;
     $("resume").textContent = !online ? "Відновити з’єднання": game?.outOfLives ? "Відновити життя за рекламу": "Продовжити";
-    $("cover-detail").textContent = online && game?.paused ? "Поле приховано, таймер зупинено." : "";
+    $("cover-detail").textContent = online && game?.finalDefeat ? "Усі життя вичерпано." :
+        online && game?.paused ? "Поле приховано, таймер зупинено." : "";
     $("revive-progress").hidden = !game?.outOfLives;
     $("menu-continue").hidden = !regularGame;
     $("menu-continue").textContent = regularGame?.completed || regularGame?.finalDefeat
@@ -61,7 +62,7 @@ function render() {
     $("score").title = game ? [
         "Час: −" + Math.floor(game.seconds / 3), "Помилки: −" + 75 * game.mistakes,
         "Підказки: −" + 150 * game.hints, "Кандидати: −" + game.effectiveCandidatePenalty,
-        "Життя: −" + 100 * game.lifeRestores, "Автозавершення: −" + game.autoFillPenalty
+        "Життя: −" + (game.lifeRestorePenalty ?? 100 * game.lifeRestores), "Автозавершення: −" + game.autoFillPenalty
     ].join("\n") : "";
     $("hint").textContent = "Підказка (" + (game?.hintCredits || 0) + ")";
     $("candidates").textContent = "Кандидати (" + (game?.candidateCredits || 0) + ")";
@@ -81,10 +82,11 @@ function render() {
     $("game-progress").value = filled;
     $("highlight-peers").checked = highlightPeers;
     $("auto-clean").checked = autoClean;
+    const highlighted = (paintMode && paintDigit) || focusDigit || game?.values[selected] || 0;
     buttons.forEach((b, i) => {
         const v = game?.values[i] || 0, r = Math.floor(i / 9), c = i % 9, sr = Math.floor(selected / 9), sc = selected % 9;
         const animation = ["pop", "shake", "hint-pulse"].filter(k => b.classList.contains(k)).join(" ");
-        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (i === selected ? " selected": v && v === game?.values[selected] ? " same": highlightPeers && (r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3)) ? " peer": "");
+        b.className = "cell" + (c % 3 === 2 && c !== 8 ? " blockright": "") + (r % 3 === 2 && r !== 8 ? " blockbottom": "") + (game?.givens[i] ? " given": "") + (!focusDigit && i === selected ? " selected": v && v === highlighted ? " same": !focusDigit && highlightPeers && (r === sr || c === sc || Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3)) ? " peer": "");
         if (animation) b.classList.add(...animation.split(" "));
         b.classList.toggle("wrong", !!game?.wrong?.[i]);
         b.replaceChildren();
@@ -95,10 +97,11 @@ function render() {
             for (let d = 1; d <= 9; d++) {
                 let k = document.createElement("span");
                 k.textContent = game.notes[i] & (1 << d) ? d: "";
+                if (d === highlighted && k.textContent) k.classList.add("focused-note");
                 n.append(k)
             }b.append(n)
         }
-        b.tabIndex = i === selected ? 0: -1;
+        b.tabIndex = !focusDigit && i === selected ? 0: -1;
         b.disabled = !online || !game || game.paused || game.outOfLives || adPending;
         b.setAttribute("aria-label", "Рядок " + (r + 1) + ", стовпець " + (c + 1) + ": " + (v || "порожньо"));
     });
@@ -107,9 +110,11 @@ function render() {
         const n = game?.remaining?.[i] ?? 9;
         b.querySelector("small").textContent = n;
         b.classList.toggle("spent-digit", n === 0);
-        b.disabled = !active || (!note && n === 0);
+        b.disabled = !active || n === 0;
+        b.classList.toggle("focused-digit", n > 0 && i + 1 === highlighted);
         b.setAttribute("aria-label", "Цифра " + (i + 1) + ", залишилось " + n)
     });
+    document.querySelector('[data-action="erase"]').disabled = !active || !!focusDigit || lockedCell();
     $("auto-finish").checked = game?.autoFinish ?? autoFinish;
     $("auto-finish").disabled = !!game && (busy || game.completed || game.outOfLives);
     document.querySelector('[data-action="undo"]').disabled = !active || !game?.canUndo;
@@ -119,7 +124,15 @@ function render() {
     updateRevive();
 }
 document.addEventListener("keydown", e => {
-    if (tab !== "play" || !online || !game || e.target.matches("input,select,textarea") || e.target.closest("header") || document.querySelector("dialog[open]") || adPending) return;
+    if (tab !== "play" || !online || !game || document.querySelector("dialog[open]") || adPending) return;
+    if (e.target.matches("input:not([type=checkbox]),select,textarea,[contenteditable=true]") || e.altKey || e.metaKey) return;
+    const notesShortcut = !e.ctrlKey && (e.code === "KeyN" || e.code === "Space" || e.key.toLowerCase() === "n" || e.key === " ");
+    if (notesShortcut && !game.paused && !game.completed && !game.outOfLives && !game.reward) {
+        e.preventDefault();
+        if (!e.repeat) { note = !note; render(); }
+        return;
+    }
+    if (e.target.matches("input") || e.target.closest("header")) return;
     let k = e.key.toLowerCase();
     if (k === "p" || k === "escape") {
         act(game.paused ? "resume": "pause");
@@ -132,10 +145,7 @@ document.addEventListener("keydown", e => {
     else if (e.ctrlKey) return;
     else if (/^[1-9]$/.test(k)) enter(Number(k), e.shiftKey);
     else if (["delete", "backspace", "0"].includes(k)) enter(0);
-    else if (k === "n" || k === " ") {
-        note = !note;
-        render()
-    }else if (k === "h") tool("hint");
+    else if (k === "h") tool("hint");
     else if (k === "a") tool("candidates");
     else if (k.startsWith("arrow")) {
         let r = Math.floor(selected / 9), c = selected % 9;
@@ -143,8 +153,7 @@ document.addEventListener("keydown", e => {
         if (k === "arrowright") c++;
         if (k === "arrowup") r--;
         if (k === "arrowdown") r++;
-        selected = Math.max(0, Math.min(8, r)) * 9 + Math.max(0, Math.min(8, c));
-        render();
+        selectCell(Math.max(0, Math.min(8, r)) * 9 + Math.max(0, Math.min(8, c)));
         buttons[selected].focus()
     }else return;
     e.preventDefault()

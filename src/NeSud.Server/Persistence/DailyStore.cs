@@ -34,9 +34,24 @@ public sealed partial class ServerStore
     private static void AddPack(SqliteConnection c, SqliteTransaction tx, string name, string day, string milestone,
         int slot, RewardItem[] options)
     {
-        using var cmd = Tx(c, tx, "INSERT OR IGNORE INTO daily_packs(name,day,milestone,slot,options) VALUES($n,$d,$m,$s,$o)",
-            ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot), ("$o", Database.Encode(options)));
-        cmd.ExecuteNonQuery();
+        if (options.Length != 3) throw new InvalidDataException("A reward pack must have three cards.");
+        using var cmd = Tx(c, tx, """
+            INSERT INTO daily_packs(name,day,milestone,slot) VALUES($n,$d,$m,$s)
+            ON CONFLICT(name,day,milestone,slot) DO NOTHING
+            """, ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot));
+        if (cmd.ExecuteNonQuery() == 0) return;
+        using var card = Tx(c, tx, """
+            INSERT INTO daily_pack_cards(name,day,milestone,slot,card,kind,amount)
+            VALUES($n,$d,$m,$s,$i,$k,$a)
+            """, ("$n", name), ("$d", day), ("$m", milestone), ("$s", slot),
+            ("$i", 0), ("$k", ""), ("$a", 0));
+        for (int i = 0; i < options.Length; i++)
+        {
+            card.Parameters["$i"].Value = i;
+            card.Parameters["$k"].Value = options[i].Kind;
+            card.Parameters["$a"].Value = options[i].Amount;
+            card.ExecuteNonQuery();
+        }
     }
     private static int EnsureWinPacks(SqliteConnection c, SqliteTransaction tx, string name, string day)
     {
@@ -45,10 +60,9 @@ public sealed partial class ServerStore
         var end = TimeZoneInfo.ConvertTimeToUtc(date.AddDays(1).ToDateTime(TimeOnly.MinValue), DailyZone);
         int wins;
         using (var cmd = Tx(c, tx, """
-            SELECT COUNT(DISTINCT json_extract(payload,'$.game.puzzle.givens')) FROM history
-            WHERE name=$n AND outcome='completed' AND json_extract(payload,'$.challengeDay') IS NULL
-            AND julianday(json_extract(payload,'$.ended')) >= julianday($start)
-            AND julianday(json_extract(payload,'$.ended')) < julianday($end)
+            SELECT COUNT(DISTINCT p.givens) FROM history JOIN history_puzzles p USING(puzzle_id)
+            WHERE name=$n AND outcome='completed' AND challenge_day IS NULL
+            AND ended_jd >= julianday($start) AND ended_jd < julianday($end)
             AND NOT EXISTS(SELECT 1 FROM speed_audit a WHERE a.name=history.name AND a.id=history.id AND a.flagged=1)
             """, ("$n", name), ("$start", start.ToString("O")), ("$end", end.ToString("O"))))
             wins = Convert.ToInt32(cmd.ExecuteScalar());
@@ -98,13 +112,16 @@ public sealed partial class ServerStore
             var args = new (string, object?)[] { ("$n", name), ("$d", choice.Day), ("$m", choice.Milestone), ("$s", choice.Slot) };
             RewardItem item;
             int? chosen;
-            using (var cmd = Tx(c, tx, "SELECT options,chosen FROM daily_packs WHERE name=$n AND day=$d AND milestone=$m AND slot=$s", args))
+            using (var cmd = Tx(c, tx, """
+                SELECT k.kind,k.amount,p.chosen FROM daily_packs p JOIN daily_pack_cards k USING(name,day,milestone,slot)
+                WHERE p.name=$n AND p.day=$d AND p.milestone=$m AND p.slot=$s AND k.card=$i
+                """, [.. args, ("$i", choice.Card)]))
             using (var rows = cmd.ExecuteReader())
             {
                 if (!rows.Read()) return null;
-                chosen = rows.IsDBNull(1) ? null : rows.GetInt32(1);
+                chosen = rows.IsDBNull(2) ? null : rows.GetInt32(2);
                 if (chosen is int previous && previous != choice.Card) return null;
-                item = Database.Decode<RewardItem[] > (rows.GetString(0))[choice.Card];
+                item = new(rows.GetString(0), rows.GetInt32(1));
             }
             if (chosen is null)
             {

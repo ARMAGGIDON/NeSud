@@ -19,13 +19,13 @@ public sealed partial class ServerStore
         using var exists = Tx(c, tx, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='challenge_attempts'");
         if (exists.ExecuteScalar() is null) return;
         // The old table is removed only after every record has been copied successfully.
-        using var migrate = Tx(c, tx, """
-            INSERT INTO history(name,id,source,score,outcome,payload)
-            SELECT name,id,'web',CASE WHEN outcome='completed' THEN json_extract(payload,'$.score') ELSE 0 END,
-                outcome,json_set(payload,'$.challengeDay',day)
-            FROM challenge_attempts;
-            DROP TABLE challenge_attempts;
+        CopyHistory(c, tx, """
+            SELECT NULL AS cursor,name,id,'web' AS source,
+                CASE WHEN outcome='completed' THEN json_extract(payload,'$.score') ELSE 0 END AS score,
+                outcome,json_set(payload,'$.challengeDay',day) AS payload
+            FROM challenge_attempts
             """);
+        using var migrate = Tx(c, tx, "DROP TABLE challenge_attempts");
         migrate.ExecuteNonQuery();
     }
 

@@ -22,8 +22,29 @@ namespace NeSud;
 
 public sealed partial class MainWindow : Window
 {
+    private static bool IsNotesShortcut(KeyEventArgs e) =>
+        e.Key is Key.N or Key.Space &&
+        (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) == ModifierKeys.None;
+
     private void OnKey(object sender, KeyEventArgs e)
     {
+        // Route game shortcuts at the window, including when the pad or header has keyboard focus.
+        // Only the top surface may consume them; a reward/help dialog must never affect the underlying game.
+        if (IsNotesShortcut(e) && Keyboard.FocusedElement is not (TextBoxBase or PasswordBox or ComboBox { IsDropDownOpen: true }))
+        {
+            if (surfaces.LastOrDefault() is { ToggleNotesAction: { } toggle })
+            {
+                e.Handled = true;
+                if (!e.IsRepeat) toggle();
+                return;
+            }
+            if (surfaces.Count == 0 && Playing)
+            {
+                e.Handled = true;
+                if (!e.IsRepeat) ToggleNotes();
+                return;
+            }
+        }
         if (e.Key == Key.Escape)
         {
             if (dismissPlayerSearch?.Invoke() == true)
@@ -51,7 +72,8 @@ public sealed partial class MainWindow : Window
             }
             if (e.Key == Key.Escape && Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true })
             {
-                surfaces[^1].Close();
+                var top = surfaces[^1];
+                if (top.EscapeAction?.Invoke() != true) top.Close();
                 e.Handled = true;
             }
             return;
@@ -94,7 +116,6 @@ public sealed partial class MainWindow : Window
             code >= (int)Key.NumPad0 && code <= (int)Key.NumPad9 ? code - (int)Key.NumPad0 : - 1;
         if (d >= 0) Enter(d, mods.HasFlag(ModifierKeys.Shift));
         else if (k is Key.Delete or Key.Back) Enter(0);
-        else if (k == Key.N || k == Key.Space && Keyboard.FocusedElement is Button b && cells.Contains(b)) ToggleNotes();
         else if (k == Key.H) Hint();
         else if (k == Key.A) Candidates();
         else if (k is Key.Left or Key.Right or Key.Up or Key.Down)
