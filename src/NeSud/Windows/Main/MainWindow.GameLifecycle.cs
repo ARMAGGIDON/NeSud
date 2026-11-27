@@ -99,7 +99,7 @@ public sealed partial class MainWindow : Window
 
     private void BeginAttempt()
     {
-        localFocusDigit = 0;
+        localFocusDigit = localPaintDigit = 0;
         state.GameId = Guid.NewGuid();
         state.Started = DateTimeOffset.UtcNow;
         state.GameScope = Scope;

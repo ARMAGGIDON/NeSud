@@ -81,7 +81,7 @@ function render() {
     $("game-progress").value = filled;
     $("highlight-peers").checked = highlightPeers;
     $("auto-clean").checked = autoClean;
-    const highlighted = focusDigit || game?.values[selected] || 0;
+    const highlighted = (paintMode && paintDigit) || focusDigit || game?.values[selected] || 0;
     buttons.forEach((b, i) => {
         const v = game?.values[i] || 0, r = Math.floor(i / 9), c = i % 9, sr = Math.floor(selected / 9), sc = selected % 9;
         const animation = ["pop", "shake", "hint-pulse"].filter(k => b.classList.contains(k)).join(" ");
@@ -147,9 +147,7 @@ document.addEventListener("keydown", e => {
         if (k === "arrowright") c++;
         if (k === "arrowup") r--;
         if (k === "arrowdown") r++;
-        focusDigit = 0;
-        selected = Math.max(0, Math.min(8, r)) * 9 + Math.max(0, Math.min(8, c));
-        render();
+        selectCell(Math.max(0, Math.min(8, r)) * 9 + Math.max(0, Math.min(8, c)));
         buttons[selected].focus()
     }else return;
     e.preventDefault()

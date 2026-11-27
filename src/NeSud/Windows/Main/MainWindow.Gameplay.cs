@@ -71,7 +71,25 @@ public sealed partial class MainWindow : Window
         saveStatus.Foreground = B("Wrong");
         saveStatus.ToolTip = ex.Message; }
     }
-    private int localFocusDigit;
+    private int localFocusDigit, localPaintDigit;
+    private Guid paintGameId;
+    private int ActivePaintDigit => paintGameId == state.GameId ? localPaintDigit : 0;
+    private void SetPaintDigit(int digit)
+    {
+        if (digit is < 1 or > 9) return;
+        paintGameId = state.GameId;
+        localPaintDigit = digit;
+    }
+
+    private void ClickCell(int i)
+    {
+        if (!Playing || G is not { } g) return;
+        int digit = ActivePaintDigit;
+        bool paint = state.PaintDigit && digit != 0 && g.Values[i] == 0 && g.Editable(i);
+        Select(i);
+        if (paint) Change(x => x.Enter(i, digit, x.NotesMode || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), state.AutoClean));
+    }
+
     private Guid focusGameId;
     private bool DigitOnly => focusGameId == state.GameId && localFocusDigit != 0;
 
@@ -84,6 +102,7 @@ public sealed partial class MainWindow : Window
         if (!Playing) return;
         localFocusDigit = 0;
         G!.Selected = i;
+        if (state.PaintDigit) SetPaintDigit(G.Values[i]);
         Render();
         Save();
         if (focus) FocusCell();
@@ -133,6 +152,7 @@ public sealed partial class MainWindow : Window
     private void Enter(int d, bool temporaryNote = false)
     {
         if (!Playing || G is not { } g) return;
+        if (state.PaintDigit && d > 0) SetPaintDigit(d);
         if (DigitOnly || !g.Editable(g.Selected))
         {
             if (d == 0) return;
@@ -149,6 +169,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         Change(x => x.Enter(x.Selected, d, temporaryNote || x.NotesMode, state.AutoClean));
+        if (state.PaintDigit) Render();
     }
     private void ToggleNotes()
     {
@@ -169,6 +190,7 @@ public sealed partial class MainWindow : Window
         }
         if (G.GetHint() is not { } m) return;
         localFocusDigit = 0;
+        if (state.PaintDigit) SetPaintDigit(m.Digit);
         G.Selected = m.Cell;
         Change(g => g.Enter(m.Cell, m.Digit, false, state.AutoClean, true),
             $"{m.Reason}: рядок {m.Cell / 9 + 1}, стовпець {m.Cell % 9 + 1} = {m.Digit}.");

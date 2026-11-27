@@ -1,15 +1,23 @@
 "use strict";
 
-let focusDigit = 0;
+let focusDigit = 0, paintDigit = 0;
+function selectCell(i) {
+    focusDigit = 0;
+    selected = i;
+    if (paintMode && game?.values[i]) paintDigit = game.values[i];
+    render();
+}
 const buttons = [];
 for (let i = 0; i < 81; i++) {
     let b = document.createElement("button");
     b.className = "cell";
-    b.onclick = () => {
-        focusDigit = 0;
-        selected = i;
-        render();
-        b.focus()
+    b.onclick = event => {
+        if (!game || busy || !online || game.paused || game.completed || game.outOfLives || adPending) return;
+        const digit = paintDigit;
+        const paint = paintMode && digit && !game.values[i] && !game.givens[i];
+        selectCell(i);
+        b.focus();
+        if (paint) void act("enter", { cell: i, digit, note: note || event.shiftKey });
     };
     $("board").append(b);
     buttons.push(b)
@@ -37,13 +45,12 @@ function lockedCell() {
 }
 function enter(d, temp = false) {
     if (!online || !game || game.paused || game.completed || game.outOfLives || adPending) return;
+    if (paintMode && d > 0) paintDigit = d;
     if (focusDigit || lockedCell()) {
         if (!d) return;
         const next = nearestDigit(game.values, selected, d, !focusDigit);
         if (next >= 0) {
-            focusDigit = 0;
-            selected = next;
-            render();
+            selectCell(next);
             buttons[next].focus();
         } else {
             focusDigit = d;
@@ -52,6 +59,7 @@ function enter(d, temp = false) {
         }
         return;
     }
+    if (paintMode) render();
     act("enter", { cell: selected, digit: d, note: temp || note });
 }
 $("notes").onclick = () => {
@@ -77,3 +85,11 @@ for (const [id, key, apply] of [
         render();
     };
 }
+
+$("paint-digit").checked = paintMode;
+$("paint-digit").onchange = () => {
+    paintMode = $("paint-digit").checked;
+    paintDigit = paintMode ? (focusDigit || game?.values[selected] || 0) : 0;
+    localStorage.setItem("paintDigit", paintMode ? "1" : "0");
+    render();
+};

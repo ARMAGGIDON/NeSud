@@ -36,6 +36,7 @@ public sealed class AppState
     set; }
     public bool ShowMistakes { get;
     set; } = true;
+    public bool PaintDigit { get; set; }
     public bool AutoClean { get;
     set; } = true;
     public bool HighlightPeers { get;

@@ -45,13 +45,13 @@ internal static partial class SmokeTests
         {
             var path = Path.Combine(folder, "state.json");
             var store = new StateStore(path);
-            var state = new AppState { Game = g, Dark = false, ShowMistakes = false };
+            var state = new AppState { Game = g, Dark = false, ShowMistakes = false, PaintDigit = true };
             store.Save(state);
             var loaded = store.Load();
             Check(loaded.Game is { } restored && restored.Valid() && restored.Seconds == 123 &&
                 restored.NotesMode && restored.Values.SequenceEqual(g.Values) &&
                 restored.Notes.SequenceEqual(g.Notes) && restored.UndoStack.Count == g.UndoStack.Count &&
-                !loaded.Dark && !loaded.ShowMistakes, "Persistence round trip");
+                !loaded.Dark && !loaded.ShowMistakes && loaded.PaintDigit, "Persistence round trip");
             g.Seconds = 124;
             store.Save(state);
             File.WriteAllText(path, "broken");

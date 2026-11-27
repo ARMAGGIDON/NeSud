@@ -313,6 +313,12 @@ public sealed partial class MainWindow : Window
         side.Children.Add(autoFinish);
         side.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => state.HighlightPeers = v));
         side.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
+        side.Children.Add(PaintOption(v =>
+        {
+            state.PaintDigit = v;
+            if (!v) localPaintDigit = 0;
+            else if (G is { } g) SetPaintDigit(DigitOnly ? localFocusDigit : g.Values[g.Selected]);
+        }));
         Gap(side, 9);
 
         var scroll = new ScrollViewer { Content = side, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
@@ -446,6 +452,45 @@ public sealed partial class MainWindow : Window
         return c;
     }
 
+    private CheckBox PaintOption(Action<bool> set)
+    {
+        var toggle = Option("Введення активної цифри кліком", state.PaintDigit, set);
+        toggle.ToolTip = "Виберіть цифру, потім натискайте порожні клітинки. У режимі нотаток цифра додається або стирається.";
+        var template = new ControlTemplate(typeof(CheckBox));
+        var row = new FrameworkElementFactory(typeof(DockPanel));
+        var track = new FrameworkElementFactory(typeof(Border), "Track");
+        track.SetValue(DockPanel.DockProperty, Dock.Left);
+        track.SetValue(FrameworkElement.WidthProperty, 34.0);
+        track.SetValue(FrameworkElement.HeightProperty, 19.0);
+        track.SetValue(FrameworkElement.MarginProperty, new Thickness(0,0,7,0));
+        track.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        track.SetValue(Border.CornerRadiusProperty, new CornerRadius(10));
+        track.SetResourceReference(Border.BackgroundProperty, "ControlBrush");
+        track.SetResourceReference(Border.BorderBrushProperty, "StrongLineBrush");
+        track.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        var knob = new FrameworkElementFactory(typeof(Border), "Knob");
+        knob.SetValue(FrameworkElement.WidthProperty, 13.0);
+        knob.SetValue(FrameworkElement.HeightProperty, 13.0);
+        knob.SetValue(FrameworkElement.MarginProperty, new Thickness(2));
+        knob.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+        knob.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        knob.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
+        knob.SetResourceReference(Border.BackgroundProperty, "MutedBrush");
+        track.AppendChild(knob);
+        row.AppendChild(track);
+        var content = new FrameworkElementFactory(typeof(ContentPresenter));
+        content.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        row.AppendChild(content);
+        template.VisualTree = row;
+        var on = new Trigger { Property = System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, Value = true };
+        on.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension("AccentBrush"), "Track"));
+        on.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension("AccentTextBrush"), "Knob"));
+        on.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right, "Knob"));
+        template.Triggers.Add(on);
+        toggle.Template = template;
+        return toggle;
+    }
+
     private static void AddGameColumns(Grid root)
     {
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -467,7 +512,8 @@ public sealed partial class MainWindow : Window
         Stretch = Stretch.Uniform, MaxWidth = 650, MaxHeight = 650, Child = board
     };
 
-    private Grid BuildBoard() => BuildBoard(cells, i => Select(i), i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); });
+    private Grid BuildBoard() => BuildBoard(cells, ClickCell,
+        i => { if (Playing && (DigitOnly || G!.Selected != i)) Select(i, false); });
 
     private Grid BuildBoard(Button[] target, Action<int> select, Action<int>? focused = null)
     {
@@ -498,7 +544,11 @@ public sealed partial class MainWindow : Window
                     c % 3 == 2 ? 2 : 0.5, r % 3 == 2 ? 2 : 0.5),
                 IsTabStop = false, FocusVisualStyle = null, Cursor = Cursors.Hand };
             b.Click += (_, _) => select(index);
-            if (focused is not null) b.GotKeyboardFocus += (_, _) => focused(index);
+            if (focused is not null) b.GotKeyboardFocus += (_, _) =>
+            {
+                // Mouse focus arrives before Click. Do not replace the active digit before painting.
+                if (Mouse.LeftButton != MouseButtonState.Pressed) focused(index);
+            };
             target[i] = b;
             At(result, b, r, c);
         }

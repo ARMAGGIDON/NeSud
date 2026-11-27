@@ -31,8 +31,8 @@ public sealed partial class MainWindow
         At(play, info, 0, 0);
 
         var boardCells = new Button[81];
-        Action<int>? selectCell = null;
-        var grid = BuildBoard(boardCells, i => selectCell?.Invoke(i), i => selectCell?.Invoke(i));
+        Action<int>? selectCell = null, clickCell = null;
+        var grid = BuildBoard(boardCells, i => clickCell?.Invoke(i), i => selectCell?.Invoke(i));
         var boardArea = new Grid();
         boardArea.Children.Add(BoardView(grid));
         var cover = new Grid();
@@ -86,7 +86,7 @@ public sealed partial class MainWindow
         var window = GamePage("Щоденна гра", root);
         OnlineGameView? game = null;
         bool working = false, note = false, allowClose = false, connected = true;
-        int selected = 0, focusDigit = 0;
+        int selected = 0, focusDigit = 0, paintDigit = 0;
         var anchor = Stopwatch.StartNew();
         double reviveDeadline = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -94,9 +94,10 @@ public sealed partial class MainWindow
         bool Active() => connected && !working && game is { Paused: false, Completed: false, OutOfLives: false, Reward: null };
         void Select(int i)
         {
-            if (!Active() || (selected == i && focusDigit == 0)) return;
+            if (!Active()) return;
             focusDigit = 0;
             selected = i;
+            if (state.PaintDigit && game!.Values[i] != 0) paintDigit = game.Values[i];
             Draw();
         }
         for (int d = 1; d <= 9; d++)
@@ -129,6 +130,12 @@ public sealed partial class MainWindow
         settings.Children.Add(auto);
         settings.Children.Add(Option("Підсвічувати пов’язані клітинки", state.HighlightPeers, v => { state.HighlightPeers = v; Draw(); }));
         settings.Children.Add(Option("Автоматично очищати нотатки", state.AutoClean, v => state.AutoClean = v));
+        settings.Children.Add(PaintOption(v =>
+        {
+            state.PaintDigit = v;
+            paintDigit = v ? (focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0) : 0;
+            Draw();
+        }));
         async Task ChangeAuto(bool enabled)
         {
             if (updatingOptions) return;
@@ -137,6 +144,15 @@ public sealed partial class MainWindow
             if (game is not null && game.AutoFinish != enabled) await Move("auto-finish");
         }
         selectCell = Select;
+        clickCell = i => _ = ClickChallengeCell(i);
+        async Task ClickChallengeCell(int i)
+        {
+            if (!Active() || game is null) return;
+            int digit = paintDigit;
+            bool paint = state.PaintDigit && digit != 0 && game.Values[i] == 0 && game.Givens[i] == 0;
+            Select(i);
+            if (paint) await Move("enter", digit, temporaryNote: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        }
         for (int i = 0; i < padCells.Length; i++)
         {
             int digit = i + 1;
@@ -171,7 +187,7 @@ public sealed partial class MainWindow
         }
         void Accept(OnlineGameView g)
         {
-            if (game?.Id != g.Id) focusDigit = 0;
+            if (game?.Id != g.Id) focusDigit = paintDigit = 0;
             game = g.Empty?null: g;
             connected = true;
             anchor.Restart();
@@ -187,7 +203,7 @@ public sealed partial class MainWindow
             level.Text = game is null ? "Підготовка" : Level(game.Difficulty);
             bool editable = active && focusDigit == 0 && game!.Givens[selected] == 0 &&
                 (game.Values[selected] == 0 || game.Wrong[selected]);
-            int highlighted = focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0;
+            int highlighted = state.PaintDigit && paintDigit != 0 ? paintDigit : focusDigit != 0 ? focusDigit : game?.Values[selected] ?? 0;
             for (int i = 0; i < 81; i++)
             {
                 var b = boardCells[i];
@@ -280,6 +296,7 @@ public sealed partial class MainWindow
         async Task EnterDigit(int digit, bool temporaryNote = false)
         {
             if (!Active() || game is null) return;
+            if (state.PaintDigit && digit > 0) paintDigit = digit;
             bool locked = game.Givens[selected] != 0 || (game.Values[selected] != 0 && !game.Wrong[selected]);
             if (focusDigit != 0 || locked)
             {
@@ -311,7 +328,11 @@ public sealed partial class MainWindow
                     _ = Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) _ = ShowWinReward(wonId, day); }));
                 }
                 if (action != "hint") selected = cell;
-                else focusDigit = 0;
+                else
+                {
+                    focusDigit = 0;
+                    if (state.PaintDigit) paintDigit = g.Values[selected];
+                }
                 return true;
             }
             catch (Exception ex)

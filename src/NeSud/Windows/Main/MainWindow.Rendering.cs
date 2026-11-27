@@ -50,7 +50,8 @@ public sealed partial class MainWindow : Window
             levels[i].FontWeight = chosen ? FontWeights.SemiBold : FontWeights.Normal;
             levels[i].IsEnabled = !Busy;
         }
-        int selectedValue = g is null ? 0 : DigitOnly ? localFocusDigit : g.Values[g.Selected];
+        int selectedValue = g is null ? 0 : state.PaintDigit && ActivePaintDigit != 0 ? ActivePaintDigit :
+            DigitOnly ? localFocusDigit : g.Values[g.Selected];
         for (int i = 0; i < 81; i++)
         {
             var b = cells[i];

@@ -10,7 +10,7 @@ function accept(data) {
         selected = Math.max(0, Math.min(80, selected));
         reviveEnd = performance.now() + (game.reviveRemainingMs || 0);
         if (previousGame?.id !== game.id) {
-            focusDigit = 0;
+            focusDigit = paintDigit = 0;
             selected = Math.max(0, Math.min(80, game.selected ?? 0));
             resultKey = "";
             comparison = null;
@@ -89,8 +89,7 @@ async function act(action, extra = { }) {
             return true
         }accept(data);
         if (action === "hint") {
-            focusDigit = 0;
-            selected = game.selected;
+            selectCell(game.selected);
             animate(buttons[selected], "hint-pulse")
         }
         if (game.completed && !previousGame?.completed && !guestMode) refreshDaily();
