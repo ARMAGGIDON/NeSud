@@ -19,7 +19,7 @@ public sealed partial class ServerStore
                 puzzle_id INTEGER PRIMARY KEY,
                 givens TEXT NOT NULL CHECK(json_valid(givens) AND json_array_length(givens)=81),
                 solution TEXT NOT NULL CHECK(json_valid(solution) AND json_array_length(solution)=81),
-                difficulty INTEGER NOT NULL,
+                difficulty INTEGER NOT NULL CHECK(difficulty BETWEEN 0 AND 3),
                 UNIQUE(givens,solution,difficulty));
             CREATE TABLE history (
                 cursor INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +54,8 @@ public sealed partial class ServerStore
             """))
             if (Convert.ToInt64(check.ExecuteScalar()) != 0) throw new InvalidDataException("History migration lost records.");
 
+        // Legacy challenge attempts may have audit entries; copy them before adding the audit FK.
+        MigrateChallengeHistory(c, tx);
         using (var schema = Tx(c, tx, """
             DROP TABLE history_legacy;
             CREATE VIEW history_records AS
@@ -73,6 +75,15 @@ public sealed partial class ServerStore
             CREATE INDEX ix_history_puzzle ON history(puzzle_id);
             CREATE INDEX ix_history_web_order ON history(name,ended_jd,id) WHERE source='web';
             CREATE INDEX ix_history_puzzle_difficulty ON history_puzzles(difficulty,puzzle_id);
+            ALTER TABLE speed_audit RENAME TO speed_audit_legacy;
+            CREATE TABLE speed_audit (
+                name TEXT NOT NULL, id TEXT NOT NULL,
+                moves INTEGER NOT NULL CHECK(moves>=0), fast_intervals INTEGER NOT NULL CHECK(fast_intervals>=0),
+                flagged INTEGER NOT NULL CHECK(flagged IN (0,1)),
+                PRIMARY KEY(name,id), FOREIGN KEY(name,id) REFERENCES history(name,id) ON DELETE CASCADE
+            ) WITHOUT ROWID;
+            INSERT INTO speed_audit SELECT name,id,moves,fast_intervals,flagged FROM speed_audit_legacy;
+            DROP TABLE speed_audit_legacy;
             CREATE INDEX ix_speed_flagged ON speed_audit(name,id) WHERE flagged=1;
             CREATE INDEX ix_desktop_drafts_updated ON desktop_drafts(name,updated DESC);
             CREATE INDEX ix_tokens_name ON tokens(name);
@@ -110,6 +121,9 @@ public sealed partial class ServerStore
 
         using (var schema = Tx(c, tx, """
             ALTER TABLE daily_packs DROP COLUMN options;
+            CREATE TRIGGER daily_pack_initial_choice BEFORE INSERT ON daily_packs
+                WHEN NEW.chosen IS NOT NULL
+                BEGIN SELECT RAISE(ABORT,'New reward pack must be unclaimed'); END;
             CREATE TRIGGER daily_pack_choice_guard BEFORE UPDATE OF chosen ON daily_packs
                 WHEN NEW.chosen IS NOT NULL AND NOT EXISTS(
                     SELECT 1 FROM daily_pack_cards k WHERE
@@ -121,6 +135,10 @@ public sealed partial class ServerStore
                 rewarded_at INTEGER NOT NULL);
             INSERT INTO referral_rewards SELECT invited,rewarded_at FROM referral_rewards_legacy;
             DROP TABLE referral_rewards_legacy;
+            CREATE TRIGGER referral_reward_guard BEFORE INSERT ON referral_rewards
+                WHEN NOT EXISTS(SELECT 1 FROM account_profiles p
+                    WHERE p.name=NEW.invited AND p.referred_by IS NOT NULL AND p.name<>p.referred_by)
+                BEGIN SELECT RAISE(ABORT,'Invalid referral'); END;
             CREATE TRIGGER immutable_referrer BEFORE UPDATE OF referred_by ON account_profiles
                 WHEN OLD.referred_by IS NOT NEW.referred_by
                 BEGIN SELECT RAISE(ABORT,'Referrer is immutable'); END;

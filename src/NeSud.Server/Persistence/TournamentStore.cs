@@ -100,7 +100,8 @@ public sealed partial class ServerStore
             SELECT s.name,s.wins,s.perfect,s.current,s.best,s.score,a.username FROM stats s JOIN account_profiles a ON a.name=s.name
             ORDER BY
             """.Replace("($all=1 OR h.source='web')", all ? "1=1" : "h.source='web'")
-                + " " + order + " DESC,s.score DESC,s.name LIMIT 100", ("$d", difficulty is null?null: (int)difficulty.Value));
+                .Replace("($d IS NULL OR p.difficulty=$d)", difficulty is null ? "1=1" : "p.difficulty=$d")
+                + " " + order + " DESC,s.score DESC,s.name LIMIT 100", difficulty is null ? [] : [("$d", (int)difficulty.Value)]);
         using var rows = cmd.ExecuteReader();
         var result = new List<AccumulatedRank > ();
         while (rows.Read()) result.Add(new(rows.GetString(6), rows.GetInt64(1), rows.GetInt64(2), rows.GetInt64(3), rows.GetInt64(4), rows.GetInt64(5)));

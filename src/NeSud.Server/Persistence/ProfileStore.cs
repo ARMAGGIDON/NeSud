@@ -59,17 +59,22 @@ public sealed partial class ServerStore
         using (var cmd = Database.Command(c, "SELECT COUNT(*) FROM challenge_wins WHERE name=$n", ("$n", name))) dailyWins = Convert.ToInt32(cmd.ExecuteScalar());
         var history = new List<PublicGame > ();
         using (var cmd = Database.Command(c, """
-            SELECT r.payload FROM history h JOIN history_puzzles p USING(puzzle_id)
-            JOIN history_records r ON r.cursor=h.cursor
+            SELECT h.ended,h.challenge_day,h.source,p.difficulty,h.outcome,h.seconds,h.score,h.mistakes,h.hints,
+                coalesce(json_extract(h.game,'$.candidateUses'),0),coalesce(json_extract(h.game,'$.autoFilled'),0),
+                coalesce(json_extract(h.game,'$.lifeRestores'),0)
+            FROM history h JOIN history_puzzles p USING(puzzle_id)
             WHERE h.name=$n AND ($d IS NULL OR p.difficulty=$d)
             ORDER BY h.ended_jd DESC,h.id LIMIT 51 OFFSET $offset
-            """, ("$n", name), ("$offset", page * 50), ("$d", difficulty is null?null: (int)difficulty.Value)))
+            """.Replace("($d IS NULL OR p.difficulty=$d)", difficulty is null ? "1=1" : "p.difficulty=$d"),
+            difficulty is null ? [("$n", name), ("$offset", page * 50)] :
+                [("$n", name), ("$offset", page * 50), ("$d", (int)difficulty.Value)]))
         using (var rows = cmd.ExecuteReader()) while (rows.Read())
         {
-            var r = Database.Decode<GameRecord > (rows.GetString(0));
-            var g = r.Game;
-            string? day = r.ChallengeDay;
-            history.Add(new(r.Ended, day is null?"regular": "challenge", r.Source, g.Puzzle.Difficulty, r.Outcome, g.Seconds, r.Score, g.Mistakes, g.Hints, g.CandidateUses, g.AutoFilled, g.LifeRestores, day));
+            string? day = rows.IsDBNull(1) ? null : rows.GetString(1);
+            history.Add(new(DateTimeOffset.Parse(rows.GetString(0), CultureInfo.InvariantCulture),
+                day is null ? "regular" : "challenge", rows.GetString(2), (Difficulty)rows.GetInt32(3),
+                rows.GetString(4), rows.GetInt32(5), rows.GetInt32(6), rows.GetInt32(7), rows.GetInt32(8),
+                rows.GetInt32(9), rows.GetInt32(10), rows.GetInt32(11), day));
         }
         bool more = history.Count > 50;
         if (more)history.RemoveAt(50);

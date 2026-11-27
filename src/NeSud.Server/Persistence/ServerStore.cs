@@ -38,10 +38,6 @@ public sealed partial class ServerStore
             CREATE TABLE IF NOT EXISTS wallet (name TEXT NOT NULL REFERENCES accounts(name), kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>=0), PRIMARY KEY(name,kind));
             CREATE TABLE IF NOT EXISTS wallet_spends (name TEXT NOT NULL REFERENCES accounts(name), operation TEXT NOT NULL, game_id TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(name,operation));
 
-
-
-
-
             CREATE INDEX IF NOT EXISTS ix_daily_pending ON daily_packs(name,day) WHERE chosen IS NULL;
             CREATE INDEX IF NOT EXISTS ix_tokens_expiry ON tokens(expires);
             CREATE TABLE IF NOT EXISTS tournament_state (id INTEGER PRIMARY KEY CHECK(id=1), next_week TEXT NOT NULL);
@@ -73,5 +69,7 @@ public sealed partial class ServerStore
         seed.ExecuteNonQuery();
         PruneChallengeSessions(migration, tx);
         tx.Commit();
+        using var optimize = Database.Command(migration, "PRAGMA optimize");
+        optimize.ExecuteNonQuery();
     }
 }
