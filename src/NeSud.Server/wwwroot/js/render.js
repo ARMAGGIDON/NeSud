@@ -124,7 +124,15 @@ function render() {
     updateRevive();
 }
 document.addEventListener("keydown", e => {
-    if (tab !== "play" || !online || !game || e.target.matches("input,select,textarea") || e.target.closest("header") || document.querySelector("dialog[open]") || adPending) return;
+    if (tab !== "play" || !online || !game || document.querySelector("dialog[open]") || adPending) return;
+    if (e.target.matches("input:not([type=checkbox]),select,textarea,[contenteditable=true]") || e.altKey || e.metaKey) return;
+    const notesShortcut = !e.ctrlKey && (e.code === "KeyN" || e.code === "Space" || e.key.toLowerCase() === "n" || e.key === " ");
+    if (notesShortcut && !game.paused && !game.completed && !game.outOfLives && !game.reward) {
+        e.preventDefault();
+        if (!e.repeat) { note = !note; render(); }
+        return;
+    }
+    if (e.target.matches("input") || e.target.closest("header")) return;
     let k = e.key.toLowerCase();
     if (k === "p" || k === "escape") {
         act(game.paused ? "resume": "pause");
@@ -137,10 +145,7 @@ document.addEventListener("keydown", e => {
     else if (e.ctrlKey) return;
     else if (/^[1-9]$/.test(k)) enter(Number(k), e.shiftKey);
     else if (["delete", "backspace", "0"].includes(k)) enter(0);
-    else if (k === "n" || k === " ") {
-        note = !note;
-        render()
-    }else if (k === "h") tool("hint");
+    else if (k === "h") tool("hint");
     else if (k === "a") tool("candidates");
     else if (k.startsWith("arrow")) {
         let r = Math.floor(selected / 9), c = selected % 9;

@@ -222,10 +222,18 @@ public sealed partial class MainWindow
         erase.Click += async (_, _) => await QueueInput(() => EnterDigit(0));
         undo.Click += async (_, _) => await Move("undo");
         redo.Click += async (_, _) => await Move("redo");
-        notes.Click += (_, _) => {
-            note = !note;
-            Draw();
-        };
+        void ToggleChallengeNotes()
+        {
+            if (!CanInput()) return;
+            _ = QueueInput(() =>
+            {
+                note = !note;
+                Draw();
+                return Task.CompletedTask;
+            });
+        }
+        notes.Click += (_, _) => ToggleChallengeNotes();
+        window.ToggleNotesAction = ToggleChallengeNotes;
         hint.Click += async (_, _) => await Aid("hint");
         candidates.Click += async (_, _) => await Aid("candidates");
         pause.Click += async (_, _) => await Move(game?.Paused == true ? "resume" : "pause");
@@ -291,7 +299,8 @@ public sealed partial class MainWindow
                 [("Заповнено", $"{filled} / 81"), ("Ваші клітинки", $"{filled - givens} / {81 - givens}"), ("Підказки", game.Hints.ToString())]);
             progressBar.Value = filled;
             erase.IsEnabled = editable;
-            notes.IsEnabled = hint.IsEnabled = candidates.IsEnabled = active;
+            notes.IsEnabled = CanInput();
+            hint.IsEnabled = candidates.IsEnabled = active;
             undo.IsEnabled = active && game!.CanUndo;
             redo.IsEnabled = active && game!.CanRedo;
             hint.Content = $"Підказка ({game?.HintCredits ?? 0})";
@@ -612,10 +621,6 @@ public sealed partial class MainWindow
                         boardCells[selected].Focus();
                         return Task.CompletedTask;
                     });
-                }
-                else if (e.Key == Key.N || e.Key == Key.Space && Keyboard.FocusedElement is Button button && boardCells.Contains(button))
-                {
-                    _ = QueueInput(() => { note = !note; Draw(); return Task.CompletedTask; });
                 }
                 else if (e.Key == Key.H) _ = QueueInput(() => Aid("hint"));
                 else if (e.Key == Key.A) _ = QueueInput(() => Aid("candidates"));
