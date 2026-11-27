@@ -27,6 +27,53 @@ builder.Services.AddRateLimiter(o =>
 });
 var app = builder.Build();
 shutdownTrace?.Observe(app.Lifetime);
+var stopping = app.Lifetime.ApplicationStopping;
+int activeHttp = 0, activeSockets = 0;
+if (shutdownTrace is not null)
+    stopping.Register(() => shutdownTrace.Write($"Shutdown.pending http={Volatile.Read(ref activeHttp)} websocket={Volatile.Read(ref activeSockets)}"));
+
+app.UseWebSockets();
+app.Use(async (context, next) =>
+{
+    if (stopping.IsCancellationRequested)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        return;
+    }
+
+    bool socket = context.Request.Path.StartsWithSegments("/hubs/game") &&
+        context.WebSockets.IsWebSocketRequest;
+    if (socket)
+    {
+        Interlocked.Increment(ref activeSockets);
+        try
+        {
+            // The host must not wait for an idle persistent transport to drain.
+            // Cancel only WebSockets; ordinary HTTP requests retain graceful shutdown.
+            using var registration = stopping.Register(() =>
+            {
+                shutdownTrace?.Write("WebSocket.abort");
+                context.Abort();
+            });
+            await next();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref activeSockets);
+            if (stopping.IsCancellationRequested) shutdownTrace?.Write("WebSocket.drained");
+        }
+    }
+    else
+    {
+        Interlocked.Increment(ref activeHttp);
+        try { await next(); }
+        finally
+        {
+            Interlocked.Decrement(ref activeHttp);
+            if (stopping.IsCancellationRequested) shutdownTrace?.Write("Http.drained");
+        }
+    }
+});
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
@@ -46,6 +93,7 @@ app.MapHub<GameHub>("/hubs/game", options =>
     options.Transports = HttpTransportType.WebSockets;
     options.ApplicationMaxBufferSize = 32 * 1024;
     options.TransportMaxBufferSize = 32 * 1024;
+    options.WebSockets.CloseTimeout = TimeSpan.FromSeconds(2);
 });
 try
 {
