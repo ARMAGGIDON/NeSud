@@ -47,7 +47,7 @@ public sealed partial class MainWindow
         var email = new TextBox { Text = settings?.Email ?? "", MaxLength = 254, IsReadOnly = true,
             Margin = new Thickness(0, 5, 0, 14) };
         panel.Children.Add(email);
-        var notice = Text(loadError ?? "", 13, "Muted");
+        var notice = Text(loadError ?? "", 13, loadError is null ? "Muted" : "Wrong");
         notice.Margin = new Thickness(0, 8, 0, 0);
         var verification = Stack();
         verification.Visibility = Visibility.Collapsed;
@@ -84,9 +84,17 @@ public sealed partial class MainWindow
         {
             if (busy || account?.Token != sessionToken || !window.IsVisible) return;
             busy = true;
+            notice.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
             save.IsEnabled = sync.IsEnabled = signOut.IsEnabled = verification.IsEnabled = false;
             try { await action(); }
-            catch (Exception ex) { if (window.IsVisible) notice.Text = ex.Message; }
+            catch (Exception ex)
+            {
+                if (window.IsVisible)
+                {
+                    notice.SetResourceReference(TextBlock.ForegroundProperty, "WrongBrush");
+                    notice.Text = ex.Message;
+                }
+            }
             finally
             {
                 busy = false;

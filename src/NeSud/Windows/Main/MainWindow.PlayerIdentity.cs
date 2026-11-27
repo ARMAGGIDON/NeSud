@@ -181,7 +181,7 @@ public sealed partial class MainWindow
         mark.VerticalAlignment = VerticalAlignment.Center;
         var frame = new Border { Child = mark, Width = 24, Height = 24, CornerRadius = new CornerRadius(12),
             Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Пошта підтверджена" };
+            ToolTip = "Пошта підтверджена", Focusable = true };
         frame.SetResourceReference(Border.BackgroundProperty, "SameBrush");
         ToolTipService.SetShowOnDisabled(frame, true);
         System.Windows.Automation.AutomationProperties.SetName(frame, "Пошта підтверджена");
