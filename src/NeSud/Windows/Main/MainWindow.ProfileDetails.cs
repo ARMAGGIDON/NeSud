@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Shapes;
 using NeSud.Core;
 
 namespace NeSud;
@@ -13,8 +14,8 @@ public sealed partial class MainWindow
     private Button connectionIndicator = null!;
     private DateTimeOffset? lastConnectionResponse;
 
-    private sealed record ConnectionStatusView(System.Windows.Shapes.Path Icon, TextBlock Heading,
-        TextBlock Detail, Popup Popup, ScaleTransform Scale)
+    private sealed record ConnectionStatusView(Ellipse Dot, Ellipse Ring, TextBlock Heading,
+        TextBlock Detail, Popup Popup)
     {
         public bool? Online { get; set; }
         public string? Message { get; set; }
@@ -23,34 +24,26 @@ public sealed partial class MainWindow
     private Button ConnectionIndicator()
     {
         var scale = new ScaleTransform(1, 1);
-        var icon = new System.Windows.Shapes.Path
+        var ring = new Ellipse
         {
-            Data = Geometry.Parse("M3,8 Q12,0 21,8 M6,12 Q12,6 18,12 M9,16 Q12,13 15,16 M12,20 L12.01,20"),
-            Width = 19, Height = 19, Stretch = Stretch.Uniform, StrokeThickness = 2,
-            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            VerticalAlignment = VerticalAlignment.Center, RenderTransform = scale,
-            RenderTransformOrigin = new Point(.5, .5)
+            Width = 20, Height = 20, StrokeThickness = 1.5, Opacity = .32,
+            RenderTransform = scale, RenderTransformOrigin = new Point(.5, .5)
         };
-        icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "MutedBrush");
-        var arrowRotation = new RotateTransform();
-        var arrow = new System.Windows.Shapes.Path
+        var dot = new Ellipse { Width = 9, Height = 9 };
+        ring.SetResourceReference(Shape.StrokeProperty, "MutedBrush");
+        dot.SetResourceReference(Shape.FillProperty, "MutedBrush");
+        var content = new Grid { Width = 28, Height = 28, IsHitTestVisible = false };
+        foreach (var element in new FrameworkElement[] { ring, dot })
         {
-            Data = Geometry.Parse("M0,0 L3,3 L6,0"), Width = 7, Height = 5, Stretch = Stretch.Uniform,
-            StrokeThickness = 1.5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0),
-            RenderTransform = arrowRotation, RenderTransformOrigin = new Point(.5, .5)
-        };
-        arrow.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "MutedBrush");
-        var content = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        content.Children.Add(icon);
-        content.Children.Add(arrow);
+            element.HorizontalAlignment = HorizontalAlignment.Center;
+            element.VerticalAlignment = VerticalAlignment.Center;
+            content.Children.Add(element);
+        }
         var button = Action("", tip: "Стан з’єднання");
         button.Content = content;
-        button.Background = Brushes.Transparent;
-        button.BorderBrush = Brushes.Transparent;
-        button.Width = 48;
-        button.MinHeight = 38;
-        button.Padding = new Thickness(5, 0, 5, 0);
+        button.Width = 46;
+        button.MinHeight = 46;
+        button.Padding = new Thickness(0);
         button.Margin = new Thickness(0);
         button.VerticalAlignment = VerticalAlignment.Center;
 
@@ -66,22 +59,29 @@ public sealed partial class MainWindow
         card.Focusable = true;
         var popup = new Popup
         {
-            PlacementTarget = button, Placement = PlacementMode.Bottom, VerticalOffset = 5,
+            PlacementTarget = button, Placement = PlacementMode.Custom,
+            CustomPopupPlacementCallback = (size, target, _) =>
+            [
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, target.Height + 8), PopupPrimaryAxis.Horizontal),
+                new CustomPopupPlacement(new Point((target.Width - size.Width) / 2, -size.Height - 8), PopupPrimaryAxis.Horizontal)
+            ],
             Child = card, StaysOpen = false, AllowsTransparency = true,
             PopupAnimation = SystemParameters.ClientAreaAnimation ? PopupAnimation.Fade : PopupAnimation.None
         };
-        button.Tag = new ConnectionStatusView(icon, title, detail, popup, scale);
+        button.Tag = new ConnectionStatusView(dot, ring, title, detail, popup);
         button.Click += (_, _) => popup.IsOpen = true;
         popup.Opened += (_, _) =>
         {
             ToolTipService.SetIsEnabled(button, false);
-            arrowRotation.Angle = 180;
+            button.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
+            Hover();
             card.Focus();
         };
         popup.Closed += (_, _) =>
         {
-            arrowRotation.Angle = 0;
+            button.SetResourceReference(Control.BorderBrushProperty, "LineBrush");
             ToolTipService.SetIsEnabled(button, true);
+            Hover();
         };
         card.PreviewKeyDown += (_, e) =>
         {
@@ -95,21 +95,24 @@ public sealed partial class MainWindow
 
         void Hover()
         {
-            bool active = button.IsMouseOver || button.IsKeyboardFocused;
-            if (active) button.SetResourceReference(Control.BackgroundProperty, "PeerBrush");
-            else button.Background = Brushes.Transparent;
-            double size = active && SystemParameters.ClientAreaAnimation ? 1.13 : 1;
+            bool active = button.IsMouseOver || button.IsKeyboardFocused || popup.IsOpen;
+            button.SetResourceReference(Control.BackgroundProperty, active ? "PeerBrush" : "ControlBrush");
+            double opacity = active ? .8 : .32;
+            double size = active ? 1.13 : 1;
             if (SystemParameters.ClientAreaAnimation)
             {
-                var animation = new DoubleAnimation(size, TimeSpan.FromMilliseconds(160));
-                scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
-                scale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+                var duration = TimeSpan.FromMilliseconds(160);
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(size, duration));
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(size, duration));
+                ring.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(opacity, duration));
             }
             else
             {
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
                 scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                ring.BeginAnimation(UIElement.OpacityProperty, null);
                 scale.ScaleX = scale.ScaleY = 1;
+                ring.Opacity = opacity;
             }
         }
         button.MouseEnter += (_, _) => Hover();
@@ -133,7 +136,8 @@ public sealed partial class MainWindow
         if (view.Online != online)
         {
             string color = online ? "OnlineBrush" : "MutedBrush";
-            view.Icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, color);
+            view.Dot.SetResourceReference(Shape.FillProperty, color);
+            view.Ring.SetResourceReference(Shape.StrokeProperty, color);
             view.Heading.SetResourceReference(TextBlock.ForegroundProperty, color);
             view.Heading.Text = title;
             view.Online = online;
@@ -142,7 +146,7 @@ public sealed partial class MainWindow
         if (view.Message == message) return;
         view.Message = message;
         view.Detail.Text = detail;
-        button.ToolTip = message + "\nНатисніть, щоб відкрити деталі.";
+        button.ToolTip = "Стан з’єднання: " + title + ". Натисніть для деталей.";
         System.Windows.Automation.AutomationProperties.SetName(button, "Стан з’єднання: " + title);
         System.Windows.Automation.AutomationProperties.SetHelpText(button, detail);
     }
