@@ -180,3 +180,39 @@ test("route storage is cleared on account reset and tolerates invalid JSON", () 
     sessionStorage.setItem("nesud.navigation.v1", "{");
     assert.equal(app.readRoute().tab, "menu");
 });
+
+test("select wheel changes unfocused options without wrapping or triggering duplicate changes", () => {
+    const listeners = {}, dispatched = [];
+    const root = { addEventListener: (name, fn) => { listeners[name] = fn; } };
+    class MockEvent { constructor(type) { this.type = type; } }
+    new Function("document", "Event", read("select-wheel.js"))(root, MockEvent);
+    const select = {
+        selectedIndex: 0, options: [{}, { disabled: true }, {}, {}],
+        closest: () => select, matches: () => false, dispatchEvent: e => dispatched.push(e.type)
+    };
+    let time = 0;
+    function wheel(deltaY, extra = {}) {
+        let prevented = false;
+        listeners.wheel({ target: select, deltaY, deltaX: 0, deltaMode: 0, timeStamp: time += 20,
+            cancelable: true, preventDefault() { prevented = true; }, ...extra });
+        return prevented;
+    }
+    assert.equal(wheel(100), true);
+    assert.equal(select.selectedIndex, 2);
+    assert.equal(dispatched.join(","), "input,change");
+    wheel(100);
+    wheel(100);
+    assert.equal(select.selectedIndex, 3);
+    assert.equal(dispatched.length, 4);
+    wheel(-20);
+    assert.equal(select.selectedIndex, 3);
+    wheel(-20);
+    assert.equal(select.selectedIndex, 2);
+    assert.equal(wheel(-100, { ctrlKey: true }), false);
+    assert.equal(select.selectedIndex, 2);
+    select.matches = query => query === ":open";
+    assert.equal(wheel(100), false);
+    select.matches = query => query === ":disabled";
+    assert.equal(wheel(100), false);
+    assert.equal(dispatched.length, 6);
+});
