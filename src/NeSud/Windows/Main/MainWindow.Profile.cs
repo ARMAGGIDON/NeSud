@@ -122,12 +122,20 @@ public sealed partial class MainWindow
                     tools.Children.Add(Action(p.Verified ? "Налаштування профілю" : "Підтвердити пошту", async () =>
                     {
                         await EditOwnProfile();
-                        if (window.IsVisible) await Load();
+                        if (sessionToken != account?.Token || scope != Scope) window.Close();
+                        else if (window.IsVisible) await Load();
                     }));
                     if (p.Verified) tools.Children.Add(Action("Запрошення", async () => await ShowInvitations()));
                 }
-                if (own && (account is null || local))
-                    tools.Children.Add(Action(account is null ? "Увійти" : "Акаунт", () => { ShowAccount(); if (sessionToken != account?.Token || scope != Scope) window.Close(); }));
+                if (own && account is null)
+                    tools.Children.Add(Action("Увійти", () => { ShowAccount(); if (sessionToken != account?.Token || scope != Scope) window.Close(); }));
+                else if (own && local)
+                    tools.Children.Add(Action("Налаштування профілю", async () =>
+                    {
+                        await EditOwnProfile();
+                        if (sessionToken != account?.Token || scope != Scope) window.Close();
+                        else if (window.IsVisible) await Load();
+                    }));
                 foreach (Button button in tools.Children) button.Margin = new Thickness(4, 2, 0, 2);
                 body.Children.Clear();
                 body.Children.Add(Text("Статистика", 18, "Text", true));

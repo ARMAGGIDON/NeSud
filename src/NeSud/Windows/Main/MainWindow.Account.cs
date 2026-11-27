@@ -65,45 +65,15 @@ public sealed partial class MainWindow : Window
 
     private void ShowAccount()
     {
-        if (state.PendingReward is not null && account is not null)
+        if (account is not null)
         {
-            Dialog("Винагорода", "Спочатку дочекайтеся підтвердження отримання ресурсу.", false);
+            _ = EditOwnProfile();
             return;
         }
         var panel = Stack();
-        panel.Children.Add(Text("Акаунт", 24, "Text", true));
-        Gap(panel);
-        var window = Modal("Акаунт", panel, 480);
-        if (account is not null)
+        var window = Modal("Профіль", panel, 480, compactHeader: true);
         {
-            panel.Children.Add(PlayerIdentity(account.Username ?? account.User, 48));
-            
-            var syncIndicator = ConnectionIndicator();
-            syncIndicator.HorizontalAlignment = HorizontalAlignment.Left;
-            SetConnectionIndicator(syncIndicator, reachable, lastConnectionResponse, "Автоматична синхронізація після відновлення зв’язку.");
-            panel.Children.Add(syncIndicator);
-            Gap(panel, 18);
-            panel.Children.Add(Action("Синхронізувати зараз", () => {
-                window.Close();
-                _ = Sync();
-            }, primary: true));
-            panel.Children.Add(Action("Вийти з акаунта", () =>
-            {
-                if (!Dialog("Вихід", "Перейти в гостьовий режим? Локальні ігри акаунта залишаться у його історії.", true)) return;
-                var old = account;
-                account = null;
-                state.ProtectedSession = null;
-                state.AccountScope = "";
-                daily = null;
-                SwitchProfileGame();
-                Save();
-                window.Close();
-                if (old is not null) _ = Revoke(old, serverUrl);
-            }));
-        }
-        else
-        {
-            var title = Text("Вхід до акаунта", 16, "Muted", true);
+            var title = Text("Вхід до профілю", 16, "Muted", true);
             panel.Children.Add(title);
             Gap(panel);
             var tabs = new UniformGrid { Columns = 2 };
@@ -114,10 +84,10 @@ public sealed partial class MainWindow : Window
                 Text = Scope.Length == 0 ? "" : Scope.Split('|')[^ 1] };
             var emailPanel = Stack();
             emailPanel.Children.Add(Text("Електронна пошта"));
-            var email = new TextBox { MaxLength = 254 };
+            var email = new TextBox { MaxLength = 254, Margin = new Thickness(0, 4, 0, 12) };
             emailPanel.Children.Add(email);
             emailPanel.Children.Add(Text("Код запрошення (необов’язково)"));
-            var invite = new TextBox { MaxLength = 32 };
+            var invite = new TextBox { MaxLength = 32, Margin = new Thickness(0, 4, 0, 12) };
             emailPanel.Children.Add(invite);
             var password = PasswordInput();
             var confirm = PasswordInput();
@@ -136,7 +106,7 @@ public sealed partial class MainWindow : Window
                 confirm.Clear();
                 notice.Text = "";
                 submit.Content = value ? "Зареєструватися" : "Увійти";
-                title.Text = value ? "Створення акаунта" : "Вхід до акаунта";
+                title.Text = value ? "Створення профілю" : "Вхід до профілю";
                 loginTab.Background = B(value ? "Control" : "Same");
                 registerTab.Background = B(value ? "Same" : "Control");
             }
@@ -240,6 +210,27 @@ public sealed partial class MainWindow : Window
             }));
         }
         window.ShowDialog();
+    }
+
+    private bool SignOutProfile()
+    {
+        if (state.PendingReward is not null)
+        {
+            Dialog("Винагорода", "Спочатку дочекайтеся підтвердження отримання ресурсу.", false);
+            return false;
+        }
+        if (!Dialog("Вихід", "Перейти в гостьовий режим? Локальні ігри профілю залишаться у його історії.", true))
+            return false;
+        var old = account;
+        account = null;
+        state.ProtectedSession = null;
+        state.AccountScope = "";
+        daily = null;
+        SwitchProfileGame();
+        Save();
+        UpdateConnection();
+        if (old is not null) _ = Revoke(old, serverUrl);
+        return true;
     }
 
     private void SwitchProfileGame()
